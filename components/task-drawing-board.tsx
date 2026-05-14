@@ -5,7 +5,7 @@ import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn, makeId } from "@/utils/workflow"
 import { type DrawingScene } from "@/store/workflow-store"
 
-type CanvasTool = "select" | "pen" | "line" | "text" | "eraser"
+type CanvasTool = "select" | "pen" | "line" | "text" | "number" | "eraser"
 
 type CanvasSize = {
   width: number
@@ -43,7 +43,7 @@ type LineShape = {
 type TextShape = {
   id: string
   kind: "text"
-  tool: "text"
+  tool: "text" | "number"
   position: CanvasPoint
   text: string
   fontSize: number
@@ -92,13 +92,14 @@ type InteractionState =
 
 const CANVAS_KIND = "flujo-pro-canvas"
 const CANVAS_VERSION = 1
-const DEFAULT_CANVAS_SIZE: CanvasSize = { width: 1200, height: 820 }
+const VIRTUAL_CANVAS: CanvasSize = { width: 1400, height: 900 }
 
 const TOOL_SHORTCUT_HINTS: Record<CanvasTool, string> = {
   select: "Selecciona y arrastra elementos.",
   pen: "Dibuja trazos libres con el mouse o el dedo.",
   line: "Haz clic y arrastra para trazar una línea recta.",
   text: "Haz clic para colocar una nota. Doble clic para editarla.",
+  number: "Haz clic para colocar una medición (ej: 300 mm, 45.5 cm).",
   eraser: "Pasa por encima de un elemento para borrarlo."
 }
 
@@ -107,8 +108,26 @@ const SHAPE_COLORS = {
   line: "#004064",
   text: "#865300",
   textFill: "#172839",
-  textBackground: "#ffffff"
+  textBackground: "#ffffff",
+  numberFill: "#ffffff",
+  numberBackground: "#004064",
+  numberStroke: "#004064"
 }
+
+const STROKE_PALETTE = [
+  { color: "#172839", label: "Negro" },
+  { color: "#004064", label: "Azul" },
+  { color: "#b3261e", label: "Rojo" },
+  { color: "#1e6b34", label: "Verde" },
+  { color: "#865300", label: "Naranja" },
+  { color: "#6750a4", label: "Morado" }
+]
+
+const STROKE_WIDTHS = [
+  { width: 1.5, label: "Fino" },
+  { width: 3, label: "Normal" },
+  { width: 5, label: "Grueso" }
+]
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -126,7 +145,7 @@ function clampPoint(point: CanvasPoint): CanvasPoint {
 }
 
 function isTool(value: unknown): value is CanvasTool {
-  return value === "select" || value === "pen" || value === "line" || value === "text" || value === "eraser"
+  return value === "select" || value === "pen" || value === "line" || value === "text" || value === "number" || value === "eraser"
 }
 
 function isPoint(value: unknown): value is CanvasPoint {
@@ -195,8 +214,21 @@ function toAbsolute(point: CanvasPoint, canvasSize: CanvasSize) {
 }
 
 function toPoint(event: ReactPointerEvent<SVGSVGElement>): CanvasPoint {
-  const rect = event.currentTarget.getBoundingClientRect()
+  const svg = event.currentTarget
+  const ctm = svg.getScreenCTM()
 
+  if (ctm) {
+    const pt = svg.createSVGPoint()
+    pt.x = event.clientX
+    pt.y = event.clientY
+    const svgPt = pt.matrixTransform(ctm.inverse())
+    return clampPoint({
+      x: svgPt.x / VIRTUAL_CANVAS.width,
+      y: svgPt.y / VIRTUAL_CANVAS.height
+    })
+  }
+
+  const rect = svg.getBoundingClientRect()
   if (rect.width <= 0 || rect.height <= 0) {
     return { x: 0, y: 0 }
   }
@@ -480,11 +512,12 @@ function ToolButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex h-11 w-11 items-center justify-center rounded-lg transition-colors",
+        "flex items-center justify-center rounded-lg transition-colors",
+        "h-9 w-9 sm:h-11 sm:w-11",
         active ? "bg-secondary-container text-on-secondary-container shadow-sm" : "text-on-surface-variant hover:bg-surface-container-high"
       )}
     >
-      <MaterialIcon name={icon} filled={active} />
+      <MaterialIcon name={icon} filled={active} className="text-[20px] sm:text-[24px]" />
       <span className="sr-only">{label}</span>
     </button>
   )
@@ -543,7 +576,9 @@ export function TaskDrawingCanvas({
   const [draftShape, setDraftShape] = useState<CanvasShape | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
-  const [canvasSize, setCanvasSize] = useState<CanvasSize>(DEFAULT_CANVAS_SIZE)
+  const [strokeColor, setStrokeColor] = useState(SHAPE_COLORS.pen)
+  const [strokeWidth, setStrokeWidth] = useState(3)
+  const canvasSize = VIRTUAL_CANVAS
 
   const boardRef = useRef<HTMLDivElement | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -599,44 +634,8 @@ export function TaskDrawingCanvas({
     }
   }, [])
 
-  useEffect(() => {
-    const element = boardRef.current
-
-    if (!element) {
-      return
-    }
-
-    const updateSize = () => {
-      const rect = element.getBoundingClientRect()
-      const width = Math.max(1, Math.round(rect.width))
-      const height = Math.max(1, Math.round(rect.height))
-
-      setCanvasSize((current) =>
-        current.width === width && current.height === height ? current : { width, height }
-      )
-    }
-
-    updateSize()
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateSize)
-      return () => {
-        window.removeEventListener("resize", updateSize)
-      }
-    }
-
-    const observer = new ResizeObserver(() => {
-      window.requestAnimationFrame(updateSize)
-    })
-
-    observer.observe(element)
-    window.addEventListener("resize", updateSize)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener("resize", updateSize)
-    }
-  }, [])
+  // Virtual canvas: coordinates are always in VIRTUAL_CANVAS space.
+  // The SVG scales to fit the container via preserveAspectRatio.
 
   useEffect(() => {
     const revision = scene?.updatedAt ?? "__sin-escena__"
@@ -748,7 +747,7 @@ export function TaskDrawingCanvas({
     onSave(buildPersistedScene(shapesRef.current, tool, canvasSize))
     savedSignatureRef.current = serializeShapes(shapesRef.current)
     setHasChanges(false)
-  }, [canvasSize, onSave, tool])
+  }, [onSave, tool])
 
   const handleReset = useCallback(() => {
     const nextShapes = cloneShapes(initialShapesRef.current)
@@ -773,12 +772,12 @@ export function TaskDrawingCanvas({
       kind: "stroke",
       tool: "pen",
       points: [point],
-      stroke: SHAPE_COLORS.pen,
-      strokeWidth: 2.5,
+      stroke: strokeColor,
+      strokeWidth: strokeWidth,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }),
-    []
+    [strokeColor, strokeWidth]
   )
 
   const createLineShape = useCallback(
@@ -788,12 +787,12 @@ export function TaskDrawingCanvas({
       tool: "line",
       from: point,
       to: point,
-      stroke: SHAPE_COLORS.line,
-      strokeWidth: 2,
+      stroke: strokeColor,
+      strokeWidth: strokeWidth,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }),
-    []
+    [strokeColor, strokeWidth]
   )
 
   const createTextShape = useCallback(
@@ -827,8 +826,8 @@ export function TaskDrawingCanvas({
       }
 
       const estimatedWidth = measureWidth(text, 18)
-      const marginX = estimatedWidth / Math.max(1, canvasSize.width) + 0.04
-      const marginY = (18 * 1.4) / Math.max(1, canvasSize.height) + 0.04
+      const marginX = estimatedWidth / Math.max(1, VIRTUAL_CANVAS.width) + 0.04
+      const marginY = (18 * 1.4) / Math.max(1, VIRTUAL_CANVAS.height) + 0.04
       const position = clampPoint({
         x: clamp(point.x, 0.04, Math.max(0.04, 1 - marginX)),
         y: clamp(point.y, 0.04, Math.max(0.04, 1 - marginY))
@@ -837,7 +836,51 @@ export function TaskDrawingCanvas({
       const shape = createTextShape(position, text)
       applyShapes([...shapesRef.current, shape], { selectedId: shape.id })
     },
-    [applyShapes, canvasSize.height, canvasSize.width, createTextShape, measureWidth]
+    [applyShapes, createTextShape, measureWidth]
+  )
+
+  const createNumberShape = useCallback(
+    (point: CanvasPoint, text: string): TextShape => ({
+      id: makeId("num"),
+      kind: "text",
+      tool: "number",
+      position: point,
+      text,
+      fontSize: 20,
+      stroke: SHAPE_COLORS.numberStroke,
+      strokeWidth: 0,
+      fill: SHAPE_COLORS.numberFill,
+      background: SHAPE_COLORS.numberBackground,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }),
+    []
+  )
+
+  const handleInsertNumber = useCallback(
+    (point: CanvasPoint) => {
+      const value = window.prompt("Escribe la medici\u00f3n o n\u00famero", "300 mm")
+      if (value === null) {
+        return
+      }
+
+      const text = value.trim()
+      if (!text) {
+        return
+      }
+
+      const estimatedWidth = measureWidth(text, 20)
+      const marginX = (estimatedWidth + 24) / Math.max(1, VIRTUAL_CANVAS.width) + 0.04
+      const marginY = (20 * 1.6) / Math.max(1, VIRTUAL_CANVAS.height) + 0.04
+      const position = clampPoint({
+        x: clamp(point.x, 0.04, Math.max(0.04, 1 - marginX)),
+        y: clamp(point.y, 0.04, Math.max(0.04, 1 - marginY))
+      })
+
+      const shape = createNumberShape(position, text)
+      applyShapes([...shapesRef.current, shape], { selectedId: shape.id })
+    },
+    [applyShapes, createNumberShape, measureWidth]
   )
 
   const appendStrokePoint = useCallback((shape: StrokeShape, point: CanvasPoint) => {
@@ -860,7 +903,7 @@ export function TaskDrawingCanvas({
 
   const selectShapeAtPoint = useCallback(
     (point: CanvasPoint) => hitTestShape(point, shapesRef.current, canvasSize, measureContextRef.current),
-    [canvasSize]
+    [] // canvasSize is a constant (VIRTUAL_CANVAS)
   )
 
   const beginPointerCapture = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
@@ -891,6 +934,11 @@ export function TaskDrawingCanvas({
 
       if (tool === "text") {
         handleInsertText(point)
+        return
+      }
+
+      if (tool === "number") {
+        handleInsertNumber(point)
         return
       }
 
@@ -1132,47 +1180,48 @@ export function TaskDrawingCanvas({
     <div
       className={cn("flex min-h-0 flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-sm", className)}
     >
-      <div className="flex flex-col gap-4 border-b border-outline-variant bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-2 sm:gap-4 border-b border-outline-variant bg-surface p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h3 className="font-title-sm text-title-sm text-primary">{title}</h3>
-          {description ? <p className="mt-1 text-sm text-on-surface-variant">{description}</p> : null}
+          <h3 className="font-title-sm text-title-sm text-primary text-sm sm:text-base">{title}</h3>
+          {description ? <p className="mt-1 text-xs sm:text-sm text-on-surface-variant hidden sm:block">{description}</p> : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-outline-variant bg-surface-container-low px-3 py-1 font-data-mono text-[12px] text-on-surface-variant">
-            {hasChanges ? "Cambios sin guardar" : "Guardado"}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <span className="rounded-full border border-outline-variant bg-surface-container-low px-2 sm:px-3 py-1 font-data-mono text-[11px] sm:text-[12px] text-on-surface-variant">
+            {hasChanges ? "Sin guardar" : "Guardado"}
           </span>
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-variant px-4 font-title-sm text-title-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+            className="inline-flex h-8 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg border border-outline-variant px-2.5 sm:px-4 text-xs sm:font-title-sm sm:text-title-sm text-on-surface-variant hover:bg-surface-container transition-colors"
           >
-            <MaterialIcon name="restart_alt" />
-            {resetLabel}
+            <MaterialIcon name="restart_alt" className="text-[18px] sm:text-[24px]" />
+            <span className="hidden sm:inline">{resetLabel}</span>
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={!hasChanges}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-secondary px-4 font-title-sm text-title-sm text-on-secondary hover:opacity-90 transition-opacity disabled:opacity-60"
+            className="inline-flex h-8 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg bg-secondary px-2.5 sm:px-4 text-xs sm:font-title-sm sm:text-title-sm text-on-secondary hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            <MaterialIcon name="save" filled />
-            {saveLabel}
+            <MaterialIcon name="save" filled className="text-[18px] sm:text-[24px]" />
+            <span className="hidden sm:inline">{saveLabel}</span>
           </button>
         </div>
       </div>
 
       {extraActions ? (
-        <div className="flex justify-end border-b border-outline-variant bg-surface px-4 py-2">
+        <div className="flex justify-end border-b border-outline-variant bg-surface px-3 sm:px-4 py-1.5 sm:py-2">
           {extraActions}
         </div>
       ) : null}
 
-      <div ref={boardRef} className="canvas-grid relative flex-1 min-h-0 overflow-hidden">
+      <div ref={boardRef} className="canvas-grid relative flex-1 min-h-[250px] overflow-hidden">
         <svg
           ref={svgRef}
           className="absolute inset-0 h-full w-full select-none touch-none"
           viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+          preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label={title}
           onPointerDown={handlePointerDown}
@@ -1281,39 +1330,46 @@ export function TaskDrawingCanvas({
               }
 
               const absPosition = toAbsolute(shape.position, canvasSize)
-              const width = measureWidth(shape.text, shape.fontSize)
-              const height = shape.fontSize * 1.35
+              const isNumber = shape.tool === "number"
+              const fontSize = shape.fontSize
+              const width = measureWidth(shape.text, fontSize)
+              const height = fontSize * 1.35
+              const paddingX = isNumber ? 14 : 8
+              const paddingY = isNumber ? 8 : 5
+              const cornerRadius = isNumber ? height / 2 + paddingY : 8
 
               return (
                 <g key={shape.id}>
                   <rect
-                    x={absPosition.x - 8}
-                    y={absPosition.y - 5}
-                    width={width + 16}
-                    height={height + 10}
-                    rx="8"
+                    x={absPosition.x - paddingX}
+                    y={absPosition.y - paddingY}
+                    width={width + paddingX * 2}
+                    height={height + paddingY * 2}
+                    rx={cornerRadius}
                     fill={shape.background}
-                    fillOpacity="0.92"
-                    stroke={shape.stroke}
-                    strokeOpacity="0.12"
+                    fillOpacity={isNumber ? 1 : 0.92}
+                    stroke={isNumber ? shape.stroke : shape.stroke}
+                    strokeWidth={isNumber ? 2 : 1}
+                    strokeOpacity={isNumber ? 0.9 : 0.12}
                   />
                   <text
                     x={absPosition.x}
-                    y={absPosition.y + shape.fontSize}
+                    y={absPosition.y + fontSize}
                     fill={shape.fill}
-                    fontFamily="Inter, sans-serif"
-                    fontSize={shape.fontSize}
-                    fontWeight="600"
+                    fontFamily={isNumber ? "'Roboto Mono', 'SF Mono', 'Cascadia Code', monospace" : "Inter, sans-serif"}
+                    fontSize={fontSize}
+                    fontWeight={isNumber ? "700" : "600"}
+                    letterSpacing={isNumber ? "0.5" : undefined}
                   >
                     {shape.text}
                   </text>
                   {isSelected ? (
                     <rect
-                      x={absPosition.x - 10}
-                      y={absPosition.y - 7}
-                      width={width + 20}
-                      height={height + 14}
-                      rx="10"
+                      x={absPosition.x - paddingX - 2}
+                      y={absPosition.y - paddingY - 2}
+                      width={width + paddingX * 2 + 4}
+                      height={height + paddingY * 2 + 4}
+                      rx={cornerRadius + 2}
                       fill="none"
                       stroke="#004064"
                       strokeDasharray="8 6"
@@ -1408,32 +1464,93 @@ export function TaskDrawingCanvas({
           ) : null}
         </svg>
 
-        <div className="absolute left-4 top-4 z-20 flex flex-col gap-2 rounded-xl border border-outline-variant bg-surface/95 p-2 shadow-soft backdrop-blur-sm">
+        {/* Toolbar - horizontal bottom on mobile, vertical left on desktop */}
+        <div className="absolute z-20 bottom-3 left-1/2 -translate-x-1/2 sm:bottom-auto sm:left-4 sm:top-4 sm:translate-x-0 flex flex-row sm:flex-col items-center gap-1 sm:gap-2 rounded-full sm:rounded-xl border border-outline-variant bg-surface/95 p-1.5 sm:p-2 shadow-soft backdrop-blur-sm">
           <ToolButton icon="ads_click" label="Seleccionar" active={tool === "select"} onClick={() => handleToolChange("select")} />
           <ToolButton icon="draw" label="Trazo libre" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
           <ToolButton icon="timeline" label="Línea" active={tool === "line"} onClick={() => handleToolChange("line")} />
-          <ToolButton icon="square_foot" label="Texto / Medición" active={tool === "text"} onClick={() => handleToolChange("text")} />
-          <div className="mx-auto my-1 h-px w-8 bg-outline-variant" />
+          <ToolButton icon="square_foot" label="Texto / Nota" active={tool === "text"} onClick={() => handleToolChange("text")} />
+          <ToolButton icon="pin" label="Medición" active={tool === "number"} onClick={() => handleToolChange("number")} />
+          <div className="w-px h-5 sm:mx-auto sm:my-1 sm:h-px sm:w-8 bg-outline-variant" />
           <ToolButton icon="ink_eraser" label="Borrador" active={tool === "eraser"} onClick={() => handleToolChange("eraser")} />
-          <div className="mt-2 flex flex-col gap-1">
+          <div className="w-px h-5 sm:mx-auto sm:my-1 sm:h-px sm:w-8 bg-outline-variant" />
+          <div className="flex flex-row sm:flex-col gap-1">
             <ToolButton icon="undo" label="Deshacer" onClick={handleUndo} />
             <ToolButton icon="redo" label="Rehacer" onClick={handleRedo} />
           </div>
         </div>
 
-        <div className="absolute right-4 top-4 z-20 flex items-center gap-3 rounded-full border border-outline-variant bg-surface/95 px-4 py-2 shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-full bg-primary border border-outline" />
-            <span className="font-data-mono text-data-mono text-on-surface-variant">Trazo: 2 px</span>
+        {/* Color palette and Stroke Width - desktop: left side, mobile: above toolbar */}
+        <div className="absolute z-20 bottom-[56px] left-1/2 -translate-x-1/2 sm:bottom-auto sm:left-[72px] sm:top-4 sm:translate-x-0 flex flex-col items-center gap-3 rounded-2xl sm:rounded-xl border border-outline-variant bg-surface/95 p-2 sm:p-2 shadow-soft backdrop-blur-sm">
+          {/* Colors */}
+          <div className="flex flex-row sm:flex-col items-center gap-1.5">
+            {STROKE_PALETTE.map((entry) => (
+              <button
+                key={entry.color}
+                type="button"
+                title={entry.label}
+                onClick={() => setStrokeColor(entry.color)}
+                className={cn(
+                  "rounded-full transition-all flex-shrink-0",
+                  "h-5 w-5 sm:h-6 sm:w-6",
+                  strokeColor === entry.color
+                    ? "ring-2 ring-offset-1 ring-primary scale-110"
+                    : "hover:scale-110 opacity-75 hover:opacity-100"
+                )}
+                style={{ backgroundColor: entry.color }}
+              >
+                <span className="sr-only">{entry.label}</span>
+              </button>
+            ))}
           </div>
-          <div className="h-4 w-px bg-outline-variant" />
-          <div className="flex items-center gap-2">
-            <MaterialIcon name="layers" className="text-[18px] text-on-surface-variant" />
-            <span className="font-data-mono text-data-mono text-on-surface-variant">{shapes.length} elementos</span>
+
+          <div className="h-px w-full bg-outline-variant hidden sm:block" />
+          <div className="w-px h-4 bg-outline-variant sm:hidden" />
+
+          {/* Widths */}
+          <div className="flex flex-row sm:flex-col items-center gap-2">
+            {STROKE_WIDTHS.map((sw) => (
+              <button
+                key={sw.width}
+                type="button"
+                title={sw.label}
+                onClick={() => setStrokeWidth(sw.width)}
+                className={cn(
+                  "flex items-center justify-center rounded-lg transition-all",
+                  "h-6 w-6 sm:h-8 sm:w-8",
+                  strokeWidth === sw.width
+                    ? "bg-secondary-container text-on-secondary-container"
+                    : "text-on-surface-variant hover:bg-surface-container-high"
+                )}
+              >
+                <div 
+                  className="rounded-full bg-current" 
+                  style={{ 
+                    width: Math.max(2, sw.width * 1.5), 
+                    height: Math.max(2, sw.width * 1.5) 
+                  }} 
+                />
+                <span className="sr-only">{sw.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="absolute bottom-4 left-4 z-20 max-w-[90%] rounded-full border border-outline-variant bg-surface/95 px-4 py-2 text-sm text-on-surface-variant shadow-sm backdrop-blur-sm">
+        {/* Info pill - compact on mobile */}
+        <div className="absolute right-2 top-2 sm:right-4 sm:top-4 z-20 flex items-center gap-2 sm:gap-3 rounded-full border border-outline-variant bg-surface/95 px-2.5 py-1.5 sm:px-4 sm:py-2 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="h-4 w-4 rounded-full border border-outline" style={{ backgroundColor: strokeColor }} />
+            <span className="hidden sm:inline font-data-mono text-data-mono text-on-surface-variant">Trazo: {strokeWidth}px</span>
+          </div>
+          <div className="hidden sm:block h-4 w-px bg-outline-variant" />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <MaterialIcon name="layers" className="text-[16px] sm:text-[18px] text-on-surface-variant" />
+            <span className="font-data-mono text-data-mono text-on-surface-variant text-[11px] sm:text-[12px]">{shapes.length} elem.</span>
+          </div>
+        </div>
+
+        {/* Helper text - hidden on mobile */}
+        <div className="hidden sm:block absolute bottom-4 left-4 z-20 max-w-[90%] rounded-full border border-outline-variant bg-surface/95 px-4 py-2 text-sm text-on-surface-variant shadow-sm backdrop-blur-sm">
           {helperMessage}
         </div>
       </div>
