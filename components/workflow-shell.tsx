@@ -20,8 +20,6 @@ type WorkflowShellProps = {
 const sidebarItems: Array<{ key: SectionKey; label: string; icon: string }> = [
   { key: "dashboard", label: "Tablero", icon: "dashboard" },
   { key: "assignments", label: "Tareas", icon: "assignment" },
-  { key: "drawing", label: "Planos técnicos", icon: "architecture" },
-  { key: "evidence", label: "Evidencias", icon: "upload_file" },
   { key: "settings", label: "Configuración", icon: "settings" }
 ]
 

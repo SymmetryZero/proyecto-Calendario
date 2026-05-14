@@ -578,6 +578,7 @@ export function TaskDrawingCanvas({
   const [hasChanges, setHasChanges] = useState(false)
   const [strokeColor, setStrokeColor] = useState(SHAPE_COLORS.pen)
   const [strokeWidth, setStrokeWidth] = useState(3)
+  const [showStyleMenu, setShowStyleMenu] = useState(false)
   const canvasSize = VIRTUAL_CANVAS
 
   const boardRef = useRef<HTMLDivElement | null>(null)
@@ -743,11 +744,37 @@ export function TaskDrawingCanvas({
     }
   }, [handleDeleteSelected, handleRedo, handleUndo, selectedId])
 
-  const handleSave = useCallback(() => {
-    onSave(buildPersistedScene(shapesRef.current, tool, canvasSize))
+  const handleSave = useCallback(async () => {
+    let previewDataUrl = ""
+    if (svgRef.current) {
+      try {
+        const svgData = new XMLSerializer().serializeToString(svgRef.current)
+        const canvas = document.createElement("canvas")
+        canvas.width = VIRTUAL_CANVAS.width
+        canvas.height = VIRTUAL_CANVAS.height
+        const ctx = canvas.getContext("2d")
+        const img = new Image()
+        img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)))
+        await new Promise((resolve) => (img.onload = resolve))
+        if (ctx) {
+          ctx.fillStyle = "white"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, 0)
+        }
+        previewDataUrl = canvas.toDataURL("image/png")
+      } catch (err) {
+        console.error("Failed to generate preview", err)
+      }
+    }
+
+    onSave({ 
+      ...buildPersistedScene(shapesRef.current, tool, canvasSize),
+      preview: previewDataUrl 
+    } as DrawingScene)
+    
     savedSignatureRef.current = serializeShapes(shapesRef.current)
     setHasChanges(false)
-  }, [onSave, tool])
+  }, [onSave, tool, canvasSize])
 
   const handleReset = useCallback(() => {
     const nextShapes = cloneShapes(initialShapesRef.current)
@@ -762,8 +789,12 @@ export function TaskDrawingCanvas({
     setHasChanges(serializeShapes(nextShapes) !== savedSignatureRef.current)
   }, [syncDraft])
 
-  const handleToolChange = useCallback((nextTool: CanvasTool) => {
-    setTool(nextTool)
+  const handleToolChange = useCallback((next: CanvasTool) => {
+    setTool(next)
+    setSelectedId(null)
+    if (next === "pen" || next === "line") {
+      setShowStyleMenu(true)
+    }
   }, [])
 
   const createStrokeShape = useCallback(
@@ -1481,7 +1512,19 @@ export function TaskDrawingCanvas({
         </div>
 
         {/* Color palette and Stroke Width - desktop: left side, mobile: above toolbar */}
-        <div className="absolute z-20 bottom-[56px] left-1/2 -translate-x-1/2 sm:bottom-auto sm:left-[72px] sm:top-4 sm:translate-x-0 flex flex-col items-center gap-3 rounded-2xl sm:rounded-xl border border-outline-variant bg-surface/95 p-2 sm:p-2 shadow-soft backdrop-blur-sm">
+        <div 
+          className={cn(
+            "absolute z-20 bottom-[56px] left-1/2 -translate-x-1/2 sm:bottom-auto sm:left-[72px] sm:top-4 sm:translate-x-0 flex flex-col items-center gap-3 rounded-2xl sm:rounded-xl border border-outline-variant bg-surface/95 p-2 sm:p-2 shadow-soft backdrop-blur-sm transition-all duration-300 origin-bottom sm:origin-left",
+            showStyleMenu ? "scale-100 opacity-100 pointer-events-auto" : "scale-90 opacity-0 pointer-events-none translate-y-4 sm:translate-y-0 sm:-translate-x-4"
+          )}
+        >
+          <div className="flex w-full items-center justify-between mb-1 sm:hidden">
+             <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/70 ml-1">Estilos</span>
+             <button onClick={() => setShowStyleMenu(false)} className="h-5 w-5 flex items-center justify-center rounded-full hover:bg-surface-container">
+                <MaterialIcon name="close" className="text-[14px]" />
+             </button>
+          </div>
+
           {/* Colors */}
           <div className="flex flex-row sm:flex-col items-center gap-1.5">
             {STROKE_PALETTE.map((entry) => (
@@ -1534,10 +1577,21 @@ export function TaskDrawingCanvas({
               </button>
             ))}
           </div>
+          
+          <button 
+            onClick={() => setShowStyleMenu(false)} 
+            className="hidden sm:flex h-6 w-full items-center justify-center rounded-lg hover:bg-surface-container mt-1"
+            title="Cerrar men\u00fa de estilos"
+          >
+            <MaterialIcon name="keyboard_arrow_left" className="text-[18px]" />
+          </button>
         </div>
 
         {/* Info pill - compact on mobile */}
-        <div className="absolute right-2 top-2 sm:right-4 sm:top-4 z-20 flex items-center gap-2 sm:gap-3 rounded-full border border-outline-variant bg-surface/95 px-2.5 py-1.5 sm:px-4 sm:py-2 shadow-sm backdrop-blur-sm">
+        <div 
+          onClick={() => setShowStyleMenu(!showStyleMenu)}
+          className="absolute right-2 top-2 sm:right-4 sm:top-4 z-20 flex items-center gap-2 sm:gap-3 rounded-full border border-outline-variant bg-surface/95 px-2.5 py-1.5 sm:px-4 sm:py-2 shadow-sm backdrop-blur-sm cursor-pointer hover:bg-surface-container transition-colors"
+        >
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="h-4 w-4 rounded-full border border-outline" style={{ backgroundColor: strokeColor }} />
             <span className="hidden sm:inline font-data-mono text-data-mono text-on-surface-variant">Trazo: {strokeWidth}px</span>

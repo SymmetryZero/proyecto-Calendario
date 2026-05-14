@@ -66,7 +66,10 @@ export function WorkflowApp() {
               />
             ) : null}
             {section === "assignments" ? (
-              <AssignmentSection onCreateTask={() => setTaskModalOpen(true)} />
+              <AssignmentSection 
+                onCreateTask={() => setTaskModalOpen(true)} 
+                onOpenTaskDetails={(taskId) => setTaskDetailsTaskId(taskId)}
+              />
             ) : null}
             {section === "drawing" ? <DrawingSection /> : null}
             {section === "evidence" ? (

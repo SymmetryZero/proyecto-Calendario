@@ -33,6 +33,22 @@ export interface Technician {
   avatar: string
 }
 
+export type TaskActivityType = "note" | "drawing" | "image" | "video"
+
+export interface TaskActivity {
+  id: string
+  type: TaskActivityType
+  content: any // Text for notes, DrawingScene object for drawings, base64 for images/video
+  createdAt: string
+  metadata?: {
+    authorName?: string
+    authorRole?: string
+    fileName?: string
+    mimeType?: string
+    description?: string
+  }
+}
+
 export interface Task {
   id: string
   title: string
@@ -46,6 +62,8 @@ export interface Task {
   accumulatedSeconds: number
   location?: string
   drawingScene?: DrawingScene | null
+  activities: TaskActivity[]
+  requirementId?: string | null
 }
 
 export interface Requirement {
@@ -119,6 +137,7 @@ export interface DrawingScene {
   appState: Record<string, unknown>
   files: Record<string, any>
   updatedAt: string
+  preview?: string
 }
 
 export interface CreateTaskInput {
@@ -128,6 +147,7 @@ export interface CreateTaskInput {
   status?: TaskStatus
   assigneeIds?: string[]
   location?: string
+  activities?: TaskActivity[]
 }
 
 export interface CreateEvidenceInput {
@@ -199,6 +219,8 @@ export interface WorkflowStore extends WorkflowSeed {
   deleteFolder: (folderId: string) => void
   saveProgress: (input: SaveProgressInput) => SaveRecord
   setDrawingScene: (scene: Omit<DrawingScene, "updatedAt">) => void
+  addTaskActivity: (taskId: string, type: TaskActivityType, content: any, metadata?: TaskActivity["metadata"]) => void
+  removeTaskActivity: (taskId: string, activityId: string) => void
   resetDemoData: () => void
 }
 
@@ -303,7 +325,23 @@ function createSeedData(): WorkflowSeed {
       updatedAt: createdAt,
       timerStartedAt: null,
       accumulatedSeconds: 0,
-      location: "Sector C"
+      location: "Sector C",
+      activities: [
+        {
+          id: "act-1",
+          type: "note",
+          content: "Cimentación verificada. El concreto tiene la consistencia adecuada. Se procedió al colado del sector norte.",
+          createdAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+          id: "act-2",
+          type: "image",
+          content: "https://lh3.googleusercontent.com/aida-public/AB6AXuCxjUQtvfI1ulfZw4h_MmMzvk2YQdzFQLDATTd_pNCV-E5jzKmjqfMe1kOfkxh50qSO2WKES-Zl2tb3AK3D2KVmGeajHHL_I_zH-ypL2R-gqr7zZl16JFN-KJR1AXwlmq1ZiI5JFQUNbfMecaxzjGy_r8R4GN8S-LaGZLAUYRhCPgkMcyqaT5FBNwjZ-ejc1RXgo0mNJLsptHWhUhoSBcrjnIyWk16wor2fhiIbzjR8r0u-d5ox2QV3I8hpcEccxvlDCsZMfu3_sX7i",
+          createdAt: new Date(Date.now() - 3000000).toISOString(),
+          metadata: { fileName: "CIM_INSPECTION_01.jpg" }
+        }
+      ],
+      requirementId: "req-8493"
     },
     {
       id: "task-hvac-routing",
@@ -311,13 +349,35 @@ function createSeedData(): WorkflowSeed {
       description:
         "Contrasta los planos de recorrido y documenta cualquier interferencia con la estructura de acero.",
       priority: "medium",
-      status: "todo",
+      status: "inProgress",
       assigneeIds: ["tech-david"],
       createdAt: hourAgo,
       updatedAt: hourAgo,
       timerStartedAt: null,
       accumulatedSeconds: 0,
-      location: "Azotea"
+      location: "Azotea",
+      activities: [
+        {
+          id: "act-3",
+          type: "note",
+          content: "Se detectó una interferencia en el ducto principal con la viga de acero del eje 4. Se requiere ajuste de trazo.",
+          createdAt: new Date(Date.now() - 1800000).toISOString()
+        },
+        {
+          id: "act-4",
+          type: "drawing",
+          content: "",
+          createdAt: new Date(Date.now() - 900000).toISOString()
+        },
+        {
+          id: "act-5",
+          type: "video",
+          content: "",
+          createdAt: new Date(Date.now() - 500000).toISOString(),
+          metadata: { fileName: "HVAC_ROUTING_TEST.mp4" }
+        }
+      ],
+      requirementId: "req-8492"
     },
     {
       id: "task-pump-room",
@@ -443,13 +503,13 @@ function createSeedData(): WorkflowSeed {
       location: "Sector 4G",
       dueLabel: "Hoy, 17:00 HRS",
       priority: "high",
-      status: "unassigned",
+      status: "assigned",
       requiredSkills: ["HVAC", "Calibración"],
       requiredClearances: ["Clase 3"],
       estimatedHours: 2.5,
-      selectedTechnicianId: null,
-      notes: "",
-      assignedAt: null
+      selectedTechnicianId: "tech-sarah",
+      notes: "Realizar la calibración trimestral de las unidades de enfriamiento.",
+      assignedAt: hourAgo
     },
     {
       id: "req-8493",
@@ -460,13 +520,13 @@ function createSeedData(): WorkflowSeed {
       location: "Nivel B2",
       dueLabel: "Mañana",
       priority: "medium",
-      status: "unassigned",
+      status: "assigned",
       requiredSkills: ["Estructural", "Escaneo"],
       requiredClearances: ["Clase 2"],
       estimatedHours: 3,
-      selectedTechnicianId: null,
+      selectedTechnicianId: "tech-nina",
       notes: "",
-      assignedAt: null
+      assignedAt: hourAgo
     },
     {
       id: "req-8495",
@@ -895,7 +955,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 timerStartedAt: status === "inProgress" ? Date.now() : null,
                 accumulatedSeconds: 0,
                 location: input.location,
-                drawingScene: null
+                drawingScene: null,
+                activities: input.activities ?? []
               },
               ...state.tasks
             ]
@@ -1097,9 +1158,41 @@ export const useWorkflowStore = create<WorkflowStore>()(
                   )
                 : [nextAssignment, ...state.assignments]
 
+            // Check if a task already exists for this requirement
+            const existingTask = state.tasks.find(t => t.requirementId === requirementId)
+            let nextTasks = state.tasks
+            
+            if (!existingTask) {
+              const taskId = makeId("task")
+              const newTask: Task = {
+                id: taskId,
+                title: requirement.title,
+                description: requirement.description,
+                priority: requirement.priority,
+                status: "todo",
+                assigneeIds: [technicianId],
+                createdAt: now,
+                updatedAt: now,
+                timerStartedAt: null,
+                accumulatedSeconds: 0,
+                location: requirement.location,
+                drawingScene: null,
+                activities: [],
+                requirementId: requirement.id
+              }
+              nextTasks = [newTask, ...state.tasks]
+            } else {
+              nextTasks = state.tasks.map(t => 
+                t.requirementId === requirementId 
+                  ? { ...t, assigneeIds: Array.from(new Set([...t.assigneeIds, technicianId])), updatedAt: now }
+                  : t
+              )
+            }
+
             return {
               requirements: nextRequirements,
-              assignments: nextAssignments
+              assignments: nextAssignments,
+              tasks: nextTasks
             }
           })
         },
@@ -1204,6 +1297,41 @@ export const useWorkflowStore = create<WorkflowStore>()(
               updatedAt: new Date().toISOString()
             }
           })
+        },
+        addTaskActivity: (taskId, type, content, metadata) => {
+          const now = new Date().toISOString()
+          const activity: TaskActivity = {
+            id: makeId("act"),
+            type,
+            content,
+            createdAt: now,
+            metadata
+          }
+
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    activities: [activity, ...task.activities],
+                    updatedAt: now
+                  }
+                : task
+            )
+          }))
+        },
+        removeTaskActivity: (taskId, activityId) => {
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    activities: task.activities.filter((a) => a.id !== activityId),
+                    updatedAt: new Date().toISOString()
+                  }
+                : task
+            )
+          }))
         },
         resetDemoData: () => {
           set({

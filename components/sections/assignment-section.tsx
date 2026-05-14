@@ -13,6 +13,7 @@ import {
 
 type AssignmentSectionProps = {
   onCreateTask: () => void
+  onOpenTaskDetails: (taskId: string) => void
 }
 
 const priorityStyles = {
@@ -55,9 +56,10 @@ function technicianSearchableText(technician: Technician) {
     .toLowerCase()
 }
 
-export function AssignmentSection({ onCreateTask }: AssignmentSectionProps) {
+export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: AssignmentSectionProps) {
   const requirements = useWorkflowStore((state) => state.requirements)
   const technicians = useWorkflowStore((state) => state.technicians)
+  const tasks = useWorkflowStore((state) => state.tasks)
   const assignments = useWorkflowStore((state) => state.assignments)
   const updateRequirement = useWorkflowStore((state) => state.updateRequirement)
   const assignRequirement = useWorkflowStore((state) => state.assignRequirement)
@@ -184,9 +186,15 @@ export function AssignmentSection({ onCreateTask }: AssignmentSectionProps) {
               <button
                 key={requirement.id}
                 type="button"
-                onClick={() => setSelectedRequirementId(requirement.id)}
+                onClick={() => {
+                  setSelectedRequirementId(requirement.id)
+                  if (requirement.status === "assigned") {
+                    const linkedTask = tasks.find(t => t.requirementId === requirement.id)
+                    if (linkedTask) onOpenTaskDetails(linkedTask.id)
+                  }
+                }}
                 className={cn(
-                  "relative w-full text-left p-4 border-b border-outline-variant transition-colors",
+                  "relative w-full text-left p-4 border-b border-outline-variant transition-colors group/item",
                   isSelected ? "bg-tertiary-fixed" : "bg-surface hover:bg-surface-container-lowest"
                 )}
               >
@@ -257,13 +265,28 @@ export function AssignmentSection({ onCreateTask }: AssignmentSectionProps) {
                 {selectedRequirement.title}
               </h1>
             </div>
-            <button
-              type="button"
-              className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container"
-              title="Más opciones"
-            >
-              <MaterialIcon name="more_vert" />
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedRequirement.status === "assigned" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const linkedTask = tasks.find(t => t.requirementId === selectedRequirement.id)
+                    if (linkedTask) onOpenTaskDetails(linkedTask.id)
+                  }}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 font-title-sm text-title-sm text-on-primary hover:opacity-90 shadow-sm"
+                >
+                  <MaterialIcon name="visibility" filled />
+                  Ver Actividad de Campo
+                </button>
+              )}
+              <button
+                type="button"
+                className="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full hover:bg-surface-container"
+                title="Más opciones"
+              >
+                <MaterialIcon name="more_vert" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
