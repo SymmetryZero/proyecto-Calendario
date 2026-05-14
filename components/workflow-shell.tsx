@@ -72,15 +72,27 @@ export function WorkflowShell({
   const activeTopSection = topTabs.some((tab) => tab.key === section) ? section : "dashboard"
 
   return (
-    <div className="h-screen flex bg-background text-on-background overflow-hidden">
+    <div className="h-screen flex bg-background text-on-background overflow-hidden flex-col md:flex-row">
+      {/* Mobile Header */}
+      <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center justify-between px-4 z-40 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-xs">GP</div>
+          <h1 className="font-title-sm text-title-sm font-bold text-primary tracking-tight">Flujo Pro</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="p-2 text-on-surface-variant"><MaterialIcon name="search" /></button>
+          <button className="p-2 text-on-surface-variant"><MaterialIcon name="notifications" /></button>
+        </div>
+      </header>
+
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen w-72 bg-surface border-r border-outline-variant z-50 flex flex-col py-6 transition-transform duration-300",
-          "md:translate-x-0",
+          "md:translate-x-0 md:static md:h-full",
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-        <div className="px-6 mb-8 flex flex-col gap-4">
+        <div className="px-6 mb-8 hidden md:flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold">
               GP
@@ -116,11 +128,11 @@ export function WorkflowShell({
           })}
         </div>
 
-        <div className="px-6 mt-auto">
+        <div className="px-6 mt-auto hidden md:block">
           <button
             type="button"
             onClick={onOpenTaskModal}
-            className="w-full flex justify-center items-center gap-2 bg-secondary text-on-secondary font-title-sm text-title-sm h-[48px] rounded-DEFAULT hover:opacity-90 transition-opacity"
+            className="w-full flex justify-center items-center gap-2 bg-secondary text-on-secondary font-title-sm text-title-sm h-[48px] rounded-DEFAULT hover:opacity-90 transition-opacity shadow-lg"
           >
             <MaterialIcon name="add" />
             Nueva tarea
@@ -133,12 +145,12 @@ export function WorkflowShell({
           type="button"
           aria-label="Cerrar menú"
           onClick={onToggleSidebar}
-          className="fixed inset-0 bg-primary/40 z-40 md:hidden"
+          className="fixed inset-0 bg-primary/40 z-40 md:hidden backdrop-blur-sm"
         />
       ) : null}
 
-      <div className="flex-1 md:ml-72 flex flex-col min-w-0 h-screen">
-        <header className="bg-surface z-40 flex items-center justify-between gap-6 px-gutter h-20 w-full border-b border-outline-variant flex-shrink-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        <header className="bg-surface z-40 hidden md:flex items-center justify-between gap-6 px-gutter h-20 w-full border-b border-outline-variant flex-shrink-0">
           <div className="flex items-center gap-4 lg:gap-8 min-w-0">
             <button
               type="button"
@@ -217,7 +229,7 @@ export function WorkflowShell({
               <button
                 type="button"
                 onClick={onOpenSaveModal}
-                className="px-6 h-[48px] font-title-sm text-title-sm bg-primary text-on-primary rounded-DEFAULT hover:opacity-90 transition-opacity"
+                className="px-6 h-[48px] font-title-sm text-title-sm bg-primary text-on-primary rounded-DEFAULT hover:opacity-90 transition-opacity shadow-sm"
               >
                 Guardar progreso
               </button>
@@ -226,6 +238,40 @@ export function WorkflowShell({
         </header>
 
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
+
+        {/* Bottom Navigation for Mobile */}
+        <nav className="md:hidden bg-surface border-t border-outline-variant h-16 flex items-center justify-around z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+          {sidebarItems.map((item) => {
+            const isActive = section === item.key
+            return (
+              <button
+                key={item.key}
+                onClick={() => onSectionChange(item.key)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 transition-all duration-300",
+                  isActive ? "text-primary scale-110" : "text-on-surface-variant"
+                )}
+              >
+                <div className={cn(
+                  "w-12 h-8 rounded-full flex items-center justify-center transition-colors",
+                  isActive ? "bg-secondary-container" : "bg-transparent"
+                )}>
+                  <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
+              </button>
+            )
+          })}
+          <button 
+            onClick={onOpenTaskModal}
+            className="flex flex-col items-center justify-center -translate-y-4"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-secondary text-on-secondary shadow-xl flex items-center justify-center ring-4 ring-background animate-bounce-subtle">
+              <MaterialIcon name="add" className="text-[28px]" />
+            </div>
+            <span className="text-[10px] font-bold text-secondary uppercase mt-1">Nuevo</span>
+          </button>
+        </nav>
       </div>
     </div>
   )

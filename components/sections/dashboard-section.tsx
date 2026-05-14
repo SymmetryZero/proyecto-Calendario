@@ -174,12 +174,14 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
     setDraggedTaskId(null)
   }
 
+  const [activeTab, setActiveTab] = useState<TaskStatus>("todo")
+
   return (
-    <main className="flex-1 min-h-0 p-gutter overflow-hidden flex flex-col gap-6">
+    <main className="flex-1 min-h-0 p-4 md:p-gutter overflow-hidden flex flex-col gap-4 md:gap-6">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-          <h2 className="font-display-lg text-display-lg text-primary">Flujos de trabajo activos</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-1">
+          <h2 className="font-display-lg text-headline-md md:text-display-lg text-primary leading-tight">Flujos de trabajo activos</h2>
+          <p className="font-body-md text-xs md:text-body-md text-on-surface-variant mt-1">
             Gestiona y da seguimiento a las tareas operativas del Sitio Alfa.
           </p>
         </div>
@@ -188,59 +190,90 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
             type="button"
             onClick={() => setFilterMode((current) => (current === "all" ? "high" : "all"))}
             className={cn(
-              "px-4 h-10 flex items-center gap-2 border rounded-DEFAULT font-label-caps text-label-caps transition-colors",
+              "flex-1 md:flex-none px-4 h-10 flex items-center justify-center gap-2 border rounded-xl font-label-caps text-[11px] transition-all duration-200",
               filterMode === "high"
-                ? "bg-tertiary-fixed text-tertiary-container border-tertiary-container"
+                ? "bg-tertiary-fixed text-tertiary-container border-tertiary-container shadow-sm"
                 : "bg-surface-container-low border-outline-variant text-on-surface hover:bg-surface-container"
             )}
           >
             <MaterialIcon name="filter_list" className="text-[18px]" />
-            {filterMode === "high" ? "Prioridad alta" : "Filtrar"}
+            <span className="truncate">{filterMode === "high" ? "Prioridad alta" : "Filtrar"}</span>
           </button>
           <button
             type="button"
             onClick={() => setSortMode((current) => (current === "manual" ? "recent" : "manual"))}
             className={cn(
-              "px-4 h-10 flex items-center gap-2 border rounded-DEFAULT font-label-caps text-label-caps transition-colors",
+              "flex-1 md:flex-none px-4 h-10 flex items-center justify-center gap-2 border rounded-xl font-label-caps text-[11px] transition-all duration-200",
               sortMode === "recent"
-                ? "bg-tertiary-fixed text-tertiary-container border-tertiary-container"
+                ? "bg-tertiary-fixed text-tertiary-container border-tertiary-container shadow-sm"
                 : "bg-surface-container-low border-outline-variant text-on-surface hover:bg-surface-container"
             )}
           >
             <MaterialIcon name="sort" className="text-[18px]" />
-            {sortMode === "recent" ? "Recientes" : "Ordenar"}
+            <span className="truncate">{sortMode === "recent" ? "Recientes" : "Ordenar"}</span>
           </button>
           <button
             type="button"
             onClick={onCreateTask}
-            className="px-4 h-10 flex items-center gap-2 bg-secondary text-on-secondary rounded-DEFAULT font-title-sm text-title-sm hover:opacity-90 transition-opacity"
+            className="flex-1 md:flex-none px-4 h-10 flex items-center justify-center gap-2 bg-secondary text-on-secondary rounded-xl font-title-sm text-sm hover:opacity-90 transition-all shadow-md active:scale-95"
           >
             <MaterialIcon name="add" />
-            Nueva tarea
+            <span className="truncate">Nueva tarea</span>
           </button>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-x-auto pb-4">
-        <div className="flex gap-gutter min-h-full w-max">
+      {/* Mobile Status Tabs */}
+      <div className="md:hidden flex bg-surface-container-low p-1 rounded-2xl border border-outline-variant/30 overflow-x-auto scrollbar-none gap-1">
+        {statusOrder.map((status) => {
+           const meta = statusMeta[status]
+           const isActive = activeTab === status
+           const taskCount = visibleTasks.get(status)?.length || 0
+           return (
+             <button
+               key={status}
+               onClick={() => setActiveTab(status)}
+               className={cn(
+                 "flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl transition-all duration-300 min-w-max",
+                 isActive ? "bg-white text-primary shadow-sm ring-1 ring-black/5" : "text-on-surface-variant hover:bg-white/50"
+               )}
+             >
+                <MaterialIcon name={meta.icon} className={cn("text-[18px]", isActive ? "text-secondary" : "opacity-60")} filled={isActive} />
+                <span className="text-[11px] font-bold uppercase tracking-wider">{meta.label}</span>
+                <span className="text-[10px] bg-surface-variant px-1.5 py-0.5 rounded-full opacity-60">{taskCount}</span>
+             </button>
+           )
+        })}
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-x-auto md:overflow-visible pb-4">
+        <div className={cn(
+          "flex gap-4 md:gap-gutter min-h-full transition-all duration-500",
+          "w-full md:w-max", // On mobile it's full width, on desktop it scrolls
+        )}>
           {statusOrder.map((status) => {
             const tasksForColumn = getSortedTasks(visibleTasks.get(status) ?? [], sortMode)
+            const isVisible = activeTab === status
 
             return (
-              <KanbanColumn
-                key={status}
-                status={status}
-                tasks={tasksForColumn}
-                technicians={technicians}
-                evidence={evidence}
-                draggedTaskId={draggedTaskId}
-                onDragTask={setDraggedTaskId}
-                onDropTask={handleDrop}
-                onMoveTask={handleMove}
-                onDeleteTask={deleteTask}
-                onOpenTaskDetails={onOpenTaskDetails}
-                now={now}
-              />
+              <div key={status} className={cn(
+                "w-full md:w-80 flex-shrink-0 flex flex-col",
+                !isVisible ? "hidden md:flex" : "flex"
+              )}>
+                <KanbanColumn
+                  status={status}
+                  tasks={tasksForColumn}
+                  technicians={technicians}
+                  evidence={evidence}
+                  draggedTaskId={draggedTaskId}
+                  onDragTask={setDraggedTaskId}
+                  onDropTask={handleDrop}
+                  onMoveTask={handleMove}
+                  onDeleteTask={deleteTask}
+                  onOpenTaskDetails={onOpenTaskDetails}
+                  now={now}
+                />
+              </div>
             )
           })}
         </div>

@@ -523,42 +523,7 @@ function ToolButton({
   )
 }
 
-function renderBackgroundBlueprint(canvasSize: CanvasSize) {
-  const sx = (value: number) => value * canvasSize.width
-  const sy = (value: number) => value * canvasSize.height
 
-  return (
-    <g className="pointer-events-none opacity-80">
-      <path
-        d={`M ${sx(0.18)} ${sy(0.2)} L ${sx(0.48)} ${sy(0.2)} L ${sx(0.48)} ${sy(0.36)} L ${sx(0.62)} ${sy(0.36)} L ${sx(0.62)} ${sy(0.58)} L ${sx(0.18)} ${sy(0.58)} Z`}
-        fill="none"
-        stroke="#172839"
-        strokeLinejoin="round"
-        strokeWidth="3"
-      />
-      <circle cx={sx(0.29)} cy={sy(0.35)} r={Math.max(24, Math.min(canvasSize.width, canvasSize.height) * 0.05)} fill="none" stroke="#172839" strokeDasharray="8,4" strokeWidth="2" />
-      <line x1={sx(0.22)} x2={sx(0.36)} y1={sy(0.35)} y2={sy(0.35)} stroke="#74777d" strokeDasharray="10,5,2,5" strokeWidth="1" />
-      <line x1={sx(0.29)} x2={sx(0.29)} y1={sy(0.27)} y2={sy(0.43)} stroke="#74777d" strokeDasharray="10,5,2,5" strokeWidth="1" />
-      <line x1={sx(0.18)} x2={sx(0.18)} y1={sy(0.17)} y2={sy(0.12)} stroke="#74777d" strokeWidth="1" />
-      <line x1={sx(0.48)} x2={sx(0.48)} y1={sy(0.17)} y2={sy(0.12)} stroke="#74777d" strokeWidth="1" />
-      <line x1={sx(0.18)} x2={sx(0.48)} y1={sy(0.145)} y2={sy(0.145)} stroke="#74777d" strokeWidth="1" markerStart="url(#canvas-arrow)" markerEnd="url(#canvas-arrow)" />
-      <rect x={sx(0.29)} y={sy(0.127)} width={Math.max(72, canvasSize.width * 0.08)} height={Math.max(22, canvasSize.height * 0.03)} rx="4" fill="#ffffff" />
-      <text x={sx(0.33)} y={sy(0.146)} fill="#2d3e50" fontFamily="JetBrains Mono, monospace" fontSize="14" fontWeight="500" textAnchor="middle">
-        300 mm
-      </text>
-      <path
-        d={`M ${sx(0.68)} ${sy(0.24)} Q ${sx(0.7)} ${sy(0.2)}, ${sx(0.72)} ${sy(0.26)} T ${sx(0.76)} ${sy(0.23)} T ${sx(0.8)} ${sy(0.29)}`}
-        fill="none"
-        stroke="#fea520"
-        strokeLinecap="round"
-        strokeWidth="2"
-      />
-      <text x={sx(0.81)} y={sy(0.31)} fill="#fea520" fontFamily="Inter, sans-serif" fontSize="12">
-        Revisar tolerancia aquí
-      </text>
-    </g>
-  )
-}
 
 export function TaskDrawingCanvas({
   scene,
@@ -1209,33 +1174,42 @@ export function TaskDrawingCanvas({
 
   return (
     <div
-      className={cn("flex min-h-0 flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface shadow-sm", className)}
+      className={cn("flex flex-col h-full bg-surface-container-lowest select-none overflow-hidden", className)}
     >
-      <div className="flex flex-col gap-2 sm:gap-4 border-b border-outline-variant bg-surface p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h3 className="font-title-sm text-title-sm text-primary text-sm sm:text-base">{title}</h3>
-          {description ? <p className="mt-1 text-xs sm:text-sm text-on-surface-variant hidden sm:block">{description}</p> : null}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 gap-4 border-b border-outline-variant bg-white/80 backdrop-blur-md sticky top-0 z-30">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-secondary-container flex items-center justify-center text-on-secondary-container shadow-sm">
+             <MaterialIcon name="architecture" className="text-[28px]" />
+          </div>
+          <div>
+            <h3 className="font-display-lg text-lg sm:text-xl font-bold text-primary">{title}</h3>
+            {description ? <p className="mt-0.5 text-xs text-on-surface-variant leading-tight max-w-md">{description}</p> : null}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <span className="rounded-full border border-outline-variant bg-surface-container-low px-2 sm:px-3 py-1 font-data-mono text-[11px] sm:text-[12px] text-on-surface-variant">
-            {hasChanges ? "Sin guardar" : "Guardado"}
-          </span>
+        <div className="flex items-center gap-3 self-end sm:self-center">
+          <div className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-surface-container-low rounded-full border border-outline-variant/30">
+            <div className={cn("w-2 h-2 rounded-full", hasChanges ? "bg-amber-500 animate-pulse" : "bg-emerald-500")} />
+            <span className="font-data-mono text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
+              {hasChanges ? "Editando" : "Sincronizado"}
+            </span>
+          </div>
+          
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex h-8 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg border border-outline-variant px-2.5 sm:px-4 text-xs sm:font-title-sm sm:text-title-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+            className="h-11 px-5 rounded-full border border-outline text-primary font-bold text-sm hover:bg-surface-container transition-all flex items-center gap-2 active:scale-95"
           >
-            <MaterialIcon name="restart_alt" className="text-[18px] sm:text-[24px]" />
+            <MaterialIcon name="restart_alt" />
             <span className="hidden sm:inline">{resetLabel}</span>
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={!hasChanges}
-            className="inline-flex h-8 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg bg-secondary px-2.5 sm:px-4 text-xs sm:font-title-sm sm:text-title-sm text-on-secondary hover:opacity-90 transition-opacity disabled:opacity-60"
+            className="h-11 px-6 rounded-full bg-primary text-white font-bold text-sm shadow-lg hover:opacity-90 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100"
           >
-            <MaterialIcon name="save" filled className="text-[18px] sm:text-[24px]" />
+            <MaterialIcon name="check_circle" filled />
             <span className="hidden sm:inline">{saveLabel}</span>
           </button>
         </div>
@@ -1267,7 +1241,7 @@ export function TaskDrawingCanvas({
             </marker>
           </defs>
 
-          {renderBackgroundBlueprint(canvasSize)}
+          {/* Background Blueprint Removed as requested */}
 
           {shapes
             .filter((shape) => shape.id !== draggingShapeId)
@@ -1495,20 +1469,30 @@ export function TaskDrawingCanvas({
           ) : null}
         </svg>
 
-        {/* Toolbar - horizontal bottom on mobile, vertical left on desktop */}
-        <div className="absolute z-20 bottom-3 left-1/2 -translate-x-1/2 sm:bottom-auto sm:left-4 sm:top-4 sm:translate-x-0 flex flex-row sm:flex-col items-center gap-1 sm:gap-2 rounded-full sm:rounded-xl border border-outline-variant bg-surface/95 p-1.5 sm:p-2 shadow-soft backdrop-blur-sm">
+        {/* Toolbar - floating premium vertical bar */}
+        <div className="absolute z-20 left-4 top-1/2 -translate-y-1/2 hidden sm:flex flex-col items-center gap-2 rounded-2xl border border-outline-variant bg-white/90 p-2 shadow-2xl backdrop-blur-md animate-in slide-in-from-left duration-500">
           <ToolButton icon="ads_click" label="Seleccionar" active={tool === "select"} onClick={() => handleToolChange("select")} />
+          <div className="w-8 h-px bg-outline-variant/30 my-1" />
           <ToolButton icon="draw" label="Trazo libre" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
           <ToolButton icon="timeline" label="Línea" active={tool === "line"} onClick={() => handleToolChange("line")} />
-          <ToolButton icon="square_foot" label="Texto / Nota" active={tool === "text"} onClick={() => handleToolChange("text")} />
-          <ToolButton icon="pin" label="Medición" active={tool === "number"} onClick={() => handleToolChange("number")} />
-          <div className="w-px h-5 sm:mx-auto sm:my-1 sm:h-px sm:w-8 bg-outline-variant" />
+          <ToolButton icon="text_fields" label="Texto / Nota" active={tool === "text"} onClick={() => handleToolChange("text")} />
+          <ToolButton icon="straighten" label="Medición" active={tool === "number"} onClick={() => handleToolChange("number")} />
+          <div className="w-8 h-px bg-outline-variant/30 my-1" />
           <ToolButton icon="ink_eraser" label="Borrador" active={tool === "eraser"} onClick={() => handleToolChange("eraser")} />
-          <div className="w-px h-5 sm:mx-auto sm:my-1 sm:h-px sm:w-8 bg-outline-variant" />
-          <div className="flex flex-row sm:flex-col gap-1">
-            <ToolButton icon="undo" label="Deshacer" onClick={handleUndo} />
-            <ToolButton icon="redo" label="Rehacer" onClick={handleRedo} />
-          </div>
+          <div className="w-8 h-px bg-outline-variant/30 my-1" />
+          <ToolButton icon="undo" label="Deshacer" onClick={handleUndo} />
+          <ToolButton icon="redo" label="Rehacer" onClick={handleRedo} />
+        </div>
+
+        {/* Mobile Toolbar - Bottom bar */}
+        <div className="absolute z-20 bottom-6 left-1/2 -translate-x-1/2 flex sm:hidden items-center gap-1 rounded-full border border-outline-variant bg-white/95 p-1.5 shadow-2xl backdrop-blur-md">
+          <ToolButton icon="ads_click" active={tool === "select"} onClick={() => handleToolChange("select")} />
+          <ToolButton icon="draw" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
+          <ToolButton icon="timeline" active={tool === "line"} onClick={() => handleToolChange("line")} />
+          <ToolButton icon="text_fields" active={tool === "text"} onClick={() => handleToolChange("text")} />
+          <ToolButton icon="ink_eraser" active={tool === "eraser"} onClick={() => handleToolChange("eraser")} />
+          <div className="w-px h-6 bg-outline-variant mx-1" />
+          <ToolButton icon="undo" onClick={handleUndo} />
         </div>
 
         {/* Color palette and Stroke Width - desktop: left side, mobile: above toolbar */}

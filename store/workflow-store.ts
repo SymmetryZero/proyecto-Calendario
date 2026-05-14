@@ -40,6 +40,7 @@ export interface TaskActivity {
   type: TaskActivityType
   content: any // Text for notes, DrawingScene object for drawings, base64 for images/video
   createdAt: string
+  updatedAt?: string
   metadata?: {
     authorName?: string
     authorRole?: string
@@ -64,6 +65,7 @@ export interface Task {
   drawingScene?: DrawingScene | null
   activities: TaskActivity[]
   requirementId?: string | null
+  dueLabel?: string
 }
 
 export interface Requirement {
@@ -148,6 +150,7 @@ export interface CreateTaskInput {
   assigneeIds?: string[]
   location?: string
   activities?: TaskActivity[]
+  dueLabel?: string
 }
 
 export interface CreateEvidenceInput {
@@ -220,6 +223,7 @@ export interface WorkflowStore extends WorkflowSeed {
   saveProgress: (input: SaveProgressInput) => SaveRecord
   setDrawingScene: (scene: Omit<DrawingScene, "updatedAt">) => void
   addTaskActivity: (taskId: string, type: TaskActivityType, content: any, metadata?: TaskActivity["metadata"]) => void
+  updateTaskActivity: (taskId: string, activityId: string, patch: Partial<Omit<TaskActivity, "id" | "createdAt">>) => void
   removeTaskActivity: (taskId: string, activityId: string) => void
   resetDemoData: () => void
 }
@@ -955,6 +959,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 timerStartedAt: status === "inProgress" ? Date.now() : null,
                 accumulatedSeconds: 0,
                 location: input.location,
+                dueLabel: input.dueLabel,
                 drawingScene: null,
                 activities: input.activities ?? []
               },
@@ -1305,6 +1310,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             type,
             content,
             createdAt: now,
+            updatedAt: now,
             metadata
           }
 
@@ -1314,6 +1320,22 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 ? {
                     ...task,
                     activities: [activity, ...task.activities],
+                    updatedAt: now
+                  }
+                : task
+            )
+          }))
+        },
+        updateTaskActivity: (taskId, activityId, patch) => {
+          const now = new Date().toISOString()
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    activities: task.activities.map((a) =>
+                      a.id === activityId ? { ...a, ...patch, updatedAt: now } : a
+                    ),
                     updatedAt: now
                   }
                 : task

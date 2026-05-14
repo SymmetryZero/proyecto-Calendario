@@ -8,6 +8,7 @@ import {
   createEvidencePreview,
   type DrawingScene,
   type EvidenceFile,
+  type TaskActivity,
   useWorkflowStore,
   workflowSelectors
 } from "@/store/workflow-store"
@@ -24,6 +25,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const technicians = useWorkflowStore((state) => state.technicians)
   const updateTask = useWorkflowStore((state) => state.updateTask)
   const addTaskActivity = useWorkflowStore((state) => state.addTaskActivity)
+  const updateTaskActivity = useWorkflowStore((state) => state.updateTaskActivity)
   const removeTaskActivity = useWorkflowStore((state) => state.removeTaskActivity)
 
   const [activeView, setActiveView] = useState<"bento" | "drawing">("bento")
@@ -35,6 +37,14 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const [previewItem, setPreviewItem] = useState<TaskActivity | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  
+  // Custom Modal States
+  const [renamingItem, setRenamingItem] = useState<TaskActivity | null>(null)
+  const [deletingItem, setDeletingItem] = useState<TaskActivity | null>(null)
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [editNameValue, setEditNameValue] = useState("")
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
   useEffect(() => {
     if (!open) return
@@ -43,9 +53,10 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     setShowAddChoice(false)
     setIsAddingNote(false)
     setPreviewItem(null)
+    setEditingActivityId(null)
   }, [open, task?.drawingScene, taskId])
   
-  // ... (rest of helper functions same as before)
+
   const assignees = useMemo(() => {
     if (!task) return []
     return task.assigneeIds
@@ -67,12 +78,13 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     if (!files || files.length === 0) return
     setUploading(true)
     try {
+      if (!task) return
       for (const file of Array.from(files)) {
         const base64 = await fileToDataUrl(file)
         const type = file.type.startsWith("video/") ? "video" : "image"
         
-        const fileName = prompt(`Nombre para el archivo (${file.name}):`, file.name) || file.name
-        const description = prompt(`Descripción para "${fileName}":`, "") || ""
+        const fileName = file.name
+        const description = "" // Initially empty, can be edited later if needed
 
         addTaskActivity(task.id, type, base64, {
           fileName,
@@ -126,7 +138,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
         </header>
 
         {/* Workspace Layout */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className={cn("flex-1 min-h-0", activeView === "bento" ? "overflow-y-auto" : "overflow-hidden")}>
            {activeView === "bento" ? (
              <main className="p-6 grid grid-cols-12 gap-6 max-w-[1400px] mx-auto">
                 
@@ -162,6 +174,15 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                   <span className="font-title-sm text-sm font-bold truncate">{task.location || "Sector 4G"}</span>
                                </div>
                             </div>
+                            {task.dueLabel && (
+                              <div className="bg-error-container/20 p-3 rounded-xl border border-error/10 col-span-2">
+                                 <p className="font-label-caps text-[10px] text-error uppercase mb-1 font-bold">Vencimiento</p>
+                                 <div className="flex items-center gap-2 text-error">
+                                    <MaterialIcon name="event" className="text-[18px]" />
+                                    <span className="font-title-sm text-sm font-bold">{task.dueLabel}</span>
+                                 </div>
+                              </div>
+                            )}
                          </div>
 
                          <div className="pt-4 border-t border-outline-variant">
@@ -242,15 +263,33 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             <p className="font-body-sm text-xs text-on-surface-variant mt-1">{evidence.length} elementos adjuntos</p>
                          </div>
                          <div className="flex gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/30">
-                            <button className="p-2 bg-white text-primary rounded-lg shadow-sm"><MaterialIcon name="grid_view" className="text-[20px]" /></button>
-                            <button className="p-2 text-on-surface-variant hover:bg-white hover:text-primary rounded-lg transition-all"><MaterialIcon name="list" className="text-[20px]" /></button>
+                            <button 
+                              onClick={() => setViewMode("grid")}
+                              className={cn("p-2 rounded-lg transition-all", viewMode === "grid" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:bg-white/50")}
+                            >
+                               <MaterialIcon name="grid_view" className="text-[20px]" />
+                            </button>
+                            <button 
+                              onClick={() => setViewMode("list")}
+                              className={cn("p-2 rounded-lg transition-all", viewMode === "list" ? "bg-white text-primary shadow-sm" : "text-on-surface-variant hover:bg-white/50")}
+                            >
+                               <MaterialIcon name="list" className="text-[20px]" />
+                            </button>
                          </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                      <div className={cn(
+                         "grid gap-5",
+                         viewMode === "grid" 
+                           ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4" 
+                           : "grid-cols-1"
+                       )}>
                          
                          {/* Add Evidence Choice / Dropzone */}
-                         <div className="relative aspect-square rounded-2xl border-2 border-dashed border-secondary bg-secondary/5 overflow-hidden group">
+                         <div className={cn(
+                            "relative rounded-2xl border-2 border-dashed border-secondary bg-secondary/5 overflow-hidden group transition-all",
+                            viewMode === "grid" ? "aspect-square" : "h-32"
+                          )}>
                             {!showAddChoice ? (
                                <button 
                                  onClick={() => setShowAddChoice(true)}
@@ -301,7 +340,17 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
                          {/* Evidence Grid Items */}
                          {evidence.map(item => (
-                            <div key={item.id} className="group relative aspect-square rounded-2xl overflow-hidden border border-outline-variant bg-surface-container-highest shadow-sm">
+                            <div 
+                              key={item.id} 
+                              className={cn(
+                                "group relative rounded-2xl overflow-hidden border border-outline-variant bg-surface-container-highest shadow-sm transition-all duration-300",
+                                viewMode === "grid" ? "aspect-square" : "flex flex-row h-32"
+                              )}
+                            >
+                               <div className={cn(
+                                 "relative bg-black/5 flex items-center justify-center overflow-hidden",
+                                 viewMode === "grid" ? "w-full h-full" : "w-48 h-full shrink-0"
+                               )}>
                                {item.type === "image" && (
                                  <img src={item.content} alt="Evidencia" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                )}
@@ -314,9 +363,9 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                )}
                                {item.type === "drawing" && (
                                  <div className="h-full w-full bg-surface-container-lowest flex flex-col items-center justify-center relative overflow-hidden">
-                                    {item.content?.preview ? (
-                                      <img src={item.content.preview} alt="Croquis" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
-                                    ) : (
+                                        {item.content?.preview ? (
+                                          <img src={item.content.preview} alt="Croquis" className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500" />
+                                        ) : (
                                       <>
                                         <MaterialIcon name="architecture" className="text-[42px] text-secondary/30 mb-2 group-hover:scale-110 transition-transform" />
                                         <span className="text-[11px] font-bold text-primary">CROQUIS TÉCNICO</span>
@@ -325,40 +374,71 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                     <div className="absolute top-2 left-2 px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded text-[9px] font-bold shadow-sm uppercase">Anotado</div>
                                  </div>
                                )}
+                               </div>
                                
-                               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                                  <p className="font-data-mono text-[11px] text-white truncate mb-0.5">
+                               <div className={cn(
+                                  "absolute p-4 transition-all duration-300",
+                                  viewMode === "grid" 
+                                    ? "inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent translate-y-2 group-hover:translate-y-0" 
+                                    : "relative flex-1 bg-white flex flex-col justify-center"
+                                )}>
+                                  <p className={cn(
+                                     "font-data-mono truncate mb-0.5",
+                                     viewMode === "grid" ? "text-[11px] text-white" : "text-sm text-primary font-bold"
+                                   )}>
                                     {item.metadata?.fileName || `${item.type.toUpperCase()}_${item.id.slice(-4)}`}
                                   </p>
                                   {item.metadata?.description && (
-                                    <p className="text-[9px] text-white/80 line-clamp-1 mb-1">{item.metadata.description}</p>
+                                    <p className={cn(
+                                       "line-clamp-1 mb-1",
+                                       viewMode === "grid" ? "text-[9px] text-white/80" : "text-xs text-on-surface-variant"
+                                     )}>{item.metadata.description}</p>
                                   )}
-                                  <p className="font-label-caps text-[9px] text-white/60 tracking-wider">
+                                  <p className={cn(
+                                     "font-label-caps tracking-wider",
+                                     viewMode === "grid" ? "text-[9px] text-white/60" : "text-[10px] text-on-surface-variant/60"
+                                   )}>
                                     {new Date(item.createdAt).toLocaleDateString([], {month: 'short', day: 'numeric'})} • {new Date(item.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                   </p>
                                </div>
 
-                               <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-300">
+                               <div className={cn(
+                                  "absolute flex gap-2 transition-all duration-300",
+                                  viewMode === "grid" 
+                                    ? "top-3 right-3 flex-col opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0" 
+                                    : "right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0"
+                                )}>
                                   <button 
+                                    title="Visualizar"
                                     onClick={() => {
                                       if (item.type === "drawing" && typeof item.content === "object") {
+                                         setEditingActivityId(item.id)
                                          setDrawingScene(item.content)
                                          setActiveView("drawing")
                                       } else {
                                          setPreviewItem(item)
                                       }
                                     }}
-                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-primary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all"
+                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-primary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
                                   >
                                     <MaterialIcon name="visibility" className="text-[18px]" />
                                   </button>
                                   <button 
+                                    title="Renombrar"
                                     onClick={() => {
-                                      if (confirm("¿Estás seguro de que quieres eliminar esta evidencia?")) {
-                                        removeTaskActivity(task.id, item.id)
-                                      }
+                                      setRenamingItem(item)
+                                      setEditNameValue(item.metadata?.fileName || "")
                                     }}
-                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-error rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all"
+                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-secondary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
+                                  >
+                                    <MaterialIcon name="edit" className="text-[18px]" />
+                                  </button>
+                                  <button 
+                                    title="Eliminar"
+                                    onClick={() => {
+                                      setDeletingItem(item)
+                                    }}
+                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-error rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
                                   >
                                     <MaterialIcon name="delete" className="text-[18px]" />
                                   </button>
@@ -388,21 +468,28 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                  resetLabel="Limpiar Pizarra"
                  className="h-full"
                  onSave={(draft) => {
-                   const drawingCount = evidence.filter(e => e.type === "drawing").length + 1
-                   const dateStr = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
-                   const defaultName = `CROQUIS_${String(drawingCount).padStart(2, '0')}_${dateStr}`
-                   
-                   const fileName = prompt("Nombre del croquis:", defaultName) || defaultName
-                   
-                   const nextScene: DrawingScene = { ...draft, updatedAt: new Date().toISOString() }
-                   updateTask(task.id, { drawingScene: nextScene })
-                   addTaskActivity(task.id, "drawing", nextScene, { fileName })
-                   setActiveView("bento")
+                    const nextScene: DrawingScene = { ...draft, updatedAt: new Date().toISOString() }
+                    
+                    if (editingActivityId) {
+                      updateTaskActivity(task.id, editingActivityId, { content: nextScene })
+                    } else {
+                       const drawingCount = evidence.filter(e => e.type === "drawing").length + 1
+                      const dateStr = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
+                      const defaultName = `CROQUIS_${String(drawingCount).padStart(2, '0')}_${dateStr}`
+                      const fileName = prompt("Nombre del croquis:", defaultName) || defaultName
+                      
+                      addTaskActivity(task.id, "drawing", nextScene, { fileName })
+                    }
+                    
+                    updateTask(task.id, { drawingScene: nextScene })
+                    setEditingActivityId(null)
+                    setActiveView("bento")
                  }}
                />
                <button 
                  onClick={() => {
                    setActiveView("bento")
+                   setEditingActivityId(null)
                    setDrawingScene(task.drawingScene ?? null) // Reset to main scene if cancelled
                  }}
                  className="absolute top-4 left-4 z-[100] h-10 w-10 flex items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm border border-outline-variant shadow-lg text-on-surface-variant hover:text-primary transition-all"
@@ -424,44 +511,250 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                  Regresar
               </button>
               <button 
-                onClick={() => {
-                  updateTask(task.id, { status: "done" })
-                  onClose()
-                }}
+                onClick={() => setShowCompleteModal(true)}
                 className="h-14 px-10 bg-primary text-white rounded-full font-title-sm text-sm font-bold shadow-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all pointer-events-auto ring-4 ring-white"
               >
                  <MaterialIcon name="check_circle" filled />
                  Completar Tarea
               </button>
            </div>
-        )}
+         )}
+         
+         {/* Rename Modal */}
+         {renamingItem && (
+           <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-[2px] animate-in fade-in duration-200">
+             <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200">
+                <div className="px-8 pt-8 pb-4">
+                  <div className="flex items-center gap-3 text-secondary mb-2">
+                    <MaterialIcon name="edit" className="text-[28px]" />
+                    <h2 className="font-headline-md text-[24px] font-bold text-primary">Renombrar Evidencia</h2>
+                  </div>
+                  <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
+                    Asigne un nombre descriptivo para facilitar la búsqueda en el registro técnico.
+                  </p>
+                </div>
+                
+                <div className="px-8 py-6 space-y-6">
+                  <div className="space-y-2">
+                    <label className="font-label-caps text-[10px] font-bold text-on-surface-variant block uppercase tracking-widest">
+                      Nombre del archivo
+                    </label>
+                    <div className="relative group">
+                      <input 
+                        autoFocus
+                        className="w-full h-12 px-4 bg-white border border-outline text-on-surface font-body-md rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all duration-200"
+                        type="text" 
+                        value={editNameValue}
+                        onChange={(e) => setEditNameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            updateTask(task.id, {
+                              activities: task.activities.map(a => 
+                                a.id === renamingItem.id 
+                                  ? { ...a, metadata: { ...a.metadata, fileName: editNameValue } } 
+                                  : a
+                              )
+                            })
+                            setRenamingItem(null)
+                          }
+                        }}
+                      />
+                      <div className="absolute inset-y-0 right-4 flex items-center text-on-surface-variant">
+                        <MaterialIcon name="text_fields" />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant italic">Formatos permitidos: .jpg, .png, .pdf (Max 25MB)</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+                    <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-surface-container-highest">
+                       {renamingItem.type === "image" ? (
+                         <img src={renamingItem.content} className="w-full h-full object-cover" />
+                       ) : renamingItem.type === "drawing" ? (
+                         <img src={renamingItem.content.preview} className="w-full h-full object-contain" />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center bg-primary/10"><MaterialIcon name="movie" /></div>
+                       )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-data-mono text-[13px] text-on-surface truncate">{renamingItem.metadata?.fileName || "Archivo"}</p>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {renamingItem.metadata?.mimeType?.split("/")[1]?.toUpperCase() || "FILE"} • {new Date(renamingItem.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-        {/* Media Preview Lightbox */}
-        {previewItem && (
-           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 sm:p-10 animate-in fade-in duration-300">
-              <button onClick={() => setPreviewItem(null)} className="absolute top-6 right-6 h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all">
-                 <MaterialIcon name="close" className="text-[24px]" />
-              </button>
-              <div className="w-full max-w-5xl h-full flex flex-col items-center justify-center gap-6">
-                 {previewItem.type === "image" && (
-                   <img src={previewItem.content} alt="Preview" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
-                 )}
-                 {previewItem.type === "video" && (
-                   <div className="w-full aspect-video bg-black rounded-lg overflow-hidden shadow-2xl flex items-center justify-center">
-                      <MaterialIcon name="play_circle" className="text-[64px] text-white opacity-50" />
-                      <p className="absolute mt-24 text-white/50 font-data-mono text-sm">Reproductor de video no disponible en demo</p>
-                   </div>
-                 )}
-                 <div className="text-center max-w-2xl px-6">
-                    <p className="text-white font-title-sm text-lg mb-1">{previewItem.metadata?.fileName || "Archivo de evidencia"}</p>
-                    {previewItem.metadata?.description && (
-                      <p className="text-white/80 text-sm mb-4 leading-relaxed italic bg-white/5 p-3 rounded-lg border border-white/10">"{previewItem.metadata.description}"</p>
-                    )}
-                    <p className="text-white/50 text-xs font-data-mono uppercase tracking-widest">{formatDateTime(previewItem.createdAt)}</p>
-                 </div>
-              </div>
+                <div className="px-8 py-6 bg-surface-container-low flex flex-col sm:flex-row-reverse gap-3 border-t border-outline-variant">
+                  <button 
+                    onClick={() => {
+                      updateTask(task.id, {
+                        activities: task.activities.map(a => 
+                          a.id === renamingItem.id 
+                            ? { ...a, metadata: { ...a.metadata, fileName: editNameValue } } 
+                            : a
+                        )
+                      })
+                      setRenamingItem(null)
+                    }}
+                    className="flex-1 h-12 bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-white font-bold rounded-full transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <MaterialIcon name="check" />
+                    Guardar cambios
+                  </button>
+                  <button 
+                    onClick={() => setRenamingItem(null)}
+                    className="flex-1 h-12 bg-transparent border border-outline text-on-surface hover:bg-surface-container-high font-semibold rounded-full transition-colors duration-200 flex items-center justify-center gap-2"
+                  >
+                    Descartar
+                  </button>
+                </div>
+             </div>
            </div>
-        )}
+         )}
+
+         {/* Delete Confirmation Modal */}
+         {deletingItem && (
+           <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200">
+             <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200">
+                <div className="p-8 flex items-start gap-4">
+                  <div className="bg-error-container text-error rounded-full p-3 flex items-center justify-center flex-shrink-0">
+                    <MaterialIcon name="delete_forever" className="text-[32px]" />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="font-headline-md text-[24px] font-bold text-primary mb-2">Eliminar Evidencia</h2>
+                    <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
+                      Esta acción es irreversible. ¿Está seguro de que desea eliminar permanentemente el archivo <strong className="font-data-mono text-primary">{deletingItem.metadata?.fileName || "esta evidencia"}</strong> del registro de la tarea?
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="px-8 pb-8">
+                  <div className="flex items-center gap-4 bg-surface-container-low p-3 rounded-lg border border-outline-variant">
+                    <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-surface-container-highest">
+                       {deletingItem.type === "image" ? (
+                         <img src={deletingItem.content} className="w-full h-full object-cover" />
+                       ) : deletingItem.type === "drawing" ? (
+                         <img src={deletingItem.content.preview} className="w-full h-full object-contain" />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center bg-primary/10"><MaterialIcon name="movie" /></div>
+                       )}
+                    </div>
+                    <div className="min-w-0 overflow-hidden">
+                      <p className="font-title-sm text-sm text-primary truncate font-bold">{deletingItem.metadata?.fileName || "Archivo"}</p>
+                      <p className="font-body-sm text-[11px] text-on-surface-variant">
+                        Subido el {new Date(deletingItem.createdAt).toLocaleDateString()} • {deletingItem.metadata?.mimeType || "Evidence"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-surface-container p-4 flex flex-col sm:flex-row-reverse gap-3">
+                  <button 
+                    onClick={() => {
+                      removeTaskActivity(task.id, deletingItem.id)
+                      setDeletingItem(null)
+                    }}
+                    className="flex-1 bg-error text-white h-12 px-6 rounded-lg font-title-sm text-sm font-bold flex items-center justify-center active:scale-95 transition-transform"
+                  >
+                    Eliminar
+                  </button>
+                  <button 
+                    onClick={() => setDeletingItem(null)}
+                    className="flex-1 bg-white border border-outline text-primary h-12 px-6 rounded-lg font-title-sm text-sm font-bold flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-transform"
+                  >
+                    Conservar archivo
+                  </button>
+                </div>
+             </div>
+           </div>
+         )}
+
+         {/* Complete Task Modal */}
+         {showCompleteModal && (
+           <div className="fixed inset-0 z-[110] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200">
+             <div className="relative w-full max-w-lg bg-surface border border-outline-variant shadow-2xl rounded-xl overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="bg-surface-container-low px-8 py-6 border-b border-outline-variant">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+                      <MaterialIcon name="task_alt" className="text-[24px]" />
+                    </div>
+                    <h3 className="font-headline-md text-[20px] font-bold text-primary">Confirmar Finalización</h3>
+                  </div>
+                </div>
+
+                <div className="px-8 py-8">
+                  <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
+                    ¿Está seguro de que desea marcar la tarea <strong className="text-primary font-bold">'{task.title}'</strong> como completada? Esta acción notificará al supervisor y cerrará el registro de evidencias.
+                  </p>
+                  <div className="mt-6 p-4 bg-surface-container-high rounded-lg border border-outline-variant flex items-start gap-3">
+                    <MaterialIcon name="info" className="text-secondary text-[20px]" />
+                    <div className="font-body-sm text-[12px] text-on-surface">
+                      <p className="font-bold mb-1">Nota operativa:</p>
+                      <p>Una vez finalizada, solo un administrador de Nivel 5 podrá reabrir este registro.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-8 pb-8 flex flex-col gap-3">
+                  <button 
+                    onClick={() => {
+                      updateTask(task.id, { status: "done" })
+                      setShowCompleteModal(false)
+                      onClose()
+                    }}
+                    className="w-full h-12 bg-secondary text-on-secondary rounded-lg font-title-sm text-sm font-bold shadow-md active:scale-95 transition-transform"
+                  >
+                    Confirmar y Finalizar
+                  </button>
+                  <button 
+                    onClick={() => setShowCompleteModal(false)}
+                    className="w-full h-12 border border-outline text-on-surface-variant rounded-lg font-title-sm text-sm hover:bg-surface-container-high transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                
+                <button 
+                  onClick={() => setShowCompleteModal(false)}
+                  className="absolute top-4 right-4 p-2 text-on-surface-variant hover:text-primary transition-colors"
+                >
+                  <MaterialIcon name="close" />
+                </button>
+             </div>
+           </div>
+         )}
+
+         {/* Media Preview Lightbox */}
+         {previewItem && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 sm:p-10 animate-in fade-in duration-300">
+               <button onClick={() => setPreviewItem(null)} className="absolute top-6 right-6 h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20">
+                  <MaterialIcon name="close" className="text-[24px]" />
+               </button>
+               <div className="w-full max-w-5xl h-full flex flex-col items-center justify-center gap-6">
+                  {previewItem.type === "image" && (
+                    <img src={previewItem.content} alt="Preview" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/20" />
+                  )}
+                  {previewItem.type === "video" && (
+                    <div className="w-full aspect-video bg-black rounded-lg overflow-hidden shadow-2xl flex items-center justify-center border border-white/10">
+                       <MaterialIcon name="play_circle" className="text-[64px] text-white opacity-50" />
+                       <p className="absolute mt-24 text-white/50 font-data-mono text-sm uppercase tracking-widest">Vista previa de video</p>
+                    </div>
+                  )}
+                  <div className="text-center max-w-2xl px-6 bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
+                     <p className="text-white font-headline-md text-xl mb-2">{previewItem.metadata?.fileName || "Archivo de evidencia"}</p>
+                     {previewItem.metadata?.description && (
+                       <p className="text-white/80 text-sm mb-4 leading-relaxed italic border-l-2 border-secondary pl-4 py-1">"{previewItem.metadata.description}"</p>
+                     )}
+                     <div className="flex items-center justify-center gap-3 text-white/40 text-[10px] font-data-mono uppercase tracking-[0.2em]">
+                        <span>{formatDateTime(previewItem.createdAt)}</span>
+                        <span>•</span>
+                        <span>REF: {previewItem.id.slice(-8).toUpperCase()}</span>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
       </div>
     </div>
   )
@@ -479,7 +772,7 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
                <MaterialIcon name={activity.type === "note" ? "notes" : activity.type === "drawing" ? "architecture" : "photo"} className="text-[14px]" />
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
-               {activity.type === "note" ? "Nota de campo" : activity.type === "drawing" ? "Dibujo técnico" : "Evidencia visual"}
+               {activity.type === "note" ? "Nota Técnica" : activity.type === "drawing" ? "Dibujo técnico" : "Evidencia visual"}
             </span>
          </div>
          <span className="text-[10px] font-data-mono text-on-surface-variant/50">
@@ -520,3 +813,4 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
     </div>
   )
 }
+

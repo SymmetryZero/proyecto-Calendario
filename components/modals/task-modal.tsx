@@ -33,6 +33,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
   const [priority, setPriority] = useState<Priority>("medium")
   const [status, setStatus] = useState<TaskStatus>("todo")
   const [assigneeId, setAssigneeId] = useState<string>("")
+  const [dueLabel, setDueLabel] = useState("")
 
   useEffect(() => {
     if (!open) {
@@ -45,6 +46,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     setPriority("medium")
     setStatus("todo")
     setAssigneeId(technicians[0]?.id ?? "")
+    setDueLabel("")
   }, [open, technicians])
 
   if (!open) {
@@ -64,7 +66,8 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
       location: location.trim() || undefined,
       priority,
       status,
-      assigneeIds: assigneeId ? [assigneeId] : []
+      assigneeIds: assigneeId ? [assigneeId] : [],
+      dueLabel: dueLabel.trim() || undefined
     })
 
     onClose()
@@ -125,6 +128,21 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
               className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
               placeholder="Ubicación opcional"
             />
+          </div>
+
+          <div className="grid gap-2">
+            <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
+              Fecha de vencimiento
+            </label>
+            <div className="relative">
+              <MaterialIcon name="event" className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                value={dueLabel}
+                onChange={(event) => setDueLabel(event.target.value)}
+                className="w-full h-12 rounded-lg border border-outline-variant bg-surface pl-12 pr-4 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
+                placeholder="Ej: Hoy 17:00 HRS, Mañana, 15 Oct..."
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">

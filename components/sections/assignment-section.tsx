@@ -188,10 +188,6 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                 type="button"
                 onClick={() => {
                   setSelectedRequirementId(requirement.id)
-                  if (requirement.status === "assigned") {
-                    const linkedTask = tasks.find(t => t.requirementId === requirement.id)
-                    if (linkedTask) onOpenTaskDetails(linkedTask.id)
-                  }
                 }}
                 className={cn(
                   "relative w-full text-left p-4 border-b border-outline-variant transition-colors group/item",
