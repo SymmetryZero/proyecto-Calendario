@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Avatar } from "@/components/ui/avatar"
 import { MaterialIcon } from "@/components/ui/material-icon"
-import { cn } from "@/utils/workflow"
+import { cn, formatDateTime } from "@/utils/workflow"
 import {
   type Requirement,
   type Technician,
@@ -31,13 +31,13 @@ function scoreTechnician(requirement: Requirement, technician: Technician) {
     score += 15
   }
 
-  requirement.requiredSkills.forEach((skill) => {
+  requirement.requiredSkills?.forEach((skill) => {
     if (technician.skills.some((candidate) => candidate.toLowerCase().includes(skill.toLowerCase()))) {
       score += 20
     }
   })
 
-  requirement.requiredClearances.forEach((clearance) => {
+  requirement.requiredClearances?.forEach((clearance) => {
     if (technician.clearances.includes(clearance)) {
       score += 30
     }
@@ -86,7 +86,7 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
       return
     }
 
-    setDispatchNotes(selectedRequirement.notes)
+    setDispatchNotes(selectedRequirement.notes || "")
 
     const existingAssignment = workflowSelectors.getAssignmentForRequirement(
       assignments,
@@ -196,7 +196,7 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
               >
                 {isSelected ? <div className="absolute left-0 top-0 bottom-0 w-1 bg-tertiary-container" /> : null}
                 <div className="flex justify-between items-start mb-2 gap-3">
-                  <span className="font-data-mono text-data-mono text-tertiary-container bg-surface px-2 py-0.5 rounded border border-outline-variant">
+                  <span className="font-data-mono text-data-mono text-tertiary-container bg-surface px-2 py-0.5 rounded border border-outline-variant uppercase">
                     {requirement.code}
                   </span>
                   <span
@@ -212,7 +212,7 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                         : "Baja"}
                   </span>
                 </div>
-                <h3 className="font-title-sm text-title-sm text-on-surface mb-1">{requirement.title}</h3>
+                <h3 className="font-title-sm text-title-sm text-on-surface mb-1 truncate">{requirement.title}</h3>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
                   {requirement.description}
                 </p>
@@ -223,7 +223,9 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                   </div>
                   <div className="flex items-center gap-1 font-body-sm text-body-sm">
                     <MaterialIcon name="schedule" className="text-[16px]" />
-                    Vence: {requirement.dueLabel}
+                    Vence: {requirement.dueLabel && !isNaN(Date.parse(requirement.dueLabel)) 
+                      ? formatDateTime(requirement.dueLabel) 
+                      : requirement.dueLabel}
                   </div>
                   {assignedTechnician ? (
                     <div className="flex items-center gap-1 font-body-sm text-body-sm text-tertiary-container">
@@ -243,17 +245,13 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
           <div className="flex justify-between items-start mb-6 gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <span className="font-data-mono text-data-mono text-tertiary-container bg-surface-container-low px-2 py-1 rounded border border-outline-variant">
+                <span className="font-data-mono text-data-mono text-tertiary-container bg-surface-container-low px-2 py-1 rounded border border-outline-variant uppercase">
                   {selectedRequirement.code}
                 </span>
-                <span className="font-label-caps text-label-caps text-error bg-error-container px-3 py-1 rounded-full">
-                  {selectedRequirement.priority === "high"
-                    ? "Prioridad alta"
-                    : selectedRequirement.priority === "medium"
-                      ? "Media"
-                      : "Prioridad baja"}
+                <span className={cn("font-label-caps text-label-caps px-3 py-1 rounded-full", priorityStyles[selectedRequirement.priority])}>
+                  Prioridad {selectedRequirement.priority === "high" ? "Alta" : selectedRequirement.priority === "medium" ? "Media" : "Baja"}
                 </span>
-                <span className="font-label-caps text-label-caps text-secondary bg-secondary-fixed px-3 py-1 rounded-full">
+                <span className="font-label-caps text-label-caps text-secondary bg-secondary-fixed px-3 py-1 rounded-full uppercase">
                   {selectedRequirement.status === "assigned" ? "Asignado" : "Sin asignar"}
                 </span>
               </div>
@@ -311,14 +309,16 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
               <ul className="space-y-3">
                 <li className="flex items-center justify-between border-b border-outline-variant pb-2 gap-4">
                   <span className="font-body-sm text-body-sm text-on-surface-variant">Ubicación</span>
-                  <span className="font-data-mono text-data-mono text-on-surface text-right">
+                  <span className="font-data-mono text-data-mono text-on-surface text-right truncate max-w-[150px]">
                     {selectedRequirement.location}
                   </span>
                 </li>
                 <li className="flex items-center justify-between border-b border-outline-variant pb-2 gap-4">
                   <span className="font-body-sm text-body-sm text-on-surface-variant">Fecha límite</span>
                   <span className="font-data-mono text-data-mono text-error text-right">
-                    {selectedRequirement.dueLabel}
+                    {selectedRequirement.dueLabel && !isNaN(Date.parse(selectedRequirement.dueLabel)) 
+                      ? formatDateTime(selectedRequirement.dueLabel) 
+                      : selectedRequirement.dueLabel}
                   </span>
                 </li>
                 <li className="flex items-center justify-between gap-4">
@@ -356,26 +356,12 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                 placeholder="Buscar por nombre, habilidad o ID..."
                 type="text"
               />
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-on-surface-variant hover:bg-surface-container rounded-md"
-                title="Filtros avanzados"
-              >
-                <MaterialIcon name="tune" />
-              </button>
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-label-caps text-label-caps text-on-surface-variant mb-2 uppercase tracking-wider">
-                Sugeridos ({selectedRequirement.requiredClearances.join(", ")} , {selectedRequirement.requiredSkills.join(", ")})
-              </h4>
-
               {matchedTechnicians.map(({ technician, score }) => {
                 const isSelected = technician.id === selectedTechnicianId
                 const isAvailable = technician.availability === "available"
-                const matchSkills = selectedRequirement.requiredSkills.filter((skill) =>
-                  technician.skills.some((candidate) => candidate.toLowerCase().includes(skill.toLowerCase()))
-                )
                 const assignmentClass = isSelected
                   ? "border-2 border-tertiary-container bg-tertiary-fixed"
                   : "border border-outline-variant bg-surface hover:bg-surface-container-low"
@@ -407,39 +393,22 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-1 gap-4">
-                        <h3 className="font-title-sm text-title-sm text-on-surface">{technician.name}</h3>
-                        <span className="font-data-mono text-data-mono text-on-surface-variant mr-8">
+                        <h3 className="font-title-sm text-title-sm text-on-surface truncate">{technician.name}</h3>
+                        <span className="font-data-mono text-[10px] text-on-surface-variant uppercase">
                           ID: {technician.code}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <span className="font-label-caps text-label-caps text-on-surface-variant bg-surface px-2 py-0.5 rounded border border-outline-variant">
+                        <span className="font-label-caps text-[10px] text-on-surface-variant bg-surface px-2 py-0.5 rounded border border-outline-variant uppercase">
                           {technician.role}
                         </span>
-                        <div className="flex items-center gap-1 font-body-sm text-body-sm text-primary">
+                        <div className="flex items-center gap-1 font-body-sm text-[11px] text-primary">
                           <MaterialIcon
                             name={isAvailable ? "battery_charging_full" : technician.availability === "soon" ? "schedule" : "block"}
                             className="text-[14px]"
                           />
                           {technician.availabilityLabel}
                         </div>
-                        <div className="flex items-center gap-1 font-data-mono text-[12px] text-on-surface-variant">
-                          <MaterialIcon name="workspace_premium" className="text-[14px]" />
-                          {technician.clearances.join(", ")}
-                        </div>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {matchSkills.slice(0, 3).map((skill) => (
-                          <span
-                            key={skill}
-                            className="font-data-mono text-[12px] px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                        <span className="font-data-mono text-[12px] px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
-                          Puntaje {score}
-                        </span>
                       </div>
                     </div>
                     {isSelected ? (
@@ -464,18 +433,12 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                   updateRequirement(selectedRequirement.id, { notes: nextValue })
                 }}
                 className="w-full p-4 bg-surface border border-outline-variant rounded-lg text-body-md font-body-md focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container outline-none transition-all resize-none h-24"
-                placeholder="Agrega notas específicas para el técnico respecto a esta asignación..."
+                placeholder="Agrega notas específicas para el técnico..."
               />
             </div>
           </div>
 
           <div className="p-6 border-t border-outline-variant bg-surface-bright flex justify-end gap-4">
-            <button
-              type="button"
-              className="px-6 h-[48px] border border-outline text-on-surface-variant rounded-lg font-title-sm text-title-sm hover:bg-surface-container transition-colors"
-            >
-              Cancelar
-            </button>
             <button
               type="button"
               onClick={handleConfirmAssignment}

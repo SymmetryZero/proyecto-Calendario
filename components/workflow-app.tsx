@@ -8,6 +8,8 @@ import { AssignmentSection } from "@/components/sections/assignment-section"
 import { EvidenceSection } from "@/components/sections/evidence-section"
 import { DrawingSection } from "@/components/sections/drawing-section"
 import { SettingsSection } from "@/components/sections/settings-section"
+import { UsersSection } from "@/components/sections/users-section"
+import { StatisticsSection } from "@/components/sections/statistics-section"
 import { SaveProgressModal } from "@/components/modals/save-progress-modal"
 import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
@@ -75,6 +77,8 @@ export function WorkflowApp() {
             {section === "evidence" ? (
               <EvidenceSection onCreateTask={() => setTaskModalOpen(true)} />
             ) : null}
+            {section === "users" ? <UsersSection /> : null}
+            {section === "statistics" ? <StatisticsSection /> : null}
             {section === "settings" ? <SettingsSection /> : null}
           </WorkflowShell>
 

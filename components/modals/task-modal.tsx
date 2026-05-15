@@ -34,6 +34,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
   const [status, setStatus] = useState<TaskStatus>("todo")
   const [assigneeId, setAssigneeId] = useState<string>("")
   const [dueLabel, setDueLabel] = useState("")
+  const [estimatedHours, setEstimatedHours] = useState<number>(1)
 
   useEffect(() => {
     if (!open) {
@@ -46,7 +47,10 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     setPriority("medium")
     setStatus("todo")
     setAssigneeId(technicians[0]?.id ?? "")
-    setDueLabel("")
+    setEstimatedHours(1)
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    setDueLabel(now.toISOString().slice(0, 16))
   }, [open, technicians])
 
   if (!open) {
@@ -67,7 +71,8 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
       priority,
       status,
       assigneeIds: assigneeId ? [assigneeId] : [],
-      dueLabel: dueLabel.trim() || undefined
+      dueLabel: dueLabel.trim() || undefined,
+      estimatedHours
     })
 
     onClose()
@@ -137,15 +142,15 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
             <div className="relative">
               <MaterialIcon name="event" className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               <input
+                type="datetime-local"
                 value={dueLabel}
                 onChange={(event) => setDueLabel(event.target.value)}
                 className="w-full h-12 rounded-lg border border-outline-variant bg-surface pl-12 pr-4 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
-                placeholder="Ej: Hoy 17:00 HRS, Mañana, 15 Oct..."
               />
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <FieldGroup label="Prioridad">
               <select
                 value={priority}
@@ -187,6 +192,21 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
                   </option>
                 ))}
               </select>
+            </FieldGroup>
+
+            <FieldGroup label="Duración (hrs)">
+              <div className="relative">
+                <MaterialIcon name="timer" className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]" />
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={estimatedHours}
+                  onChange={(event) => setEstimatedHours(Number(event.target.value))}
+                  className="h-12 w-full rounded-lg border border-outline-variant bg-surface pl-10 pr-3 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
+                  placeholder="Ej: 2.5"
+                />
+              </div>
             </FieldGroup>
           </div>
         </div>

@@ -179,7 +179,11 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                  <p className="font-label-caps text-[10px] text-error uppercase mb-1 font-bold">Vencimiento</p>
                                  <div className="flex items-center gap-2 text-error">
                                     <MaterialIcon name="event" className="text-[18px]" />
-                                    <span className="font-title-sm text-sm font-bold">{task.dueLabel}</span>
+                                    <span className="font-title-sm text-sm font-bold">
+                                       {task.dueLabel && !isNaN(Date.parse(task.dueLabel)) 
+                                         ? formatDateTime(task.dueLabel) 
+                                         : task.dueLabel}
+                                    </span>
                                  </div>
                               </div>
                             )}

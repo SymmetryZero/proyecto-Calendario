@@ -63,6 +63,16 @@ export function formatShortDate(value: string | number | Date, locale = "es-MX")
   }).format(date)
 }
 
+export function formatNumericDate(value: string | number | Date) {
+  // Add time to avoid timezone issues with date-only strings
+  const date = typeof value === "string" && !value.includes("T") ? new Date(`${value}T12:00:00`) : new Date(value)
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(date)
+}
+
 export function formatClock(date = new Date()) {
   return new Intl.DateTimeFormat("es-MX", {
     hour: "2-digit",
@@ -132,9 +142,6 @@ export function createAvatarDataUri(name: string, background = "#172839", foregr
       <rect width="96" height="96" rx="48" fill="url(#bg)" />
       <circle cx="48" cy="38" r="16" fill="${foreground}" opacity="0.95" />
       <path d="M20 78c4.8-14.8 17.2-23 28-23s23.2 8.2 28 23" fill="${foreground}" opacity="0.95" />
-      <text x="48" y="54" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="700" fill="${background}">
-        ${initials}
-      </text>
     </svg>
   `
 
