@@ -139,7 +139,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
   const activities = task.activities || []
   const notes = activities.filter(a => a.type === "note")
-  const evidence = activities.filter(a => a.type !== "note")
+  const evidence = activities.filter(a => a.type !== "note" && a.type !== "log")
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/80 backdrop-blur-md sm:px-6 sm:py-4">
@@ -291,7 +291,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                       </div>
                       
                       <div className="space-y-4">
-                         {(showHistory ? activities.filter(a => a.type === "log") : notes).map(note => (
+                         {(showHistory ? activities.filter(a => a.type === "log" || a.type === "note") : notes).map(note => (
                            <div key={note.id} className={cn(
                              "p-4 rounded-xl border-l-4 shadow-sm",
                              note.type === "log" ? "bg-surface-container border-primary/30" : "bg-surface-container-low border-secondary"
