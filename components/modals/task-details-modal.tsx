@@ -111,14 +111,17 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     }
   }
 
-  const handleFinishInternalPrompt = (value: string) => {
+  const handleFinishInternalPrompt = (value: string, description?: string) => {
     if (!internalPrompt || !task) return
     
     if (internalPrompt.type === "save_drawing") {
       const nextScene = internalPrompt.data.scene
       const fileName = value.trim() || internalPrompt.value
       
-      addTaskActivity(task.id, "drawing", nextScene, { fileName })
+      addTaskActivity(task.id, "drawing", nextScene, { 
+        fileName,
+        description: description?.trim()
+      })
       updateTask(task.id, { drawingScene: nextScene })
       setEditingActivityId(null)
       setActiveView("bento")
@@ -595,6 +598,14 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                >
                   <MaterialIcon name="arrow_back" />
                </button>
+               {activity.metadata?.description && (
+                  <div className="p-3 border-t border-outline-variant/30 bg-white/50 backdrop-blur-sm">
+                     <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                       <span className="font-bold text-primary mr-1">Nota:</span>
+                       "{activity.metadata.description}"
+                     </p>
+                  </div>
+               )}
              </div>
            )}
         </div>
@@ -869,6 +880,11 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                        </div>
                     </div>
                   )}
+                  {previewItem.type === "drawing" && (
+                    <div className="w-full max-w-4xl aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center p-4">
+                       <DrawingPreview scene={previewItem.content} className="w-full h-full" />
+                    </div>
+                  )}
                   <div className="text-center max-w-2xl px-6 bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
                      <p className="text-white font-headline-md text-xl mb-2">{previewItem.metadata?.fileName || "Archivo de evidencia"}</p>
                      {previewItem.metadata?.description && (
@@ -913,35 +929,57 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                     </div>
                   )}
 
-                  <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                    {internalPrompt.type === "upload_media" ? "Descripción de la evidencia" : "Nombre del archivo"}
-                  </label>
-                  
-                  {internalPrompt.type === "upload_media" ? (
-                    <textarea 
-                      autoFocus
-                      id="internal-modal-textarea"
-                      placeholder="Escriba aquí los detalles observados..."
-                      className="w-full h-32 p-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault()
-                          handleFinishInternalPrompt(e.currentTarget.value)
-                        }
-                      }}
-                    />
+                  {internalPrompt.type === "save_drawing" ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                          Nombre del croquis
+                        </label>
+                        <input 
+                          autoFocus
+                          id="internal-modal-input"
+                          type="text"
+                          defaultValue={internalPrompt.value}
+                          className="w-full h-12 px-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const desc = (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value
+                              handleFinishInternalPrompt(e.currentTarget.value, desc)
+                            }
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                          Descripción (Opcional)
+                        </label>
+                        <textarea 
+                          id="internal-modal-textarea"
+                          placeholder="Agregue contexto adicional..."
+                          className="w-full h-24 p-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none text-sm"
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <input 
-                      autoFocus
-                      id="internal-modal-input"
-                      type="text"
-                      defaultValue={internalPrompt.value}
-                      className="w-full h-12 px-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleFinishInternalPrompt(e.currentTarget.value)
-                      }}
-                    />
+                    <>
+                      <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                        Descripción de la evidencia
+                      </label>
+                      <textarea 
+                        autoFocus
+                        id="internal-modal-textarea"
+                        placeholder="Escriba aquí los detalles observados..."
+                        className="w-full h-32 p-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault()
+                            handleFinishInternalPrompt(e.currentTarget.value)
+                          }
+                        }}
+                      />
+                    </>
                   )}
+                  
                   <p className="mt-3 text-[10px] text-on-surface-variant italic">
                     {internalPrompt.type === "upload_media" 
                       ? "La descripción es opcional para el registro técnico." 
@@ -952,10 +990,12 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 <div className="p-4 bg-surface-container flex flex-col sm:flex-row-reverse gap-2 border-t border-outline-variant">
                    <button 
                      onClick={() => {
-                        const val = internalPrompt.type === "upload_media" 
-                          ? (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value 
-                          : (document.getElementById('internal-modal-input') as HTMLInputElement)?.value
-                        handleFinishInternalPrompt(val || "")
+                        const val = (document.getElementById('internal-modal-input') as HTMLInputElement)?.value || 
+                                   (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value
+                        const desc = internalPrompt.type === "save_drawing" 
+                                   ? (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value 
+                                   : undefined
+                        handleFinishInternalPrompt(val || "", desc)
                      }}
                      className="flex-1 h-11 bg-primary text-white font-bold rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all"
                    >
@@ -1021,13 +1061,11 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
                 </div>
               )}
               {activity.type === "drawing" && (
-                 <div className="h-full w-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant/30 italic text-sm p-4">
-                    {/* Simplified drawing preview - in a real app we'd render a mini-svg here */}
-                    <div className="flex flex-col items-center gap-2">
-                       <MaterialIcon name="architecture" className="text-[32px]" />
-                       <span>Croquis Técnico Guardado</span>
-                       <span className="text-[10px] bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full not-italic">Ver en Pizarra</span>
-                    </div>
+                 <div 
+                   className="h-full w-full bg-white flex items-center justify-center p-4 cursor-pointer hover:bg-surface-container-lowest transition-colors"
+                   onClick={() => setPreviewItem(activity)}
+                 >
+                    <DrawingPreview scene={activity.content} className="w-full h-full" />
                  </div>
               )}
            </div>
@@ -1036,3 +1074,103 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
     </div>
   )
 }
+ 
+ function DrawingPreview({ scene, className }: { scene: any; className?: string }) {
+   if (!scene || !scene.elements || scene.elements.length === 0) {
+     return (
+       <div className={cn("flex flex-col items-center justify-center gap-2 text-on-surface-variant/30", className)}>
+         <MaterialIcon name="draw" className="text-[48px]" />
+         <span className="text-xs italic">Dibujo vacío</span>
+       </div>
+     )
+   }
+ 
+   const SCALE = 2000 // Scale normalized 0-1 coords to a virtual space
+   const elements = scene.elements
+   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+ 
+   // Transform and calculate bounds
+   const transformedElements = elements.map((el: any) => {
+     const transformed = { ...el }
+     if (el.kind === "stroke" && el.points) {
+       transformed.points = el.points.map((p: any) => ({ x: p.x * SCALE, y: p.y * SCALE }))
+       transformed.points.forEach((p: any) => {
+         minX = Math.min(minX, p.x); minY = Math.min(minY, p.y)
+         maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y)
+       })
+     } else if (el.kind === "line") {
+       transformed.from = { x: el.from.x * SCALE, y: el.from.y * SCALE }
+       transformed.to = { x: el.to.x * SCALE, y: el.to.y * SCALE }
+       minX = Math.min(minX, transformed.from.x, transformed.to.x); minY = Math.min(minY, transformed.from.y, transformed.to.y)
+       maxX = Math.max(maxX, transformed.from.x, transformed.to.x); maxY = Math.max(maxY, transformed.from.y, transformed.to.y)
+     } else if (el.kind === "text") {
+       transformed.position = { x: el.position.x * SCALE, y: el.position.y * SCALE }
+       minX = Math.min(minX, transformed.position.x); minY = Math.min(minY, transformed.position.y)
+       maxX = Math.max(maxX, transformed.position.x + (el.text.length * el.fontSize)); maxY = Math.max(maxY, transformed.position.y + el.fontSize)
+     }
+     return transformed
+   })
+ 
+   if (minX === Infinity) {
+     minX = 0; minY = 0; maxX = SCALE; maxY = SCALE
+   } else {
+     // Add padding
+     const pad = 100
+     minX -= pad; minY -= pad; maxX += pad; maxY += pad
+   }
+   
+   const width = maxX - minX
+   const height = maxY - minY
+ 
+   return (
+     <svg 
+       viewBox={`${minX} ${minY} ${width} ${height}`}
+       preserveAspectRatio="xMidYMid meet"
+       className={className}
+     >
+       {transformedElements.map((el: any) => {
+         if (el.kind === "stroke") {
+           return (
+             <path 
+               key={el.id}
+               d={el.points.map((p: any, j: number) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+               stroke={el.stroke}
+               strokeWidth={el.strokeWidth}
+               fill="none"
+               strokeLinecap="round"
+               strokeLinejoin="round"
+             />
+           )
+         }
+         if (el.kind === "line") {
+           return (
+             <line 
+               key={el.id}
+               x1={el.from.x} y1={el.from.y}
+               x2={el.to.x} y2={el.to.y}
+               stroke={el.stroke}
+               strokeWidth={el.strokeWidth}
+               strokeLinecap="round"
+             />
+           )
+         }
+         if (el.kind === "text") {
+           return (
+             <text 
+               key={el.id}
+               x={el.position.x} y={el.position.y}
+               fill={el.stroke}
+               fontSize={el.fontSize}
+               fontFamily="sans-serif"
+               dominantBaseline="hanging"
+             >
+               {el.text}
+             </text>
+           )
+         }
+         return null
+       })}
+     </svg>
+   )
+ }
+
