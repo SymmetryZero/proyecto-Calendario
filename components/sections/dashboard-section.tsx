@@ -111,6 +111,12 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
   const deleteTask = useWorkflowStore((state) => state.deleteTask)
   const pauseTaskTimer = useWorkflowStore((state) => state.pauseTaskTimer)
   const startTaskTimer = useWorkflowStore((state) => state.startTaskTimer)
+  
+  const [pendingAction, setPendingAction] = useState<{
+    type: "move" | "delete"
+    task: Task
+    nextStatus?: TaskStatus
+  } | null>(null)
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [filterMode, setFilterMode] = useState<"all" | "high">("all")
@@ -167,11 +173,24 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
     }
 
     const task = tasks.find((item) => item.id === draggedTaskId)
-    if (task) {
-      handleMove(task, status)
+    if (task && task.status !== status) {
+      const nextStatus = status
+      setPendingAction({ type: "move", task, nextStatus })
     }
 
     setDraggedTaskId(null)
+  }
+
+  const confirmAction = () => {
+    if (!pendingAction) return
+    
+    if (pendingAction.type === "move" && pendingAction.nextStatus) {
+      handleMove(pendingAction.task, pendingAction.nextStatus)
+    } else if (pendingAction.type === "delete") {
+      deleteTask(pendingAction.task.id)
+    }
+    
+    setPendingAction(null)
   }
 
   const [activeTab, setActiveTab] = useState<TaskStatus>("todo")
@@ -248,7 +267,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
 
       <div className="flex-1 min-h-0 overflow-x-auto md:overflow-visible pb-4">
         <div className={cn(
-          "flex gap-4 md:gap-gutter min-h-full transition-all duration-500",
+          "flex gap-4 md:gap-gutter h-full transition-all duration-500",
           "w-full md:w-max", // On mobile it's full width, on desktop it scrolls
         )}>
           {statusOrder.map((status) => {
@@ -257,7 +276,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
 
             return (
               <div key={status} className={cn(
-                "w-full md:w-80 flex-shrink-0 flex flex-col",
+                "w-full md:w-80 flex-shrink-0 flex flex-col h-full",
                 !isVisible ? "hidden md:flex" : "flex"
               )}>
                 <KanbanColumn
@@ -268,8 +287,11 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
                   draggedTaskId={draggedTaskId}
                   onDragTask={setDraggedTaskId}
                   onDropTask={handleDrop}
-                  onMoveTask={handleMove}
-                  onDeleteTask={deleteTask}
+                  onMoveTask={(task, nextStatus) => setPendingAction({ type: "move", task, nextStatus })}
+                  onDeleteTask={(taskId) => {
+                    const task = tasks.find(t => t.id === taskId)
+                    if (task) setPendingAction({ type: "delete", task })
+                  }}
                   onOpenTaskDetails={onOpenTaskDetails}
                   now={now}
                 />
@@ -278,6 +300,51 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
           })}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {pendingAction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-outline-variant bg-surface-container-low flex items-center gap-3">
+                 <div className={cn(
+                   "w-10 h-10 rounded-full flex items-center justify-center",
+                   pendingAction.type === "delete" ? "bg-error-container text-error" : "bg-secondary-container text-on-secondary-container"
+                 )}>
+                    <MaterialIcon name={pendingAction.type === "delete" ? "delete_forever" : "swap_horiz"} />
+                 </div>
+                 <h3 className="font-bold text-primary">Confirmar Acción</h3>
+              </div>
+              
+              <div className="p-6">
+                 <p className="text-sm text-on-surface-variant leading-relaxed">
+                   {pendingAction.type === "delete" ? (
+                     <>¿Está seguro de que desea eliminar la tarea <span className="font-bold text-primary">"{pendingAction.task.title}"</span>? Esta acción no se puede deshacer.</>
+                   ) : (
+                     <>¿Desea cambiar el estado de la tarea a <span className="font-bold text-primary">"{statusMeta[pendingAction.nextStatus!].label}"</span>?</>
+                   )}
+                 </p>
+              </div>
+
+              <div className="p-4 bg-surface-container flex flex-col sm:flex-row-reverse gap-2 border-t border-outline-variant">
+                 <button 
+                   onClick={confirmAction}
+                   className={cn(
+                     "flex-1 h-11 text-white font-bold rounded-xl shadow-md transition-all active:scale-95",
+                     pendingAction.type === "delete" ? "bg-error" : "bg-primary"
+                   )}
+                 >
+                   Confirmar
+                 </button>
+                 <button 
+                   onClick={() => setPendingAction(null)}
+                   className="flex-1 h-11 bg-white border border-outline text-on-surface-variant font-bold rounded-xl hover:bg-surface-container-high transition-colors"
+                 >
+                   Cancelar
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -314,7 +381,7 @@ function KanbanColumn({
   return (
     <section
       className={cn(
-        "w-80 flex-shrink-0 flex flex-col rounded-lg p-4 border border-outline-variant/50",
+        "w-80 flex-shrink-0 flex flex-col rounded-lg p-4 border border-outline-variant/50 h-full min-h-0",
         meta.columnClass,
         draggedTaskId ? "ring-2 ring-secondary-container/40" : ""
       )}
@@ -335,7 +402,7 @@ function KanbanColumn({
         </span>
       </div>
 
-      <div className="flex flex-col gap-stack-md overflow-y-auto pr-2 pb-2 scrollbar-thin">
+      <div className="flex-1 min-h-0 flex flex-col gap-stack-md overflow-y-auto pr-2 pb-2 scrollbar-thin">
         {tasks.length === 0 ? (
           <div className="rounded-lg border border-dashed border-outline-variant bg-surface-container-lowest p-4 text-sm text-on-surface-variant">
             No hay tareas en esta columna.
@@ -413,8 +480,9 @@ function TaskCard({
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onClick={() => onOpenTaskDetails(task.id)}
       className={cn(
-        "bg-surface-container-lowest rounded-DEFAULT border p-4 flex flex-col gap-stack-sm shadow-sm hover:shadow-md transition-all cursor-grab relative group",
+        "bg-surface-container-lowest rounded-DEFAULT border p-4 flex flex-col gap-stack-sm shadow-sm hover:shadow-md transition-all cursor-pointer relative group",
         task.status === "inProgress"
           ? "border-tertiary-container ring-1 ring-tertiary-container/20"
           : "border-outline-variant",
@@ -425,32 +493,42 @@ function TaskCard({
         <span className={cn("px-2 py-0.5 font-label-caps text-label-caps rounded-DEFAULT", priorityMeta[task.priority].className)}>
           {priorityMeta[task.priority].label}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => onOpenTaskDetails(task.id)}
-            className="transition-opacity text-on-surface-variant hover:text-primary opacity-100 md:opacity-0 md:group-hover:opacity-100"
-            aria-label="Abrir detalles y adjuntos de la tarea"
-            title="Abrir adjuntos"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenTaskDetails(task.id)
+            }}
+            className="flex items-center justify-center w-9 h-9 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm"
+            aria-label="Agregar evidencia"
+            title="Agregar evidencia"
           >
-            <MaterialIcon name="attach_file" className="text-[20px]" />
+            <MaterialIcon name="attach_file" className="text-[18px]" />
           </button>
           <button
             type="button"
-            onClick={() => onMoveTask(task, nextStatus)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-on-surface-variant hover:text-primary"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveTask(task, nextStatus)
+            }}
+            className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-sm"
             aria-label={`${statusLabel} tarea`}
             title={statusLabel}
           >
-            <MaterialIcon name={task.status === "review" ? "check_circle" : "arrow_forward"} className="text-[20px]" />
+            <MaterialIcon name={task.status === "review" ? "check_circle" : "arrow_forward"} className="text-[18px]" />
           </button>
           <button
             type="button"
-            onClick={() => onDeleteTask(task.id)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-on-surface-variant hover:text-error"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDeleteTask(task.id)
+            }}
+            className="flex items-center justify-center w-9 h-9 rounded-xl bg-error/10 text-error hover:bg-error hover:text-white transition-all shadow-sm"
             aria-label="Eliminar tarea"
+            title="Eliminar"
           >
-            <MaterialIcon name="delete" className="text-[20px]" />
+            <MaterialIcon name="delete" className="text-[18px]" />
           </button>
         </div>
       </div>

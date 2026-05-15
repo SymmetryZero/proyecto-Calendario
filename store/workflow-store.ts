@@ -17,7 +17,7 @@ export type SectionKey = "dashboard" | "assignments" | "users" | "statistics" | 
 export type TaskStatus = "todo" | "inProgress" | "review" | "done"
 export type Priority = "high" | "medium" | "low"
 export type RequirementStatus = "unassigned" | "assigned"
-export type EvidenceType = "image" | "video"
+export type EvidenceType = "image" | "video" | "audio"
 export type FolderMode = "existing" | "new"
 export type TechnicianAvailability = "available" | "soon" | "offline"
 export type UserRole = "administrador" | "gerente" | "empleado"
@@ -45,7 +45,7 @@ export interface Technician {
   avatar: string
 }
 
-export type TaskActivityType = "note" | "drawing" | "image" | "video"
+export type TaskActivityType = "note" | "drawing" | "image" | "video" | "audio"
 
 export interface TaskActivity {
   id: string
@@ -1410,14 +1410,36 @@ export const useWorkflowStore = create<WorkflowStore>()(
     {
       name: "workflow-pro-storage",
       version: 8,
-      storage: createJSONStorage(() =>
-        typeof window === "undefined" ? memoryStorage : window.localStorage
-      ),
+      storage: createJSONStorage(() => ({
+        getItem: (name) => localStorage.getItem(name),
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, value)
+          } catch (e) {
+            console.error("Storage quota exceeded, state not saved to localStorage", e)
+          }
+        },
+        removeItem: (name) => localStorage.removeItem(name)
+      })),
       partialize: (state) => ({
-        tasks: state.tasks,
+        // Limit persistent tasks to prevent quota issues
+        tasks: state.tasks.map(t => ({
+          ...t,
+          // Prune large activity content in persistence
+          activities: t.activities.map(a => ({
+            ...a,
+            content: (typeof a.content === 'string' && a.content.length > 50000) 
+              ? "" // Don't persist large base64 in activities
+              : a.content
+          }))
+        })),
         requirements: state.requirements,
         technicians: state.technicians,
-        evidence: state.evidence,
+        // Prune large base64 in evidence
+        evidence: state.evidence.map(e => ({
+          ...e,
+          base64: (e.base64 && e.base64.length > 50000) ? "" : e.base64
+        })),
         folders: state.folders,
         assignments: state.assignments,
         saves: state.saves,

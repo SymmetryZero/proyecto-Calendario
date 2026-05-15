@@ -544,6 +544,13 @@ export function TaskDrawingCanvas({
   const [strokeColor, setStrokeColor] = useState(SHAPE_COLORS.pen)
   const [strokeWidth, setStrokeWidth] = useState(3)
   const [showStyleMenu, setShowStyleMenu] = useState(false)
+  const [internalPrompt, setInternalPrompt] = useState<{
+    type: "text" | "number" | "edit"
+    title: string
+    value: string
+    point?: CanvasPoint
+    targetId?: string
+  } | null>(null)
   const canvasSize = VIRTUAL_CANVAS
 
   const boardRef = useRef<HTMLDivElement | null>(null)
@@ -742,7 +749,7 @@ export function TaskDrawingCanvas({
   }, [onSave, tool, canvasSize])
 
   const handleReset = useCallback(() => {
-    const nextShapes = cloneShapes(initialShapesRef.current)
+    const nextShapes: CanvasShape[] = []
 
     historyRef.current = [...historyRef.current, cloneShapes(shapesRef.current)]
     redoRef.current = []
@@ -750,7 +757,6 @@ export function TaskDrawingCanvas({
     setShapes(nextShapes)
     syncDraft(null)
     setSelectedId(null)
-    setTool(initialToolRef.current)
     setHasChanges(serializeShapes(nextShapes) !== savedSignatureRef.current)
   }, [syncDraft])
 
@@ -811,28 +817,14 @@ export function TaskDrawingCanvas({
 
   const handleInsertText = useCallback(
     (point: CanvasPoint) => {
-      const value = window.prompt("Escribe el texto de la anotación", "Nueva nota")
-      if (value === null) {
-        return
-      }
-
-      const text = value.trim()
-      if (!text) {
-        return
-      }
-
-      const estimatedWidth = measureWidth(text, 18)
-      const marginX = estimatedWidth / Math.max(1, VIRTUAL_CANVAS.width) + 0.04
-      const marginY = (18 * 1.4) / Math.max(1, VIRTUAL_CANVAS.height) + 0.04
-      const position = clampPoint({
-        x: clamp(point.x, 0.04, Math.max(0.04, 1 - marginX)),
-        y: clamp(point.y, 0.04, Math.max(0.04, 1 - marginY))
+      setInternalPrompt({
+        type: "text",
+        title: "Nueva anotación",
+        value: "Nueva nota",
+        point
       })
-
-      const shape = createTextShape(position, text)
-      applyShapes([...shapesRef.current, shape], { selectedId: shape.id })
     },
-    [applyShapes, createTextShape, measureWidth]
+    []
   )
 
   const createNumberShape = useCallback(
@@ -853,30 +845,68 @@ export function TaskDrawingCanvas({
     []
   )
 
-  const handleInsertNumber = useCallback(
-    (point: CanvasPoint) => {
-      const value = window.prompt("Escribe la medici\u00f3n o n\u00famero", "300 mm")
-      if (value === null) {
-        return
-      }
-
+  const handleFinishPrompt = useCallback(
+    (value: string) => {
+      if (!internalPrompt) return
       const text = value.trim()
       if (!text) {
+        setInternalPrompt(null)
         return
       }
 
-      const estimatedWidth = measureWidth(text, 20)
-      const marginX = (estimatedWidth + 24) / Math.max(1, VIRTUAL_CANVAS.width) + 0.04
-      const marginY = (20 * 1.6) / Math.max(1, VIRTUAL_CANVAS.height) + 0.04
-      const position = clampPoint({
-        x: clamp(point.x, 0.04, Math.max(0.04, 1 - marginX)),
-        y: clamp(point.y, 0.04, Math.max(0.04, 1 - marginY))
-      })
+      if (internalPrompt.type === "text" && internalPrompt.point) {
+        const point = internalPrompt.point
+        const estimatedWidth = measureWidth(text, 18)
+        const marginX = estimatedWidth / Math.max(1, VIRTUAL_CANVAS.width) + 0.04
+        const marginY = (18 * 1.4) / Math.max(1, VIRTUAL_CANVAS.height) + 0.04
+        const position = clampPoint({
+          x: clamp(point.x, 0.04, Math.max(0.04, 1 - marginX)),
+          y: clamp(point.y, 0.04, Math.max(0.04, 1 - marginY))
+        })
 
-      const shape = createNumberShape(position, text)
-      applyShapes([...shapesRef.current, shape], { selectedId: shape.id })
+        const shape = createTextShape(position, text)
+        applyShapes([...shapesRef.current, shape], { selectedId: shape.id })
+      } else if (internalPrompt.type === "number" && internalPrompt.point) {
+        const point = internalPrompt.point
+        const estimatedWidth = measureWidth(text, 20)
+        const marginX = (estimatedWidth + 24) / Math.max(1, VIRTUAL_CANVAS.width) + 0.04
+        const marginY = (20 * 1.6) / Math.max(1, VIRTUAL_CANVAS.height) + 0.04
+        const position = clampPoint({
+          x: clamp(point.x, 0.04, Math.max(0.04, 1 - marginX)),
+          y: clamp(point.y, 0.04, Math.max(0.04, 1 - marginY))
+        })
+
+        const shape = createNumberShape(position, text)
+        applyShapes([...shapesRef.current, shape], { selectedId: shape.id })
+      } else if (internalPrompt.type === "edit" && internalPrompt.targetId) {
+        const targetId = internalPrompt.targetId
+        const nextShapes = shapesRef.current.map((shape) =>
+          shape.id === targetId
+            ? {
+                ...shape,
+                text: text,
+                updatedAt: Date.now()
+              }
+            : shape
+        )
+        applyShapes(nextShapes, { selectedId: targetId })
+      }
+
+      setInternalPrompt(null)
     },
-    [applyShapes, createNumberShape, measureWidth]
+    [applyShapes, createNumberShape, createTextShape, internalPrompt, measureWidth]
+  )
+
+  const handleInsertNumber = useCallback(
+    (point: CanvasPoint) => {
+      setInternalPrompt({
+        type: "number",
+        title: "Nueva medición",
+        value: "300 mm",
+        point
+      })
+    },
+    []
   )
 
   const appendStrokePoint = useCallback((shape: StrokeShape, point: CanvasPoint) => {
@@ -1136,29 +1166,14 @@ export function TaskDrawingCanvas({
         return
       }
 
-      const edited = window.prompt("Editar texto", target.text)
-      if (edited === null) {
-        return
-      }
-
-      const nextText = edited.trim()
-      if (!nextText) {
-        return
-      }
-
-      const nextShapes = shapesRef.current.map((shape) =>
-        shape.id === target.id
-          ? {
-              ...shape,
-              text: nextText,
-              updatedAt: Date.now()
-            }
-          : shape
-      )
-
-      applyShapes(nextShapes, { selectedId: target.id })
+      setInternalPrompt({
+        type: "edit",
+        title: "Editar texto",
+        value: target.text,
+        targetId: target.id
+      })
     },
-    [applyShapes, eventToCanvasPoint, selectShapeAtPoint]
+    [eventToCanvasPoint, selectShapeAtPoint]
   )
 
   const selectedShape = selectedId
@@ -1221,20 +1236,30 @@ export function TaskDrawingCanvas({
         </div>
       ) : null}
 
-      <div ref={boardRef} className="canvas-grid relative flex-1 min-h-[250px] overflow-hidden">
-        <svg
-          ref={svgRef}
-          className="absolute inset-0 h-full w-full select-none touch-none"
-          viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-          preserveAspectRatio="xMidYMid meet"
-          role="img"
-          aria-label={title}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
-          onDoubleClick={handleDoubleClick}
+      <div ref={boardRef} className="relative flex-1 min-h-[300px] overflow-hidden bg-surface-container-lowest flex items-center justify-center p-4 sm:p-8">
+        <div 
+          className="canvas-grid relative shadow-2xl border border-outline-variant rounded-sm overflow-hidden"
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            maxWidth: VIRTUAL_CANVAS.width, 
+            maxHeight: VIRTUAL_CANVAS.height,
+            aspectRatio: `${VIRTUAL_CANVAS.width} / ${VIRTUAL_CANVAS.height}`
+          }}
         >
+          <svg
+            ref={svgRef}
+            className="absolute inset-0 h-full w-full select-none touch-none"
+            viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label={title}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onDoubleClick={handleDoubleClick}
+          >
           <defs>
             <marker id="canvas-arrow" markerHeight="6" markerWidth="6" orient="auto-start-reverse" refX="5" refY="5" viewBox="0 0 10 10">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="#74777d" />
@@ -1468,9 +1493,10 @@ export function TaskDrawingCanvas({
             />
           ) : null}
         </svg>
+        </div>
 
         {/* Toolbar - floating premium vertical bar */}
-        <div className="absolute z-20 left-4 top-1/2 -translate-y-1/2 hidden sm:flex flex-col items-center gap-2 rounded-2xl border border-outline-variant bg-white/90 p-2 shadow-2xl backdrop-blur-md animate-in slide-in-from-left duration-500">
+        <div className="absolute z-20 left-4 top-6 hidden sm:flex flex-col items-center gap-2 rounded-2xl border border-outline-variant bg-white/90 p-2 shadow-2xl backdrop-blur-md animate-in slide-in-from-left duration-500 max-h-[calc(100%-48px)] overflow-y-auto scrollbar-thin">
           <ToolButton icon="ads_click" label="Seleccionar" active={tool === "select"} onClick={() => handleToolChange("select")} />
           <div className="w-8 h-px bg-outline-variant/30 my-1" />
           <ToolButton icon="draw" label="Trazo libre" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
@@ -1591,6 +1617,45 @@ export function TaskDrawingCanvas({
         <div className="hidden sm:block absolute bottom-4 left-4 z-20 max-w-[90%] rounded-full border border-outline-variant bg-surface/95 px-4 py-2 text-sm text-on-surface-variant shadow-sm backdrop-blur-sm">
           {helperMessage}
         </div>
+
+        {/* Internal Prompt Modal */}
+        {internalPrompt && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
+            <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200 p-6">
+              <h4 className="font-bold text-primary mb-4 flex items-center gap-2">
+                <MaterialIcon name={internalPrompt.type === "number" ? "straighten" : "text_fields"} className="text-secondary" />
+                {internalPrompt.title}
+              </h4>
+              <input
+                autoFocus
+                type="text"
+                defaultValue={internalPrompt.value}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleFinishPrompt(e.currentTarget.value)
+                  if (e.key === "Escape") setInternalPrompt(null)
+                }}
+                className="w-full h-12 px-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all mb-4"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setInternalPrompt(null)}
+                  className="px-4 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container rounded-lg"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    const input = document.querySelector<HTMLInputElement>('input[type="text"]')
+                    if (input) handleFinishPrompt(input.value)
+                  }}
+                  className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-sm hover:opacity-90"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

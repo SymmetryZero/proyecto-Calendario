@@ -22,6 +22,20 @@ const priorityStyles = {
   low: "text-on-surface-variant bg-surface-variant"
 } as const
 
+const statusStyles = {
+  todo: "bg-surface-container-high text-on-surface-variant",
+  inProgress: "bg-secondary-container text-on-secondary-container",
+  review: "bg-tertiary-container text-on-tertiary-container",
+  done: "bg-primary text-white"
+} as const
+
+const statusLabels = {
+  todo: "Por Hacer",
+  inProgress: "En Progreso",
+  review: "En Revisión",
+  done: "Completada"
+} as const
+
 function scoreTechnician(requirement: Requirement, technician: Technician) {
   let score = 0
 
@@ -199,18 +213,25 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                   <span className="font-data-mono text-data-mono text-tertiary-container bg-surface px-2 py-0.5 rounded border border-outline-variant uppercase">
                     {requirement.code}
                   </span>
-                  <span
-                    className={cn(
-                      "font-label-caps text-label-caps px-2 py-0.5 rounded-full",
-                      priorityStyles[requirement.priority]
-                    )}
-                  >
-                    {requirement.priority === "high"
-                      ? "Prioridad alta"
-                      : requirement.priority === "medium"
-                        ? "Media"
-                        : "Baja"}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className={cn(
+                        "font-label-caps text-[9px] px-2 py-0.5 rounded-full",
+                        priorityStyles[requirement.priority]
+                      )}
+                    >
+                      {requirement.priority === "high" ? "ALTA" : requirement.priority === "medium" ? "MEDIA" : "BAJA"}
+                    </span>
+                    {(() => {
+                       const t = tasks.find(x => x.requirementId === requirement.id)
+                       if (!t) return null
+                       return (
+                         <span className={cn("font-label-caps text-[9px] px-2 py-0.5 rounded-full", statusStyles[t.status])}>
+                           {statusLabels[t.status]}
+                         </span>
+                       )
+                    })()}
+                  </div>
                 </div>
                 <h3 className="font-title-sm text-title-sm text-on-surface mb-1 truncate">{requirement.title}</h3>
                 <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">
@@ -251,9 +272,19 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                 <span className={cn("font-label-caps text-label-caps px-3 py-1 rounded-full", priorityStyles[selectedRequirement.priority])}>
                   Prioridad {selectedRequirement.priority === "high" ? "Alta" : selectedRequirement.priority === "medium" ? "Media" : "Baja"}
                 </span>
-                <span className="font-label-caps text-label-caps text-secondary bg-secondary-fixed px-3 py-1 rounded-full uppercase">
-                  {selectedRequirement.status === "assigned" ? "Asignado" : "Sin asignar"}
-                </span>
+                {(() => {
+                   const t = tasks.find(x => x.requirementId === selectedRequirement.id)
+                   if (!t) return (
+                      <span className="font-label-caps text-label-caps text-secondary bg-secondary-fixed px-3 py-1 rounded-full uppercase">
+                        Sin asignar
+                      </span>
+                   )
+                   return (
+                      <span className={cn("font-label-caps text-label-caps px-3 py-1 rounded-full uppercase", statusStyles[t.status])}>
+                        {statusLabels[t.status]}
+                      </span>
+                   )
+                })()}
               </div>
               <h1 className="font-headline-md text-headline-md text-tertiary-container">
                 {selectedRequirement.title}

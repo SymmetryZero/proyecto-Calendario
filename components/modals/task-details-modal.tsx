@@ -45,6 +45,12 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const [editNameValue, setEditNameValue] = useState("")
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [internalPrompt, setInternalPrompt] = useState<{
+    type: "save_drawing" | "upload_media"
+    title: string
+    value: string
+    data?: any
+  } | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -79,24 +85,51 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     setUploading(true)
     try {
       if (!task) return
-      for (const file of Array.from(files)) {
-        const base64 = await fileToDataUrl(file)
-        const type = file.type.startsWith("video/") ? "video" : "image"
-        
-        const fileName = file.name
-        const description = "" // Initially empty, can be edited later if needed
-
-        addTaskActivity(task.id, type, base64, {
-          fileName,
-          mimeType: file.type,
-          description
-        })
-      }
+      const file = files[0]
+      const base64 = await fileToDataUrl(file)
+      let type: "image" | "video" | "audio" = "image"
+      if (file.type.startsWith("video/")) type = "video"
+      else if (file.type.startsWith("audio/")) type = "audio"
+      
+      setInternalPrompt({
+        type: "upload_media",
+        title: "Descripción de Evidencia",
+        value: "",
+        data: {
+          base64,
+          type,
+          fileName: file.name,
+          mimeType: file.type
+        }
+      })
       setShowAddChoice(false)
     } finally {
       setUploading(false)
       event.target.value = ""
     }
+  }
+
+  const handleFinishInternalPrompt = (value: string) => {
+    if (!internalPrompt || !task) return
+    
+    if (internalPrompt.type === "save_drawing") {
+      const nextScene = internalPrompt.data.scene
+      const fileName = value.trim() || internalPrompt.value
+      
+      addTaskActivity(task.id, "drawing", nextScene, { fileName })
+      updateTask(task.id, { drawingScene: nextScene })
+      setEditingActivityId(null)
+      setActiveView("bento")
+    } else if (internalPrompt.type === "upload_media") {
+      const { base64, type, fileName, mimeType } = internalPrompt.data
+      addTaskActivity(task.id, type, base64, {
+        fileName,
+        mimeType,
+        description: value.trim()
+      })
+    }
+    
+    setInternalPrompt(null)
   }
 
   const activities = task.activities || []
@@ -120,14 +153,31 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 <MaterialIcon name="chevron_right" className="text-[14px] hidden sm:inline" />
                 <span className="text-primary font-semibold truncate max-w-[200px]">{task.title}</span>
               </nav>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                  <h2 className="font-display-lg text-headline-md sm:text-display-lg text-primary leading-tight">{task.title}</h2>
-                 <span className={cn("hidden sm:inline-block px-3 py-1 rounded-full font-label-caps text-[10px] uppercase tracking-wider shadow-sm", 
-                   task.status === "inProgress" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high text-on-surface-variant")}>
-                   {task.status === "inProgress" ? "En Progreso" : task.status === "todo" ? "Pendiente" : "Completada"}
-                 </span>
+                 
+                 {/* Status Selector */}
+                 <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-full border border-outline-variant">
+                    {(["todo", "inProgress", "review", "done"] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => updateTask(task.id, { status: s })}
+                        className={cn(
+                          "px-3 py-1 rounded-full font-label-caps text-[9px] uppercase tracking-wider transition-all",
+                          task.status === s 
+                            ? s === "todo" ? "bg-surface-container-high text-on-surface shadow-sm" :
+                              s === "inProgress" ? "bg-secondary-container text-on-secondary-container shadow-sm" :
+                              s === "review" ? "bg-tertiary-container text-on-tertiary-container shadow-sm" :
+                              "bg-primary text-white shadow-sm"
+                            : "text-on-surface-variant hover:bg-surface-container-high"
+                        )}
+                      >
+                        {s === "todo" ? "Por Hacer" : s === "inProgress" ? "En Progreso" : s === "review" ? "Revisión" : "Hecho"}
+                      </button>
+                    ))}
+                 </div>
               </div>
-              <p className="font-data-mono text-[11px] text-on-surface-variant mt-0.5">REF: {task.id.toUpperCase()}</p>
+              <p className="font-data-mono text-[11px] text-on-surface-variant mt-1.5">REF: {task.id.toUpperCase()}</p>
            </div>
            
            <div className="flex items-center gap-3 self-end sm:self-center">
@@ -313,7 +363,11 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                   </div>
                                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 min-h-0 overflow-y-auto pr-1">
                                      <button 
-                                       onClick={() => setActiveView("drawing")}
+                                       onClick={() => {
+                                         setDrawingScene(null)
+                                         setEditingActivityId(null)
+                                         setActiveView("drawing")
+                                       }}
                                        className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant hover:border-secondary hover:bg-secondary/5 transition-all text-left group"
                                      >
                                         <div className="h-9 w-9 rounded-lg bg-surface-container flex items-center justify-center text-secondary group-hover:bg-secondary-container group-hover:text-on-secondary-container transition-colors">
@@ -333,13 +387,13 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                         </div>
                                         <div className="min-w-0">
                                            <p className="text-[13px] font-bold text-on-surface leading-tight">Cámara / Archivo</p>
-                                           <p className="text-[9px] text-on-surface-variant">Sube fotos o videos</p>
+                                           <p className="text-[9px] text-on-surface-variant">Sube fotos, videos o audios</p>
                                         </div>
                                      </button>
                                   </div>
                                </div>
                             )}
-                            <input ref={fileInputRef} type="file" accept="image/*,video/*" capture="environment" multiple className="hidden" onChange={handleUpload} />
+                            <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" capture="environment" multiple className="hidden" onChange={handleUpload} />
                          </div>
 
                          {/* Evidence Grid Items */}
@@ -363,6 +417,12 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                     <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-colors" />
                                     <MaterialIcon name="play_circle" className="text-[54px] text-white drop-shadow-xl z-10 opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" filled />
                                     <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-black/40 text-white rounded text-[9px] font-data-mono backdrop-blur-md">VIDEO</div>
+                                 </div>
+                               )}
+                               {item.type === "audio" && (
+                                 <div className="h-full w-full bg-secondary/10 flex flex-col items-center justify-center relative overflow-hidden">
+                                    <MaterialIcon name="mic" className="text-[48px] text-secondary drop-shadow-sm group-hover:scale-110 transition-transform" filled />
+                                    <div className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-secondary/40 text-white rounded text-[9px] font-data-mono backdrop-blur-md uppercase">AUDIO</div>
                                  </div>
                                )}
                                {item.type === "drawing" && (
@@ -428,10 +488,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                     <MaterialIcon name="visibility" className="text-[18px]" />
                                   </button>
                                   <button 
-                                    title="Renombrar"
+                                    title={item.type === "drawing" ? "Editar Dibujo" : "Renombrar"}
                                     onClick={() => {
-                                      setRenamingItem(item)
-                                      setEditNameValue(item.metadata?.fileName || "")
+                                      if (item.type === "drawing" && typeof item.content === "object") {
+                                        setEditingActivityId(item.id)
+                                        setDrawingScene(item.content)
+                                        setActiveView("drawing")
+                                      } else {
+                                        setRenamingItem(item)
+                                        setEditNameValue(item.metadata?.fileName || "")
+                                      }
                                     }}
                                     className="h-9 w-9 bg-white/90 backdrop-blur-sm text-secondary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
                                   >
@@ -480,9 +546,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                        const drawingCount = evidence.filter(e => e.type === "drawing").length + 1
                       const dateStr = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
                       const defaultName = `CROQUIS_${String(drawingCount).padStart(2, '0')}_${dateStr}`
-                      const fileName = prompt("Nombre del croquis:", defaultName) || defaultName
+                      // Usar modal interno en lugar de prompt
+                      setInternalPrompt({
+                        type: "save_drawing",
+                        title: "Nombre del Croquis",
+                        value: defaultName,
+                        data: { scene: nextScene }
+                      })
+                      return; // Detener flujo para esperar modal
+
                       
-                      addTaskActivity(task.id, "drawing", nextScene, { fileName })
                     }
                     
                     updateTask(task.id, { drawingScene: nextScene })
@@ -740,9 +813,24 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                     <img src={previewItem.content} alt="Preview" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/20" />
                   )}
                   {previewItem.type === "video" && (
-                    <div className="w-full aspect-video bg-black rounded-lg overflow-hidden shadow-2xl flex items-center justify-center border border-white/10">
-                       <MaterialIcon name="play_circle" className="text-[64px] text-white opacity-50" />
-                       <p className="absolute mt-24 text-white/50 font-data-mono text-sm uppercase tracking-widest">Vista previa de video</p>
+                    <div className="w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden shadow-2xl flex items-center justify-center border border-white/10">
+                       <video 
+                          src={previewItem.content} 
+                          controls 
+                          autoPlay 
+                          className="w-full h-full object-contain"
+                       />
+                    </div>
+                  )}
+                  {previewItem.type === "audio" && (
+                    <div className="w-full max-w-md bg-surface-container rounded-2xl p-8 flex flex-col items-center gap-6 shadow-2xl border border-white/10">
+                       <div className="w-24 h-24 rounded-full bg-secondary/20 flex items-center justify-center text-secondary animate-pulse">
+                          <MaterialIcon name="mic" className="text-[48px]" filled />
+                       </div>
+                       <div className="w-full space-y-4">
+                          <audio src={previewItem.content} controls className="w-full" />
+                          <p className="text-center text-on-surface-variant font-data-mono text-[10px] uppercase tracking-widest">Control de audio técnico</p>
+                       </div>
                     </div>
                   )}
                   <div className="text-center max-w-2xl px-6 bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
@@ -759,13 +847,102 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                </div>
             </div>
          )}
+
+          {internalPrompt && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-outline-variant bg-surface-container-low">
+                   <h3 className="font-bold text-primary flex items-center gap-2">
+                     <MaterialIcon name={internalPrompt.type === "upload_media" ? "description" : "architecture"} className="text-secondary" />
+                     {internalPrompt.title}
+                   </h3>
+                </div>
+                
+                <div className="p-6">
+                  {internalPrompt.type === "upload_media" && (
+                    <div className="mb-6 flex items-center gap-4 p-3 bg-surface-container rounded-xl border border-outline-variant">
+                       <div className="w-20 h-20 rounded-lg overflow-hidden bg-black shrink-0">
+                          {internalPrompt.data.type === "image" ? (
+                            <img src={internalPrompt.data.base64} className="w-full h-full object-cover" />
+                          ) : internalPrompt.data.type === "video" ? (
+                            <div className="w-full h-full flex items-center justify-center text-white"><MaterialIcon name="movie" /></div>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-secondary bg-secondary/10"><MaterialIcon name="mic" /></div>
+                          )}
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Vista previa</p>
+                          <p className="text-sm text-primary font-bold truncate">{internalPrompt.data.fileName}</p>
+                       </div>
+                    </div>
+                  )}
+
+                  <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
+                    {internalPrompt.type === "upload_media" ? "Descripción de la evidencia" : "Nombre del archivo"}
+                  </label>
+                  
+                  {internalPrompt.type === "upload_media" ? (
+                    <textarea 
+                      autoFocus
+                      id="internal-modal-textarea"
+                      placeholder="Escriba aquí los detalles observados..."
+                      className="w-full h-32 p-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault()
+                          handleFinishInternalPrompt(e.currentTarget.value)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <input 
+                      autoFocus
+                      id="internal-modal-input"
+                      type="text"
+                      defaultValue={internalPrompt.value}
+                      className="w-full h-12 px-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleFinishInternalPrompt(e.currentTarget.value)
+                      }}
+                    />
+                  )}
+                  <p className="mt-3 text-[10px] text-on-surface-variant italic">
+                    {internalPrompt.type === "upload_media" 
+                      ? "La descripción es opcional para el registro técnico." 
+                      : "Este nombre se usará para identificar el croquis en la lista."}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-surface-container flex flex-col sm:flex-row-reverse gap-2 border-t border-outline-variant">
+                   <button 
+                     onClick={() => {
+                        const val = internalPrompt.type === "upload_media" 
+                          ? (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value 
+                          : (document.getElementById('internal-modal-input') as HTMLInputElement)?.value
+                        handleFinishInternalPrompt(val || "")
+                     }}
+                     className="flex-1 h-11 bg-primary text-white font-bold rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all"
+                   >
+                     Confirmar
+                   </button>
+                   <button 
+                     onClick={() => setInternalPrompt(null)}
+                     className="flex-1 h-11 bg-white border border-outline text-on-surface-variant font-bold rounded-xl hover:bg-surface-container-high transition-colors"
+                   >
+                     Cancelar
+                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
       </div>
     </div>
   )
 }
 
 function ActivityItem({ activity }: { activity: TaskActivity }) {
-  const isMedia = activity.type === "image" || activity.type === "video"
+  const isMedia = activity.type === "image" || activity.type === "video" || activity.type === "audio"
   const isDrawing = activity.type === "drawing"
 
   return (
@@ -773,10 +950,10 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
       <div className="flex items-center justify-between px-1">
          <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
-               <MaterialIcon name={activity.type === "note" ? "notes" : activity.type === "drawing" ? "architecture" : "photo"} className="text-[14px]" />
+               <MaterialIcon name={activity.type === "note" ? "notes" : activity.type === "drawing" ? "architecture" : activity.type === "audio" ? "mic" : "photo"} className="text-[14px]" />
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60">
-               {activity.type === "note" ? "Nota Técnica" : activity.type === "drawing" ? "Dibujo técnico" : "Evidencia visual"}
+               {activity.type === "note" ? "Nota Técnica" : activity.type === "drawing" ? "Dibujo técnico" : activity.type === "audio" ? "Evidencia de audio" : "Evidencia visual"}
             </span>
          </div>
          <span className="text-[10px] font-data-mono text-on-surface-variant/50">
@@ -799,6 +976,12 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
                 <div className="text-white flex flex-col items-center gap-2">
                    <MaterialIcon name="play_circle" className="text-[48px] opacity-70" />
                    <span className="text-xs font-data-mono">VIDEO: {activity.metadata?.fileName}</span>
+                </div>
+              )}
+              {activity.type === "audio" && (
+                <div className="text-secondary flex flex-col items-center gap-2">
+                   <MaterialIcon name="mic" className="text-[48px] opacity-70" filled />
+                   <span className="text-xs font-data-mono">AUDIO: {activity.metadata?.fileName}</span>
                 </div>
               )}
               {activity.type === "drawing" && (
