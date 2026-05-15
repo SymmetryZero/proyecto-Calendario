@@ -139,6 +139,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
   const activities = task.activities || []
   const notes = activities.filter(a => a.type === "note")
+  const historyItems = activities.filter(a => a.type === "note" || a.type === "log")
   const evidence = activities.filter(a => a.type !== "note" && a.type !== "log")
 
   return (
