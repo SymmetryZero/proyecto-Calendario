@@ -588,24 +588,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                     setActiveView("bento")
                  }}
                />
-               <button 
-                 onClick={() => {
-                   setActiveView("bento")
-                   setEditingActivityId(null)
-                   setDrawingScene(task.drawingScene ?? null) // Reset to main scene if cancelled
-                 }}
-                 className="absolute top-4 left-4 z-[100] h-10 w-10 flex items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm border border-outline-variant shadow-lg text-on-surface-variant hover:text-primary transition-all"
-               >
-                  <MaterialIcon name="arrow_back" />
-               </button>
-               {activity.metadata?.description && (
-                  <div className="p-3 border-t border-outline-variant/30 bg-white/50 backdrop-blur-sm">
-                     <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                       <span className="font-bold text-primary mr-1">Nota:</span>
-                       "{activity.metadata.description}"
-                     </p>
-                  </div>
-               )}
+                <button 
+                  onClick={() => {
+                    setActiveView("bento")
+                    setEditingActivityId(null)
+                    setDrawingScene(task.drawingScene ?? null) 
+                  }}
+                  className="absolute top-4 left-4 z-[100] h-10 w-10 flex items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm border border-outline-variant shadow-lg text-on-surface-variant hover:text-primary transition-all"
+                >
+                   <MaterialIcon name="arrow_back" />
+                </button>
              </div>
            )}
         </div>
@@ -1068,6 +1060,15 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
                     <DrawingPreview scene={activity.content} className="w-full h-full" />
                  </div>
               )}
+           </div>
+        )}
+
+        {activity.metadata?.description && (
+           <div className="p-3 border-t border-outline-variant/30 bg-white/50 backdrop-blur-sm">
+              <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                <span className="font-bold text-primary mr-1">Nota:</span>
+                "{activity.metadata.description}"
+              </p>
            </div>
         )}
       </div>
