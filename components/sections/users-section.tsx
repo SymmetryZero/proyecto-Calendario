@@ -92,8 +92,8 @@ export function UsersSection() {
             ))}
           </div>
         ) : (
-          <div className="bg-surface rounded-2xl border border-outline-variant overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
+          <div className="bg-surface rounded-2xl border border-outline-variant overflow-hidden shadow-sm overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-surface-container text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
                   <th className="p-4 pl-6">Usuario</th>

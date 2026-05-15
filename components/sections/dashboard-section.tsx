@@ -12,7 +12,7 @@ import {
   type Priority,
   type Task,
   type TaskStatus,
-  type Technician,
+  type User as Technician,
   useWorkflowStore,
   workflowSelectors
 } from "@/store/workflow-store"
@@ -88,10 +88,10 @@ function useTicker(intervalMs = 1000) {
   return now
 }
 
-function avatarByTechnicianIds(technicians: Technician[], assigneeIds: string[]) {
+function avatarByTechnicianIds(users: User[], assigneeIds: string[]) {
   return assigneeIds
-    .map((id) => technicians.find((tech) => tech.id === id))
-    .filter(Boolean) as Technician[]
+    .map((id) => users.find((u) => u.id === id))
+    .filter(Boolean) as User[]
 }
 
 function getSortedTasks(tasks: Task[], mode: "manual" | "recent") {
@@ -105,12 +105,21 @@ function getSortedTasks(tasks: Task[], mode: "manual" | "recent") {
 export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery = "" }: DashboardSectionProps) {
   const now = useTicker()
   const tasks = useWorkflowStore((state) => state.tasks)
-  const technicians = useWorkflowStore((state) => state.technicians)
+  const users = useWorkflowStore((state) => state.users)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const evidence = useWorkflowStore((state) => state.evidence)
   const moveTask = useWorkflowStore((state) => state.moveTask)
   const deleteTask = useWorkflowStore((state) => state.deleteTask)
   const pauseTaskTimer = useWorkflowStore((state) => state.pauseTaskTimer)
   const startTaskTimer = useWorkflowStore((state) => state.startTaskTimer)
+  
+  const currentUser = useMemo(() => 
+    workflowSelectors.getCurrentUser(users, currentUserId), 
+  [users, currentUserId])
+
+  const zoneTasks = useMemo(() => 
+    workflowSelectors.filterTasksByZone(tasks, currentUser),
+  [tasks, currentUser])
   
   const [pendingAction, setPendingAction] = useState<{
     type: "move" | "delete"
@@ -128,15 +137,15 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
 
     const query = searchQuery.trim().toLowerCase()
 
-    tasks
+    zoneTasks
       .filter((task) => (filterMode === "high" ? task.priority === "high" : true))
       .filter((task) => {
         if (!query) {
           return true
         }
 
-        const assigneeText = avatarByTechnicianIds(technicians, task.assigneeIds)
-          .map((technician) => `${technician.name} ${technician.role} ${technician.code}`)
+        const assigneeText = avatarByTechnicianIds(users, task.assigneeIds)
+          .map((user) => `${user.name} ${user.role} ${user.code}`)
           .join(" ")
 
         return [task.title, task.description, task.location ?? "", assigneeText]
@@ -149,7 +158,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
       })
 
     return byStatus
-  }, [searchQuery, tasks, technicians, filterMode])
+  }, [searchQuery, tasks, users, filterMode])
 
   function handleMove(task: Task, nextStatus: TaskStatus) {
     if (nextStatus === "inProgress" && task.timerStartedAt === null) {
@@ -282,7 +291,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
                 <KanbanColumn
                   status={status}
                   tasks={tasksForColumn}
-                  technicians={technicians}
+                  users={users}
                   evidence={evidence}
                   draggedTaskId={draggedTaskId}
                   onDragTask={setDraggedTaskId}
@@ -352,7 +361,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
 type KanbanColumnProps = {
   status: TaskStatus
   tasks: Task[]
-  technicians: Technician[]
+  users: User[]
   evidence: EvidenceFile[]
   draggedTaskId: string | null
   onDragTask: (taskId: string | null) => void
@@ -366,7 +375,7 @@ type KanbanColumnProps = {
 function KanbanColumn({
   status,
   tasks,
-  technicians,
+  users,
   evidence,
   draggedTaskId,
   onDragTask,
@@ -413,7 +422,7 @@ function KanbanColumn({
           <TaskCard
             key={task.id}
             task={task}
-            technicians={technicians}
+            users={users}
             evidence={evidence}
             isDragging={draggedTaskId === task.id}
             onDragStart={() => onDragTask(task.id)}
@@ -431,7 +440,7 @@ function KanbanColumn({
 
 type TaskCardProps = {
   task: Task
-  technicians: Technician[]
+  users: User[]
   evidence: EvidenceFile[]
   isDragging: boolean
   onDragStart: () => void
@@ -444,7 +453,7 @@ type TaskCardProps = {
 
 function TaskCard({
   task,
-  technicians,
+  users,
   evidence,
   isDragging,
   onDragStart,
@@ -454,7 +463,7 @@ function TaskCard({
   onOpenTaskDetails,
   now
 }: TaskCardProps) {
-  const assignees = avatarByTechnicianIds(technicians, task.assigneeIds)
+  const assignees = avatarByTechnicianIds(users, task.assigneeIds)
   const attachedEvidence = evidence.filter((item) => item.linkedTaskId === task.id)
   const duration = workflowSelectors.getTaskDuration(task, now)
   const statusLabel =
@@ -534,15 +543,20 @@ function TaskCard({
       </div>
 
       <h4 className="font-title-sm text-title-sm text-primary leading-tight">{task.title}</h4>
+      {task.creatorId && (
+        <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">
+          Creado por: {users.find(u => u.id === task.creatorId)?.name || "Sistema"}
+        </p>
+      )}
       <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">{task.description}</p>
 
       <div className="flex justify-between items-end mt-2 gap-3">
         <div className="flex items-center -space-x-2">
-          {assignees.slice(0, 2).map((technician) => (
+          {assignees.slice(0, 2).map((user) => (
             <Avatar
-              key={technician.id}
-              name={technician.name}
-              src={technician.avatar}
+              key={user.id}
+              name={user.name}
+              src={user.avatar}
               className="h-8 w-8"
               badgeClassName="border-2 border-surface-container-lowest"
             />

@@ -92,7 +92,7 @@ type InteractionState =
 
 const CANVAS_KIND = "flujo-pro-canvas"
 const CANVAS_VERSION = 1
-const VIRTUAL_CANVAS: CanvasSize = { width: 1400, height: 900 }
+const VIRTUAL_CANVAS: CanvasSize = { width: 3200, height: 2000 }
 
 const TOOL_SHORTCUT_HINTS: Record<CanvasTool, string> = {
   select: "Selecciona y arrastra elementos.",
@@ -139,8 +139,8 @@ function clamp(value: number, min = 0, max = 1) {
 
 function clampPoint(point: CanvasPoint): CanvasPoint {
   return {
-    x: clamp(point.x),
-    y: clamp(point.y)
+    x: point.x,
+    y: point.y
   }
 }
 
@@ -222,10 +222,10 @@ function toPoint(event: ReactPointerEvent<SVGSVGElement>): CanvasPoint {
     pt.x = event.clientX
     pt.y = event.clientY
     const svgPt = pt.matrixTransform(ctm.inverse())
-    return clampPoint({
+    return {
       x: svgPt.x / VIRTUAL_CANVAS.width,
       y: svgPt.y / VIRTUAL_CANVAS.height
-    })
+    }
   }
 
   const rect = svg.getBoundingClientRect()
@@ -233,17 +233,20 @@ function toPoint(event: ReactPointerEvent<SVGSVGElement>): CanvasPoint {
     return { x: 0, y: 0 }
   }
 
-  return clampPoint({
-    x: (event.clientX - rect.left) / rect.width,
-    y: (event.clientY - rect.top) / rect.height
-  })
+  const clientX = "clientX" in event ? event.clientX : (event as any).touches[0].clientX
+  const clientY = "clientY" in event ? event.clientY : (event as any).touches[0].clientY
+
+  return {
+    x: (clientX - rect.left) / rect.width,
+    y: (clientY - rect.top) / rect.height
+  }
 }
 
 function translatePoint(point: CanvasPoint, delta: CanvasPoint): CanvasPoint {
-  return clampPoint({
+  return {
     x: point.x + delta.x,
     y: point.y + delta.y
-  })
+  }
 }
 
 function translateShape(shape: CanvasShape, delta: CanvasPoint): CanvasShape {
@@ -554,6 +557,7 @@ export function TaskDrawingCanvas({
   const canvasSize = VIRTUAL_CANVAS
 
   const boardRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLDivElement | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
   const measureContextRef = useRef<CanvasRenderingContext2D | null>(null)
   const shapesRef = useRef<CanvasShape[]>(cloneShapes(initial.shapes))
@@ -1236,20 +1240,15 @@ export function TaskDrawingCanvas({
         </div>
       ) : null}
 
-      <div ref={boardRef} className="relative flex-1 min-h-[300px] overflow-hidden bg-surface-container-lowest flex items-center justify-center p-4 sm:p-8">
+      {/* Drawing Area */}
+      <div className="flex-1 relative overflow-hidden bg-white p-0 flex items-stretch justify-stretch min-h-0">
         <div 
-          className="canvas-grid relative shadow-2xl border border-outline-variant rounded-sm overflow-hidden"
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            maxWidth: VIRTUAL_CANVAS.width, 
-            maxHeight: VIRTUAL_CANVAS.height,
-            aspectRatio: `${VIRTUAL_CANVAS.width} / ${VIRTUAL_CANVAS.height}`
-          }}
+          className="canvas-grid relative w-full h-full overflow-hidden"
+          ref={canvasRef}
         >
           <svg
             ref={svgRef}
-            className="absolute inset-0 h-full w-full select-none touch-none"
+            className="absolute inset-0 h-full w-full select-none touch-none cursor-crosshair"
             viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
             preserveAspectRatio="xMidYMid meet"
             role="img"
@@ -1257,7 +1256,8 @@ export function TaskDrawingCanvas({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerCancel}
+            onPointerCancel={handlePointerUp}
+            onPointerLeave={handlePointerUp}
             onDoubleClick={handleDoubleClick}
           >
           <defs>
@@ -1516,6 +1516,7 @@ export function TaskDrawingCanvas({
           <ToolButton icon="draw" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
           <ToolButton icon="timeline" active={tool === "line"} onClick={() => handleToolChange("line")} />
           <ToolButton icon="text_fields" active={tool === "text"} onClick={() => handleToolChange("text")} />
+          <ToolButton icon="straighten" active={tool === "number"} onClick={() => handleToolChange("number")} />
           <ToolButton icon="ink_eraser" active={tool === "eraser"} onClick={() => handleToolChange("eraser")} />
           <div className="w-px h-6 bg-outline-variant mx-1" />
           <ToolButton icon="undo" onClick={handleUndo} />

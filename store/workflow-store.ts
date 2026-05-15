@@ -31,21 +31,20 @@ export interface User {
   zone: string
   role: UserRole
   createdAt: string
+  showAllZones?: boolean
+  // Technician-specific fields (Optional for non-technicians)
+  skills?: string[]
+  clearances?: string[]
+  availability?: TechnicianAvailability
+  availabilityLabel?: string
+  code?: string
 }
 
-export interface Technician {
-  id: string
-  name: string
-  code: string
-  role: string
-  skills: string[]
-  clearances: string[]
-  availability: TechnicianAvailability
-  availabilityLabel: string
-  avatar: string
-}
+// Technician interface kept as a subset of User for compatibility if needed, 
+// but we will primarily use User.
+export type Technician = User
 
-export type TaskActivityType = "note" | "drawing" | "image" | "video" | "audio"
+export type TaskActivityType = "note" | "drawing" | "image" | "video" | "audio" | "log"
 
 export interface TaskActivity {
   id: string
@@ -79,6 +78,7 @@ export interface Task {
   requirementId?: string | null
   dueLabel?: string
   estimatedHours?: number
+  creatorId: string
 }
 
 export interface Requirement {
@@ -96,6 +96,7 @@ export interface Requirement {
   selectedTechnicianId: string | null
   notes: string
   assignedAt: string | null
+  creatorId: string
 }
 
 export interface AssignmentRecord {
@@ -204,15 +205,15 @@ export interface SaveProgressInput {
 }
 
 export interface WorkflowSeed {
+  users: User[]
   tasks: Task[]
   requirements: Requirement[]
-  technicians: Technician[]
-  users: User[]
   evidence: EvidenceFile[]
   folders: Folder[]
   assignments: AssignmentRecord[]
   saves: SaveRecord[]
   drawingScene: DrawingScene | null
+  currentUserId: string | null
 }
 
 export interface WorkflowStore extends WorkflowSeed {
@@ -231,7 +232,7 @@ export interface WorkflowStore extends WorkflowSeed {
   addRequirement: (input: CreateRequirementInput) => string
   updateRequirement: (requirementId: string, patch: Partial<Requirement>) => void
   deleteRequirement: (requirementId: string) => void
-  assignRequirement: (requirementId: string, technicianId: string, notes: string) => void
+  assignRequirement: (requirementId: string, userId: string, notes: string) => void
   addUser: (input: Omit<User, "id" | "createdAt">) => string
   deleteUser: (userId: string) => void
   updateUser: (userId: string, patch: Partial<User>) => void
@@ -243,7 +244,9 @@ export interface WorkflowStore extends WorkflowSeed {
   addTaskActivity: (taskId: string, type: TaskActivityType, content: any, metadata?: TaskActivity["metadata"]) => void
   updateTaskActivity: (taskId: string, activityId: string, patch: Partial<Omit<TaskActivity, "id" | "createdAt">>) => void
   removeTaskActivity: (taskId: string, activityId: string) => void
+  setCurrentUser: (userId: string | null) => void
   resetDemoData: () => void
+  addTaskLog: (taskId: string, content: string, metadata?: any) => void
 }
 
 const memoryStorage: StateStorage = {
@@ -287,39 +290,144 @@ function createSeedData(): WorkflowSeed {
   const threeHoursAgo = new Date(now - 3 * 60 * 60 * 1000).toISOString()
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString()
 
-  const technicians: Technician[] = [
+  const users: User[] = [
     {
-      id: "tech-1",
-      name: "Sarah Jenkins",
-      code: "T-402",
-      role: "Líder HVAC",
-      skills: ["HVAC", "Calibración", "Diagnóstico"],
-      clearances: ["Clase 3"],
+      id: "user-1",
+      name: "Admin User",
+      avatar: createAvatarDataUri("Admin User", "#172839", "#ffffff"),
+      birthDate: "1985-05-15",
+      position: "Administrador de Sistemas",
+      zone: "Oficina Central",
+      role: "administrador",
+      createdAt: hourAgo,
+      showAllZones: true,
       availability: "available",
-      availabilityLabel: "Disponible ahora",
-      avatar: createAvatarDataUri("Sarah Jenkins", "#172839", "#f7faf9")
+      code: "ADM-001"
     },
     {
-      id: "tech-2",
+      id: "user-2",
+      name: "Marta Gerente",
+      avatar: createAvatarDataUri("Marta Gerente", "#865300", "#ffffff"),
+      birthDate: "1990-10-20",
+      position: "Gerente de Operaciones",
+      zone: "Zona Norte",
+      role: "gerente",
+      createdAt: hourAgo,
+      showAllZones: false,
+      availability: "available",
+      code: "GER-001"
+    },
+    {
+      id: "user-3",
+      name: "Juan Empleado",
+      avatar: createAvatarDataUri("Juan Empleado", "#004064", "#ffffff"),
+      birthDate: "1995-03-12",
+      position: "Técnico Especialista",
+      zone: "Zona Sur",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["HVAC", "Electricidad", "Fontanería"],
+      clearances: ["Altura", "Espacios Confinados"],
+      availability: "available",
+      availabilityLabel: "Disponible",
+      code: "TECH-001"
+    },
+    {
+      id: "user-4",
+      name: "Sarah Jenkins",
+      avatar: createAvatarDataUri("Sarah Jenkins", "#5d3fd3", "#ffffff"),
+      birthDate: "1992-07-22",
+      position: "Líder HVAC",
+      zone: "Zona Norte",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["HVAC", "Termografía", "Sistemas de Control"],
+      clearances: ["Alta Tensión", "Altura"],
+      availability: "available",
+      availabilityLabel: "Disponible",
+      code: "TECH-002"
+    },
+    {
+      id: "user-5",
+      name: "Mike Rodriguez",
+      avatar: createAvatarDataUri("Mike Rodriguez", "#228b22", "#ffffff"),
+      birthDate: "1988-11-05",
+      position: "Técnico Electricista",
+      zone: "Zona Sur",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["Electricidad", "Motores", "PLC"],
+      clearances: ["Arco Eléctrico"],
+      availability: "soon",
+      availabilityLabel: "Libre en 1h",
+      code: "TECH-003"
+    },
+    {
+      id: "user-6",
+      name: "Nina Patel",
+      avatar: createAvatarDataUri("Nina Patel", "#6750a4", "#ffffff"),
+      birthDate: "1994-02-28",
+      position: "Inspectora de Seguridad",
+      zone: "Zona Norte",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["Auditoría", "Seguridad Industrial", "Normativa ISO"],
+      clearances: ["Clase 2"],
+      availability: "available",
+      availabilityLabel: "Disponible",
+      code: "TECH-004"
+    },
+    {
+      id: "user-7",
+      name: "Alex Thompson",
+      avatar: createAvatarDataUri("Alex Thompson", "#004064", "#ffffff"),
+      birthDate: "1991-09-15",
+      position: "Especialista en Bombas",
+      zone: "Zona Sur",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["Mecánica", "Bombas Hidráulicas", "Fontanería"],
+      clearances: ["Espacios Confinados"],
+      availability: "available",
+      availabilityLabel: "Disponible",
+      code: "TECH-005"
+    },
+    {
+      id: "user-8",
       name: "Marcus Chen",
-      code: "T-319",
-      role: "Técnico general",
-      skills: ["Estructural", "Escaneo", "Inspecciones"],
+      avatar: createAvatarDataUri("Marcus Chen", "#865300", "#ffffff"),
+      birthDate: "1993-06-10",
+      position: "Técnico General",
+      zone: "Zona Norte",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["Estructural", "Escaneo Láser", "Inspecciones"],
       clearances: ["Clase 2"],
       availability: "soon",
-      availabilityLabel: "Disponible en 1 h",
-      avatar: createAvatarDataUri("Marcus Chen", "#865300", "#fff8ef")
+      availabilityLabel: "Disponible en 1h",
+      code: "TECH-006"
     },
     {
-      id: "tech-3",
-      name: "Nina Patel",
-      code: "T-221",
-      role: "Inspectora de seguridad",
-      skills: ["Seguridad", "Auditoría", "Cumplimiento"],
-      clearances: ["Clase 2"],
+      id: "user-9",
+      name: "David Smith",
+      avatar: createAvatarDataUri("David Smith", "#b3261e", "#ffffff"),
+      birthDate: "1987-12-01",
+      position: "Especialista HVAC",
+      zone: "Centro",
+      role: "empleado",
+      createdAt: hourAgo,
+      showAllZones: false,
+      skills: ["HVAC", "Balance de Carga", "Controles"],
+      clearances: ["Clase 3"],
       availability: "available",
-      availabilityLabel: "Disponible ahora",
-      avatar: createAvatarDataUri("Nina Patel", "#004064", "#cce5ff")
+      availabilityLabel: "Disponible",
+      code: "TECH-007"
     }
   ]
 
@@ -338,10 +446,11 @@ function createSeedData(): WorkflowSeed {
       priority: "high",
       status: "assigned",
       location: "Zona Norte",
-      selectedTechnicianId: "tech-1",
+      selectedTechnicianId: "user-4",
       notes: "Urgente antes de temporada de lluvias",
       createdAt: threeHoursAgo,
-      assignedAt: twoHoursAgo
+      assignedAt: twoHoursAgo,
+      creatorId: "user-2"
     },
     {
       id: req2Id,
@@ -351,10 +460,11 @@ function createSeedData(): WorkflowSeed {
       priority: "medium",
       status: "assigned",
       location: "Zona Sur",
-      selectedTechnicianId: "tech-2",
+      selectedTechnicianId: "user-5",
       notes: "Requiere plataforma elevadora",
       createdAt: dayAgo,
-      assignedAt: hourAgo
+      assignedAt: hourAgo,
+      creatorId: "user-2"
     },
     {
       id: req3Id,
@@ -364,10 +474,11 @@ function createSeedData(): WorkflowSeed {
       priority: "high",
       status: "assigned",
       location: "Centro",
-      selectedTechnicianId: "tech-1",
+      selectedTechnicianId: "user-4",
       notes: "Personal sin luz en área contable",
       createdAt: hourAgo,
-      assignedAt: hourAgo
+      assignedAt: hourAgo,
+      creatorId: "user-2"
     },
     {
       id: req4Id,
@@ -377,10 +488,11 @@ function createSeedData(): WorkflowSeed {
       priority: "low",
       status: "assigned",
       location: "Zona Norte",
-      selectedTechnicianId: "tech-3",
+      selectedTechnicianId: "user-3",
       notes: "Ruta de rutina",
       createdAt: dayAgo,
-      assignedAt: dayAgo
+      assignedAt: dayAgo,
+      creatorId: "user-2"
     },
     {
       id: req5Id,
@@ -390,10 +502,11 @@ function createSeedData(): WorkflowSeed {
       priority: "medium",
       status: "assigned",
       location: "Zona Sur",
-      selectedTechnicianId: "tech-2",
+      selectedTechnicianId: "user-5",
       notes: "Preparación para certificación ISO",
       createdAt: twoHoursAgo,
-      assignedAt: hourAgo
+      assignedAt: hourAgo,
+      creatorId: "user-2"
     }
   ]
 
@@ -404,7 +517,7 @@ function createSeedData(): WorkflowSeed {
       description: requirements[0].description,
       priority: "high",
       status: "inProgress",
-      assigneeIds: ["tech-1"],
+      assigneeIds: ["user-4"],
       createdAt: threeHoursAgo,
       updatedAt: hourAgo,
       timerStartedAt: Date.now() - 7200000,
@@ -413,7 +526,8 @@ function createSeedData(): WorkflowSeed {
       location: "Zona Norte",
       drawingScene: null,
       activities: [],
-      requirementId: req1Id
+      requirementId: req1Id,
+      creatorId: "user-1"
     },
     {
       id: makeId("task"),
@@ -421,7 +535,7 @@ function createSeedData(): WorkflowSeed {
       description: requirements[1].description,
       priority: "medium",
       status: "done",
-      assigneeIds: ["tech-2"],
+      assigneeIds: ["user-5"],
       createdAt: dayAgo,
       updatedAt: hourAgo,
       timerStartedAt: null,
@@ -430,7 +544,8 @@ function createSeedData(): WorkflowSeed {
       location: "Zona Sur",
       drawingScene: null,
       activities: [],
-      requirementId: req2Id
+      requirementId: req2Id,
+      creatorId: "user-2"
     },
     {
       id: makeId("task"),
@@ -438,7 +553,7 @@ function createSeedData(): WorkflowSeed {
       description: requirements[2].description,
       priority: "high",
       status: "todo",
-      assigneeIds: ["tech-1"],
+      assigneeIds: ["user-4"],
       createdAt: hourAgo,
       updatedAt: hourAgo,
       timerStartedAt: Date.now(),
@@ -447,7 +562,8 @@ function createSeedData(): WorkflowSeed {
       location: "Centro",
       drawingScene: null,
       activities: [],
-      requirementId: req3Id
+      requirementId: req3Id,
+      creatorId: "user-1"
     },
     {
       id: makeId("task"),
@@ -455,7 +571,7 @@ function createSeedData(): WorkflowSeed {
       description: requirements[3].description,
       priority: "low",
       status: "review",
-      assigneeIds: ["tech-3"],
+      assigneeIds: ["user-3"],
       createdAt: dayAgo,
       updatedAt: twoHoursAgo,
       timerStartedAt: null,
@@ -464,7 +580,8 @@ function createSeedData(): WorkflowSeed {
       location: "Zona Norte",
       drawingScene: null,
       activities: [],
-      requirementId: req4Id
+      requirementId: req4Id,
+      creatorId: "user-2"
     },
     {
       id: makeId("task"),
@@ -472,7 +589,7 @@ function createSeedData(): WorkflowSeed {
       description: requirements[4].description,
       priority: "medium",
       status: "inProgress",
-      assigneeIds: ["tech-2"],
+      assigneeIds: ["user-5"],
       createdAt: twoHoursAgo,
       updatedAt: hourAgo,
       timerStartedAt: Date.now() - 3600000,
@@ -481,7 +598,8 @@ function createSeedData(): WorkflowSeed {
       location: "Zona Sur",
       drawingScene: null,
       activities: [],
-      requirementId: req5Id
+      requirementId: req5Id,
+      creatorId: "user-1"
     }
   ]
 
@@ -534,41 +652,9 @@ function createSeedData(): WorkflowSeed {
   ]
 
   return {
+    users,
     tasks,
     requirements,
-    technicians,
-    users: [
-      {
-        id: "user-1",
-        name: "Admin User",
-        avatar: createAvatarDataUri("Admin User", "#172839", "#ffffff"),
-        birthDate: "1985-05-15",
-        position: "Administrador de Sistemas",
-        zone: "Oficina Central",
-        role: "administrador",
-        createdAt: hourAgo
-      },
-      {
-        id: "user-2",
-        name: "Marta Gerente",
-        avatar: createAvatarDataUri("Marta Gerente", "#865300", "#ffffff"),
-        birthDate: "1990-10-20",
-        position: "Gerente de Operaciones",
-        zone: "Zona Norte",
-        role: "gerente",
-        createdAt: hourAgo
-      },
-      {
-        id: "user-3",
-        name: "Juan Empleado",
-        avatar: createAvatarDataUri("Juan Empleado", "#004064", "#ffffff"),
-        birthDate: "1995-03-12",
-        position: "Técnico de Campo",
-        zone: "Zona Sur",
-        role: "empleado",
-        createdAt: hourAgo
-      }
-    ],
     evidence,
     folders,
     assignments: tasks.map(t => ({
@@ -592,7 +678,8 @@ function createSeedData(): WorkflowSeed {
         counts: { tasks: 5, requirements: 5, assignments: 5, evidence: 2 }
       }
     ],
-    drawingScene: null
+    drawingScene: null,
+    currentUserId: "user-1" 
   }
 }
 
@@ -662,32 +749,6 @@ function patchItems<T extends { id: string }>(
 function translateLegacyWorkflowState(state: Partial<WorkflowStore>) {
   return {
     ...state,
-    technicians: patchItems(state.technicians, {
-      "tech-sarah": {
-        role: "Líder HVAC",
-        skills: ["HVAC", "Calibración", "Diagnóstico"],
-        clearances: ["Clase 3"],
-        availabilityLabel: "Disponible ahora"
-      },
-      "tech-marcus": {
-        role: "Técnico general",
-        skills: ["Estructural", "Escaneo", "Inspecciones"],
-        clearances: ["Clase 2"],
-        availabilityLabel: "Disponible en 1 h"
-      },
-      "tech-david": {
-        role: "Especialista HVAC",
-        skills: ["HVAC", "Balance de carga", "Controles"],
-        clearances: ["Clase 3"],
-        availabilityLabel: "Fuera de turno"
-      },
-      "tech-nina": {
-        role: "Inspectora de seguridad",
-        skills: ["Seguridad", "Auditoría", "Cumplimiento"],
-        clearances: ["Clase 2"],
-        availabilityLabel: "Disponible ahora"
-      }
-    }),
     tasks: patchItems(state.tasks, {
       "task-foundation": {
         title: "Inspeccionar el vaciado de cimentación - Sector C",
@@ -910,8 +971,25 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         updateTask: (taskId, patch) => {
           set((state) => {
-            const nextTasks = state.tasks.map((task) =>
-              task.id === taskId ? { ...task, ...patch, updatedAt: new Date().toISOString() } : task
+            const task = state.tasks.find(t => t.id === taskId)
+            if (task) {
+              const logs: string[] = []
+              if (patch.status && patch.status !== task.status) {
+                logs.push(`Estado cambiado a: ${patch.status}`)
+              }
+              if (patch.assigneeIds && JSON.stringify(patch.assigneeIds) !== JSON.stringify(task.assigneeIds)) {
+                logs.push(`Personal asignado actualizado`)
+              }
+              
+              if (logs.length > 0) {
+                setTimeout(() => {
+                  logs.forEach(msg => get().addTaskLog(taskId, msg))
+                }, 0)
+              }
+            }
+
+            const nextTasks = state.tasks.map((t) =>
+              t.id === taskId ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t
             )
             
             const updatedTask = nextTasks.find(t => t.id === taskId)
@@ -1070,7 +1148,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
             estimatedHours: input.estimatedHours,
             selectedTechnicianId: null,
             notes: "",
-            assignedAt: null
+            assignedAt: null,
+            creatorId: get().currentUserId || "system"
           }
 
           set((state) => {
@@ -1092,7 +1171,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
               activities: [],
               requirementId: id,
               dueLabel: requirement.dueLabel,
-              estimatedHours: requirement.estimatedHours
+              estimatedHours: requirement.estimatedHours,
+              creatorId: get().currentUserId || "system"
             }
 
             return {
@@ -1141,7 +1221,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
             tasks: state.tasks.filter((task) => task.requirementId !== requirementId)
           }))
         },
-        assignRequirement: (requirementId, technicianId, notes) => {
+        assignRequirement: (requirementId, userId, notes) => {
+          const req = get().requirements.find((r) => r.id === requirementId)
+          const user = get().users.find((u) => u.id === userId)
+          if (!req || !user) return
+
           const now = new Date().toISOString()
 
           set((state) => {
@@ -1157,7 +1241,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             const nextAssignment: AssignmentRecord = {
               id: existingAssignmentIndex >= 0 ? state.assignments[existingAssignmentIndex].id : makeId("assign"),
               requirementId,
-              technicianId,
+              technicianId: userId,
               notes,
               createdAt: existingAssignmentIndex >= 0 ? state.assignments[existingAssignmentIndex].createdAt : now,
               status: "confirmed"
@@ -1194,7 +1278,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 description: requirement.description,
                 priority: requirement.priority,
                 status: "todo",
-                assigneeIds: [technicianId],
+                assigneeIds: [userId],
                 createdAt: now,
                 updatedAt: now,
                 timerStartedAt: null,
@@ -1370,6 +1454,17 @@ export const useWorkflowStore = create<WorkflowStore>()(
             )
           }))
         },
+        addTaskLog: (taskId, content, metadata) => {
+          const user = get().users.find(u => u.id === get().currentUserId)
+          const authorName = user?.name || "Sistema"
+          const authorRole = user?.role || ""
+          
+          get().addTaskActivity(taskId, "log", content, {
+            authorName,
+            authorRole,
+            ...metadata
+          })
+        },
         updateTaskActivity: (taskId, activityId, patch) => {
           const now = new Date().toISOString()
           set((state) => ({
@@ -1398,6 +1493,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 : task
             )
           }))
+        },
+        setCurrentUser: (userId) => {
+          set({ currentUserId: userId })
         },
         resetDemoData: () => {
           set({
@@ -1434,7 +1532,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }))
         })),
         requirements: state.requirements,
-        technicians: state.technicians,
+        users: state.users,
         // Prune large base64 in evidence
         evidence: state.evidence.map(e => ({
           ...e,
@@ -1487,11 +1585,46 @@ export const workflowSelectors = {
   getTaskById(tasks: Task[], taskId: string | null) {
     return taskId ? tasks.find((task) => task.id === taskId) ?? null : null
   },
-  getTechnicianById(technicians: Technician[], technicianId: string | null) {
-    return technicianId ? technicians.find((tech) => tech.id === technicianId) ?? null : null
+  getTechnicianById(users: User[], userId: string | null) {
+    return userId ? users.find((u) => u.id === userId) ?? null : null
   },
   getTaskCountByStatus(tasks: Task[], status: TaskStatus) {
     return tasks.filter((task) => task.status === status).length
+  },
+  getCurrentUser(users: User[], currentUserId: string | null) {
+    return currentUserId ? users.find(u => u.id === currentUserId) ?? null : null
+  },
+  filterTasksByZone(tasks: Task[], user: User | null) {
+    if (!user) return []
+    if (user.role === "administrador" || user.showAllZones) return tasks
+    
+    // Si es empleado, solo ve sus tareas asignadas
+    if (user.role === "empleado") {
+      return tasks.filter((t) => t.assigneeIds.includes(user.id))
+    }
+
+    // Si es gerente (sin visualización global activa)
+    if (user.role === "gerente") {
+      return tasks.filter((t) => t.location === user.zone || t.creatorId === user.id)
+    }
+
+    return tasks.filter((task) => task.location === user.zone)
+  },
+  filterRequirementsByZone(requirements: Requirement[], user: User | null) {
+    if (!user) return []
+    if (user.role === "administrador" || user.showAllZones) return requirements
+
+    // Empleados normalmente no ven Programación, pero por seguridad filtramos
+    if (user.role === "empleado") {
+      return [] // No deberían ver requerimientos sin asignar
+    }
+
+    // Gerentes ven requerimientos de su zona o creados por ellos
+    if (user.role === "gerente") {
+      return requirements.filter((req) => req.location === user.zone || req.creatorId === user.id)
+    }
+
+    return requirements.filter((req) => req.location === user.zone)
   }
 }
 

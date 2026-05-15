@@ -39,25 +39,23 @@ const statusLabels = {
 function scoreTechnician(requirement: Requirement, technician: Technician) {
   let score = 0
 
-  if (technician.availability === "available") {
-    score += 30
-  } else if (technician.availability === "soon") {
-    score += 15
-  }
+  // Todos los empleados son igualmente elegibles por defecto
+  score += 30 
+
 
   requirement.requiredSkills?.forEach((skill) => {
-    if (technician.skills.some((candidate) => candidate.toLowerCase().includes(skill.toLowerCase()))) {
+    if (technician.skills?.some((candidate) => candidate.toLowerCase().includes(skill.toLowerCase()))) {
       score += 20
     }
   })
 
   requirement.requiredClearances?.forEach((clearance) => {
-    if (technician.clearances.includes(clearance)) {
+    if (technician.clearances?.includes(clearance)) {
       score += 30
     }
   })
 
-  if (/(lead|líder|lider|jefe)/i.test(technician.role)) {
+  if (/(lead|líder|lider|jefe)/i.test(technician.position)) {
     score += 10
   }
 
@@ -65,18 +63,38 @@ function scoreTechnician(requirement: Requirement, technician: Technician) {
 }
 
 function technicianSearchableText(technician: Technician) {
-  return [technician.name, technician.code, technician.role, ...technician.skills, ...technician.clearances]
+  return [
+    technician.name, 
+    technician.code || "", 
+    technician.position, 
+    ...(technician.skills || []), 
+    ...(technician.clearances || [])
+  ]
     .join(" ")
     .toLowerCase()
 }
 
 export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: AssignmentSectionProps) {
   const requirements = useWorkflowStore((state) => state.requirements)
-  const technicians = useWorkflowStore((state) => state.technicians)
+  const users = useWorkflowStore((state) => state.users)
+  const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
   const tasks = useWorkflowStore((state) => state.tasks)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const assignments = useWorkflowStore((state) => state.assignments)
   const updateRequirement = useWorkflowStore((state) => state.updateRequirement)
   const assignRequirement = useWorkflowStore((state) => state.assignRequirement)
+
+  const currentUser = useMemo(() => 
+    workflowSelectors.getCurrentUser(users, currentUserId), 
+  [users, currentUserId])
+
+  const zoneRequirements = useMemo(() => 
+    workflowSelectors.filterRequirementsByZone(requirements, currentUser),
+  [requirements, currentUser])
+
+  const zoneTasks = useMemo(() => 
+    workflowSelectors.filterTasksByZone(tasks, currentUser),
+  [tasks, currentUser])
 
   const [selectedRequirementId, setSelectedRequirementId] = useState<string | null>(null)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string | null>(null)
@@ -84,16 +102,16 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
   const [dispatchNotes, setDispatchNotes] = useState("")
 
   useEffect(() => {
-    const currentSelection = workflowSelectors.getRequirementById(requirements, selectedRequirementId)
+    const currentSelection = workflowSelectors.getRequirementById(zoneRequirements, selectedRequirementId)
 
-    if (requirements.length > 0 && (!selectedRequirementId || !currentSelection)) {
-      setSelectedRequirementId(requirements[0].id)
+    if (zoneRequirements.length > 0 && (!selectedRequirementId || !currentSelection)) {
+      setSelectedRequirementId(zoneRequirements[0].id)
     }
-  }, [requirements, selectedRequirementId])
+  }, [zoneRequirements, selectedRequirementId])
 
   const selectedRequirement = useMemo(() => {
-    return workflowSelectors.getRequirementById(requirements, selectedRequirementId)
-  }, [requirements, selectedRequirementId])
+    return workflowSelectors.getRequirementById(zoneRequirements, selectedRequirementId)
+  }, [zoneRequirements, selectedRequirementId])
 
   useEffect(() => {
     if (!selectedRequirement) {
@@ -170,13 +188,13 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
   }
 
   return (
-    <main className="flex-1 min-h-0 p-gutter bg-surface-container-low flex flex-col lg:flex-row gap-gutter overflow-hidden">
-      <section className="w-full lg:w-1/3 flex flex-col bg-surface rounded-xl border border-outline-variant h-[calc(100vh-8rem)] overflow-hidden shadow-sm">
+    <main className="flex-1 min-h-0 p-gutter bg-surface-container-low flex flex-col lg:flex-row gap-gutter overflow-y-auto lg:overflow-hidden">
+      <section className="w-full lg:w-1/3 shrink-0 flex flex-col bg-surface rounded-xl border border-outline-variant h-[500px] lg:h-[calc(100vh-8rem)] overflow-hidden shadow-sm">
         <div className="p-4 border-b border-outline-variant bg-surface-bright flex justify-between items-center">
           <div>
             <h2 className="font-title-sm text-title-sm text-tertiary-container">Asignaciones pendientes</h2>
             <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-              {requirements.length} requerimientos por asignar
+              {zoneRequirements.length} requerimientos por asignar
             </p>
           </div>
           <button
@@ -189,7 +207,7 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {requirements.map((requirement) => {
+          {zoneRequirements.map((requirement) => {
             const isSelected = requirement.id === selectedRequirement.id
             const assignedTechnician = workflowSelectors.getTechnicianById(
               technicians,
@@ -295,7 +313,7 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                 <button
                   type="button"
                   onClick={() => {
-                    const linkedTask = tasks.find(t => t.requirementId === selectedRequirement.id)
+                    const linkedTask = zoneTasks.find(t => t.requirementId === selectedRequirement.id)
                     if (linkedTask) onOpenTaskDetails(linkedTask.id)
                   }}
                   className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 font-title-sm text-title-sm text-on-primary hover:opacity-90 shadow-sm"

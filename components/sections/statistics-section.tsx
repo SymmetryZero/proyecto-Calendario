@@ -7,7 +7,8 @@ import { cn, formatDuration } from "@/utils/workflow"
 
 export function StatisticsSection() {
   const tasks = useWorkflowStore((state) => state.tasks)
-  const technicians = useWorkflowStore((state) => state.technicians)
+  const users = useWorkflowStore((state) => state.users)
+  const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
 
   const stats = useMemo(() => {
     // Tasks by status
@@ -59,7 +60,7 @@ export function StatisticsSection() {
       return {
         id: tech.id,
         name: tech.name,
-        role: tech.role,
+        role: tech.position,
         avatar: tech.avatar,
         taskCount: techTasks.length,
         completedCount: techTasks.filter(t => t.status === "done").length,

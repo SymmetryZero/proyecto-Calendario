@@ -1,9 +1,9 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useMemo, type ReactNode } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
-import { type SectionKey, useWorkflowStore } from "@/store/workflow-store"
+import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 
 type WorkflowShellProps = {
   section: SectionKey
@@ -42,12 +42,31 @@ export function WorkflowShell({
   onSearchChange,
   children
 }: WorkflowShellProps) {
-  const tasks = useWorkflowStore((state) => state.tasks)
-  const requirements = useWorkflowStore((state) => state.requirements)
-  const evidence = useWorkflowStore((state) => state.evidence)
-  const folders = useWorkflowStore((state) => state.folders)
   const assignments = useWorkflowStore((state) => state.assignments)
   const saves = useWorkflowStore((state) => state.saves)
+  const users = useWorkflowStore((state) => state.users)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
+
+  const currentUser = useMemo(() => 
+    workflowSelectors.getCurrentUser(users, currentUserId), 
+  [users, currentUserId])
+
+  const filteredSidebarItems = useMemo(() => {
+    if (!currentUser) return sidebarItems
+    if (currentUser.role === "administrador") return sidebarItems
+    if (currentUser.role === "gerente") {
+      return sidebarItems.filter(item => item.key !== "statistics")
+    }
+    // Empleado: Solo Tablero y Evidencias (que está en topTabs, pero aquí filtramos sidebar)
+    return sidebarItems.filter(item => item.key === "dashboard")
+  }, [currentUser])
+
+  const filteredTopTabs = useMemo(() => {
+    if (!currentUser) return topTabs
+    if (currentUser.role === "administrador" || currentUser.role === "gerente") return topTabs
+    // Empleado: No ve Programación (assignments)
+    return topTabs.filter(tab => tab.key !== "assignments")
+  }, [currentUser])
 
   function handleExport() {
     const snapshot = {
@@ -71,7 +90,7 @@ export function WorkflowShell({
     URL.revokeObjectURL(url)
   }
 
-  const activeTopSection = topTabs.some((tab) => tab.key === section) ? section : "dashboard"
+  const activeTopSection = filteredTopTabs.some((tab) => tab.key === section) ? section : "dashboard"
 
   return (
     <div className="h-screen flex bg-background text-on-background overflow-hidden flex-col md:flex-row">
@@ -96,20 +115,26 @@ export function WorkflowShell({
       >
         <div className="px-6 mb-8 hidden md:flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold">
-              GP
+            <div className="w-12 h-12 rounded-full border border-outline-variant overflow-hidden shadow-sm">
+               <img src={currentUser?.avatar} alt="" className="w-full h-full object-cover" />
             </div>
-            <div className="flex flex-col">
-              <span className="font-title-sm text-title-sm font-bold text-primary">Gerente de proyecto</span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant">
-                Sitio Alfa - Región 4
+            <div className="flex flex-col min-w-0">
+              <span className="font-title-sm text-title-sm font-bold text-primary truncate">
+                {currentUser?.name || "Usuario"}
               </span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                {currentUser?.position || "Visitante"}
+              </span>
+              <div className="flex items-center gap-1 text-[10px] text-secondary font-bold uppercase tracking-tight mt-0.5">
+                 <MaterialIcon name="location_on" className="text-[12px]" />
+                 <span className="truncate">{currentUser?.zone || "Sin zona"}</span>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col gap-2 scrollbar-thin">
-          {sidebarItems.map((item) => {
+          {filteredSidebarItems.map((item) => {
             const isActive = section === item.key
             return (
               <button
@@ -168,7 +193,7 @@ export function WorkflowShell({
               </h1>
 
               <nav className="hidden lg:flex gap-6 mt-4">
-                {topTabs.map((tab) => {
+                {filteredTopTabs.map((tab) => {
                   const isActive = activeTopSection === tab.key
                   return (
                     <button
@@ -221,17 +246,12 @@ export function WorkflowShell({
             </div>
 
             <div className="hidden xl:flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleExport}
-                className="px-4 h-[48px] font-title-sm text-title-sm text-primary border border-primary rounded-DEFAULT hover:bg-surface-container-low transition-colors hidden xl:block"
-              >
-                Exportar
-              </button>
+              {/* Export button removed as requested */}
+              {/* Save progress button hidden as requested */}
               <button
                 type="button"
                 onClick={onOpenSaveModal}
-                className="px-6 h-[48px] font-title-sm text-title-sm bg-primary text-on-primary rounded-DEFAULT hover:opacity-90 transition-opacity shadow-sm"
+                className="hidden px-6 h-[48px] font-title-sm text-title-sm bg-primary text-on-primary rounded-DEFAULT hover:opacity-90 transition-opacity shadow-sm"
               >
                 Guardar progreso
               </button>
@@ -242,20 +262,20 @@ export function WorkflowShell({
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
 
         {/* Bottom Navigation for Mobile */}
-        <nav className="md:hidden bg-surface border-t border-outline-variant h-16 flex items-center justify-around z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-          {sidebarItems.map((item) => {
+        <nav className="md:hidden bg-surface border-t border-outline-variant h-20 flex items-center justify-around z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2">
+          {filteredSidebarItems.slice(0, 2).map((item) => {
             const isActive = section === item.key
             return (
               <button
                 key={item.key}
                 onClick={() => onSectionChange(item.key)}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 transition-all duration-300",
-                  isActive ? "text-primary scale-110" : "text-on-surface-variant"
+                  "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-1",
+                  isActive ? "text-primary" : "text-on-surface-variant"
                 )}
               >
                 <div className={cn(
-                  "w-12 h-8 rounded-full flex items-center justify-center transition-colors",
+                  "w-12 h-8 rounded-full flex items-center justify-center transition-colors mb-0.5",
                   isActive ? "bg-secondary-container" : "bg-transparent"
                 )}>
                   <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
@@ -264,15 +284,39 @@ export function WorkflowShell({
               </button>
             )
           })}
-          <button 
-            onClick={onOpenTaskModal}
-            className="flex flex-col items-center justify-center -translate-y-4"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-secondary text-on-secondary shadow-xl flex items-center justify-center ring-4 ring-background animate-bounce-subtle">
-              <MaterialIcon name="add" className="text-[28px]" />
-            </div>
-            <span className="text-[10px] font-bold text-secondary uppercase mt-1">Nuevo</span>
-          </button>
+          
+          <div className="flex-1 flex justify-center -translate-y-6">
+            <button 
+              onClick={onOpenTaskModal}
+              className="flex flex-col items-center justify-center"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-secondary text-on-secondary shadow-xl flex items-center justify-center ring-8 ring-background">
+                <MaterialIcon name="add" className="text-[28px]" />
+              </div>
+            </button>
+          </div>
+
+          {filteredSidebarItems.slice(2, 4).map((item) => {
+            const isActive = section === item.key
+            return (
+              <button
+                key={item.key}
+                onClick={() => onSectionChange(item.key)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-1",
+                  isActive ? "text-primary" : "text-on-surface-variant"
+                )}
+              >
+                <div className={cn(
+                  "w-12 h-8 rounded-full flex items-center justify-center transition-colors mb-0.5",
+                  isActive ? "bg-secondary-container" : "bg-transparent"
+                )}>
+                  <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
+              </button>
+            )
+          })}
         </nav>
       </div>
     </div>

@@ -22,7 +22,7 @@ type TaskDetailsModalProps = {
 
 export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProps) {
   const task = useWorkflowStore((state) => workflowSelectors.getTaskById(state.tasks, taskId))
-  const technicians = useWorkflowStore((state) => state.technicians)
+  const users = useWorkflowStore((state) => state.users)
   const updateTask = useWorkflowStore((state) => state.updateTask)
   const addTaskActivity = useWorkflowStore((state) => state.addTaskActivity)
   const updateTaskActivity = useWorkflowStore((state) => state.updateTaskActivity)
@@ -34,6 +34,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const [showAddChoice, setShowAddChoice] = useState(false)
   const [noteText, setNoteText] = useState("")
   const [isAddingNote, setIsAddingNote] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const [previewItem, setPreviewItem] = useState<TaskActivity | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -43,6 +44,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const [deletingItem, setDeletingItem] = useState<TaskActivity | null>(null)
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [editNameValue, setEditNameValue] = useState("")
+  const [editDescriptionValue, setEditDescriptionValue] = useState("")
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [internalPrompt, setInternalPrompt] = useState<{
@@ -66,9 +68,9 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const assignees = useMemo(() => {
     if (!task) return []
     return task.assigneeIds
-      .map((id) => technicians.find((t) => t.id === id))
-      .filter(Boolean) as typeof technicians
-  }, [task, technicians])
+      .map((id) => users.find((u) => u.id === id))
+      .filter(Boolean)
+  }, [task, users])
 
   if (!open || !task) return null
 
@@ -137,11 +139,14 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const evidence = activities.filter(a => a.type !== "note")
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/80 backdrop-blur-md px-2 sm:px-6 py-4 overflow-y-auto">
-      <div className="relative w-full max-w-7xl min-h-[90vh] flex flex-col rounded-3xl bg-surface shadow-2xl overflow-hidden border border-white/20 animate-in fade-in zoom-in duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/80 backdrop-blur-md sm:px-6 sm:py-4">
+      <div className={cn(
+        "relative w-full h-full sm:h-[90vh] flex flex-col sm:rounded-3xl bg-surface shadow-2xl overflow-hidden border-white/20 animate-in fade-in zoom-in duration-300 transition-all duration-500",
+        activeView === "drawing" ? "max-w-full" : "max-w-7xl"
+      )}>
         
         {/* Header Section */}
-        <header className="sticky top-0 z-20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-outline-variant bg-surface/95 backdrop-blur-sm px-6 py-5">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 border-b border-outline-variant bg-surface/95 backdrop-blur-sm px-4 sm:px-6 py-4 sm:py-5 shrink-0">
            <div className="flex flex-col">
               <nav className="flex items-center gap-2 text-on-surface-variant mb-1 font-body-sm text-[12px]">
                 <button onClick={onClose} className="hover:text-primary flex items-center gap-1 transition-colors">
@@ -154,7 +159,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 <span className="text-primary font-semibold truncate max-w-[200px]">{task.title}</span>
               </nav>
               <div className="flex flex-wrap items-center gap-3">
-                 <h2 className="font-display-lg text-headline-md sm:text-display-lg text-primary leading-tight">{task.title}</h2>
+                 <h2 className="font-display-lg text-xl sm:text-display-lg text-primary leading-tight truncate max-w-[280px] sm:max-w-none">{task.title}</h2>
                  
                  {/* Status Selector */}
                  <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-full border border-outline-variant">
@@ -209,6 +214,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             <p className="font-body-md text-body-md leading-relaxed text-on-surface">{task.description}</p>
                          </div>
                          
+                         {task.creatorId && (
+                           <div className="flex items-center gap-2 p-2 bg-primary/5 rounded-lg border border-primary/10">
+                              <MaterialIcon name="person" className="text-primary text-[16px]" />
+                              <span className="text-[11px] font-medium text-on-surface">
+                                <span className="text-on-surface-variant">Asignado por: </span>
+                                {users.find(u => u.id === task.creatorId)?.name || "Sistema"}
+                              </span>
+                           </div>
+                         )}
+                         
                          <div className="grid grid-cols-2 gap-4">
                             <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/30">
                                <p className="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Duración</p>
@@ -261,18 +276,38 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                    <section className="bg-white border border-outline-variant p-6 rounded-2xl shadow-sm">
                       <div className="flex items-center justify-between mb-5">
                          <h3 className="font-title-sm text-title-sm text-primary flex items-center gap-2">
-                            <MaterialIcon name="description" className="text-secondary" filled />
-                            Notas Técnicas
+                            <MaterialIcon name={showHistory ? "history" : "description"} className="text-secondary" filled />
+                            {showHistory ? "Historial de Cambios" : "Notas Técnicas"}
                          </h3>
-                         <button className="text-secondary font-label-caps text-[10px] uppercase hover:underline tracking-wider">Ver Historial</button>
+                         <button 
+                           onClick={() => setShowHistory(!showHistory)}
+                           className="text-secondary font-label-caps text-[10px] uppercase hover:underline tracking-wider"
+                         >
+                           {showHistory ? "Ver Notas" : "Ver Historial"}
+                         </button>
                       </div>
                       
                       <div className="space-y-4">
-                         {notes.map(note => (
-                           <div key={note.id} className="p-4 bg-surface-container-low rounded-xl border-l-4 border-secondary shadow-sm">
-                              <p className="font-body-sm text-sm text-on-surface italic mb-3">"{note.content}"</p>
+                         {(showHistory ? activities.filter(a => a.type === "log") : notes).map(note => (
+                           <div key={note.id} className={cn(
+                             "p-4 rounded-xl border-l-4 shadow-sm",
+                             note.type === "log" ? "bg-surface-container border-primary/30" : "bg-surface-container-low border-secondary"
+                           )}>
+                              <p className={cn(
+                                "font-body-sm text-sm text-on-surface mb-3",
+                                note.type === "note" && "italic"
+                              )}>
+                                {note.type === "log" ? (
+                                  <span className="flex items-center gap-2">
+                                    <MaterialIcon name="info" className="text-[14px] text-primary" />
+                                    {note.content}
+                                  </span>
+                                ) : `"${note.content}"`}
+                              </p>
                               <div className="flex justify-between items-center text-[10px] text-on-surface-variant/70 font-data-mono">
-                                 <span>ADMIN • {new Date(note.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                 <span>
+                                   {note.metadata?.authorName || "ADMIN"} • {new Date(note.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                 </span>
                                  <MaterialIcon name="more_horiz" className="text-[18px]" />
                               </div>
                            </div>
@@ -333,9 +368,9 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                       </div>
 
                       <div className={cn(
-                         "grid gap-5",
+                         "grid gap-4 sm:gap-5",
                          viewMode === "grid" 
-                           ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4" 
+                           ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4" 
                            : "grid-cols-1"
                        )}>
                          
@@ -402,12 +437,12 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                               key={item.id} 
                               className={cn(
                                 "group relative rounded-2xl overflow-hidden border border-outline-variant bg-surface-container-highest shadow-sm transition-all duration-300",
-                                viewMode === "grid" ? "aspect-square" : "flex flex-row h-32"
+                                viewMode === "grid" ? "aspect-square" : "flex flex-col sm:flex-row min-h-[8rem] sm:h-32"
                               )}
                             >
                                <div className={cn(
                                  "relative bg-black/5 flex items-center justify-center overflow-hidden",
-                                 viewMode === "grid" ? "w-full h-full" : "w-48 h-full shrink-0"
+                                 viewMode === "grid" ? "w-full h-full" : "w-full sm:w-48 h-32 sm:h-full shrink-0"
                                )}>
                                {item.type === "image" && (
                                  <img src={item.content} alt="Evidencia" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -441,10 +476,10 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                </div>
                                
                                <div className={cn(
-                                  "absolute p-4 transition-all duration-300",
+                                  "p-4 transition-all duration-300",
                                   viewMode === "grid" 
-                                    ? "inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent translate-y-2 group-hover:translate-y-0" 
-                                    : "relative flex-1 bg-white flex flex-col justify-center"
+                                    ? "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent translate-y-2 group-hover:translate-y-0" 
+                                    : "relative flex-1 bg-white flex flex-col justify-center min-w-0"
                                 )}>
                                   <p className={cn(
                                      "font-data-mono truncate mb-0.5",
@@ -470,34 +505,21 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                   "absolute flex gap-2 transition-all duration-300",
                                   viewMode === "grid" 
                                     ? "top-3 right-3 flex-col opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0" 
-                                    : "right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0"
+                                    : "right-4 top-4 sm:top-1/2 sm:-translate-y-1/2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 translate-x-0 sm:translate-x-4 sm:group-hover:translate-x-0"
                                 )}>
                                   <button 
                                     title="Visualizar"
-                                    onClick={() => {
-                                      if (item.type === "drawing" && typeof item.content === "object") {
-                                         setEditingActivityId(item.id)
-                                         setDrawingScene(item.content)
-                                         setActiveView("drawing")
-                                      } else {
-                                         setPreviewItem(item)
-                                      }
-                                    }}
+                                    onClick={() => setPreviewItem(item)}
                                     className="h-9 w-9 bg-white/90 backdrop-blur-sm text-primary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
                                   >
                                     <MaterialIcon name="visibility" className="text-[18px]" />
                                   </button>
                                   <button 
-                                    title={item.type === "drawing" ? "Editar Dibujo" : "Renombrar"}
+                                    title={item.type === "drawing" ? "Editar Metadatos" : "Renombrar"}
                                     onClick={() => {
-                                      if (item.type === "drawing" && typeof item.content === "object") {
-                                        setEditingActivityId(item.id)
-                                        setDrawingScene(item.content)
-                                        setActiveView("drawing")
-                                      } else {
-                                        setRenamingItem(item)
-                                        setEditNameValue(item.metadata?.fileName || "")
-                                      }
+                                      setRenamingItem(item)
+                                      setEditNameValue(item.metadata?.fileName || "")
+                                      setEditDescriptionValue(item.metadata?.description || "")
                                     }}
                                     className="h-9 w-9 bg-white/90 backdrop-blur-sm text-secondary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
                                   >
@@ -604,88 +626,102 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 <div className="px-8 pt-8 pb-4">
                   <div className="flex items-center gap-3 text-secondary mb-2">
                     <MaterialIcon name="edit" className="text-[28px]" />
-                    <h2 className="font-headline-md text-[24px] font-bold text-primary">Renombrar Evidencia</h2>
+                    <h2 className="font-headline-md text-[24px] font-bold text-primary">Editar Metadatos</h2>
                   </div>
                   <p className="font-body-md text-sm text-on-surface-variant leading-relaxed">
-                    Asigne un nombre descriptivo para facilitar la búsqueda en el registro técnico.
+                    Actualice el nombre y la descripción técnica de la evidencia seleccionada.
                   </p>
                 </div>
                 
                 <div className="px-8 py-6 space-y-6">
-                  <div className="space-y-2">
-                    <label className="font-label-caps text-[10px] font-bold text-on-surface-variant block uppercase tracking-widest">
-                      Nombre del archivo
-                    </label>
-                    <div className="relative group">
-                      <input 
-                        autoFocus
-                        className="w-full h-12 px-4 bg-white border border-outline text-on-surface font-body-md rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all duration-200"
-                        type="text" 
-                        value={editNameValue}
-                        onChange={(e) => setEditNameValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            updateTask(task.id, {
-                              activities: task.activities.map(a => 
-                                a.id === renamingItem.id 
-                                  ? { ...a, metadata: { ...a.metadata, fileName: editNameValue } } 
-                                  : a
-                              )
-                            })
-                            setRenamingItem(null)
-                          }
-                        }}
-                      />
-                      <div className="absolute inset-y-0 right-4 flex items-center text-on-surface-variant">
-                        <MaterialIcon name="text_fields" />
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-on-surface-variant italic">Formatos permitidos: .jpg, .png, .pdf (Max 25MB)</p>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
-                    <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-surface-container-highest">
-                       {renamingItem.type === "image" ? (
-                         <img src={renamingItem.content} className="w-full h-full object-cover" />
-                       ) : renamingItem.type === "drawing" ? (
-                         <img src={renamingItem.content.preview} className="w-full h-full object-contain" />
-                       ) : (
-                         <div className="w-full h-full flex items-center justify-center bg-primary/10"><MaterialIcon name="movie" /></div>
-                       )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-data-mono text-[13px] text-on-surface truncate">{renamingItem.metadata?.fileName || "Archivo"}</p>
-                      <p className="text-[11px] text-on-surface-variant">
-                        {renamingItem.metadata?.mimeType?.split("/")[1]?.toUpperCase() || "FILE"} • {new Date(renamingItem.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                   <div className="space-y-2">
+                     <label className="font-label-caps text-[10px] font-bold text-on-surface-variant block uppercase tracking-widest">
+                       {renamingItem.type === "drawing" ? "Título del Croquis" : "Nombre del archivo"}
+                     </label>
+                     <div className="relative group">
+                       <input 
+                         autoFocus
+                         className="w-full h-12 px-4 bg-white border border-outline text-on-surface font-body-md rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all duration-200"
+                         type="text" 
+                         value={editNameValue}
+                         onChange={(e) => setEditNameValue(e.target.value)}
+                       />
+                       <div className="absolute inset-y-0 right-4 flex items-center text-on-surface-variant">
+                         <MaterialIcon name="text_fields" />
+                       </div>
+                     </div>
+                   </div>
 
-                <div className="px-8 py-6 bg-surface-container-low flex flex-col sm:flex-row-reverse gap-3 border-t border-outline-variant">
-                  <button 
-                    onClick={() => {
-                      updateTask(task.id, {
-                        activities: task.activities.map(a => 
-                          a.id === renamingItem.id 
-                            ? { ...a, metadata: { ...a.metadata, fileName: editNameValue } } 
-                            : a
-                        )
-                      })
-                      setRenamingItem(null)
-                    }}
-                    className="flex-1 h-12 bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-white font-bold rounded-full transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    <MaterialIcon name="check" />
-                    Guardar cambios
-                  </button>
-                  <button 
-                    onClick={() => setRenamingItem(null)}
-                    className="flex-1 h-12 bg-transparent border border-outline text-on-surface hover:bg-surface-container-high font-semibold rounded-full transition-colors duration-200 flex items-center justify-center gap-2"
-                  >
-                    Descartar
-                  </button>
-                </div>
+                   <div className="space-y-2">
+                     <label className="font-label-caps text-[10px] font-bold text-on-surface-variant block uppercase tracking-widest">
+                       Descripción de Evidencia
+                     </label>
+                     <textarea 
+                        className="w-full h-24 p-4 bg-white border border-outline text-on-surface font-body-md rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none transition-all duration-200 resize-none"
+                        value={editDescriptionValue}
+                        onChange={(e) => setEditDescriptionValue(e.target.value)}
+                        placeholder="Añada una nota técnica..."
+                     />
+                   </div>
+
+                   {renamingItem.type === "drawing" && (
+                      <button 
+                        onClick={() => {
+                           setEditingActivityId(renamingItem.id)
+                           setDrawingScene(renamingItem.content)
+                           setActiveView("drawing")
+                           setRenamingItem(null)
+                        }}
+                        className="w-full py-4 bg-secondary/10 border-2 border-dashed border-secondary text-secondary rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-secondary/20 transition-all group"
+                      >
+                         <MaterialIcon name="architecture" className="group-hover:scale-110 transition-transform" />
+                         EDITAR DIBUJO EN PIZARRA
+                      </button>
+                   )}
+                   
+                   <div className="flex items-center gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+                     <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0 bg-surface-container-highest">
+                        {renamingItem.type === "image" ? (
+                          <img src={renamingItem.content} className="w-full h-full object-cover" />
+                        ) : renamingItem.type === "drawing" ? (
+                          <img src={renamingItem.content.preview} className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-primary/10"><MaterialIcon name="movie" /></div>
+                        )}
+                     </div>
+                     <div className="min-w-0">
+                       <p className="font-data-mono text-[13px] text-on-surface truncate">{renamingItem.metadata?.fileName || "Archivo"}</p>
+                       <p className="text-[11px] text-on-surface-variant">
+                         {renamingItem.metadata?.mimeType?.split("/")[1]?.toUpperCase() || "FILE"} • {new Date(renamingItem.createdAt).toLocaleDateString()}
+                       </p>
+                     </div>
+                   </div>
+                 </div>
+
+                 <div className="px-8 py-6 bg-surface-container-low flex flex-col sm:flex-row-reverse gap-3 border-t border-outline-variant">
+                   <button 
+                     onClick={() => {
+                       updateTask(task.id, {
+                         activities: task.activities.map(a => 
+                           a.id === renamingItem.id 
+                             ? { ...a, metadata: { ...a.metadata, fileName: editNameValue, description: editDescriptionValue } } 
+                             : a
+                         )
+                       })
+                       setRenamingItem(null)
+                     }}
+                     className="flex-1 h-12 bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-white font-bold rounded-full transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm"
+                   >
+                     <MaterialIcon name="check" />
+                     Guardar cambios
+                   </button>
+                   <button 
+                     onClick={() => setRenamingItem(null)}
+                     className="flex-1 h-12 bg-transparent border border-outline text-on-surface hover:bg-surface-container-high font-semibold rounded-full transition-colors duration-200 flex items-center justify-center gap-2"
+                   >
+                     Descartar
+                   </button>
+                 </div>
              </div>
            </div>
          )}
@@ -1000,4 +1036,3 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
     </div>
   )
 }
-

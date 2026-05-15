@@ -24,7 +24,8 @@ const statusOptions: Array<{ value: TaskStatus; label: string }> = [
 ]
 
 export function TaskModal({ open, onClose }: TaskModalProps) {
-  const technicians = useWorkflowStore((state) => state.technicians)
+  const users = useWorkflowStore((state) => state.users)
+  const technicians = users.filter(u => u.role === "empleado" || u.role === "gerente")
   const addTask = useWorkflowStore((state) => state.addTask)
 
   const [title, setTitle] = useState("")

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
-import { formatLongDateTime, formatBytes } from "@/utils/workflow"
+import { formatLongDateTime, formatBytes, cn } from "@/utils/workflow"
 import { useWorkflowStore } from "@/store/workflow-store"
 
 export function SettingsSection() {
@@ -12,7 +12,15 @@ export function SettingsSection() {
   const folders = useWorkflowStore((state) => state.folders)
   const assignments = useWorkflowStore((state) => state.assignments)
   const saves = useWorkflowStore((state) => state.saves)
+  const users = useWorkflowStore((state) => state.users)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
+  const setCurrentUser = useWorkflowStore((state) => state.setCurrentUser)
+  const updateUser = useWorkflowStore((state) => state.updateUser)
   const resetDemoData = useWorkflowStore((state) => state.resetDemoData)
+
+  const currentUser = useMemo(() => 
+    users.find(u => u.id === currentUserId) ?? null,
+  [users, currentUserId])
 
   const snapshot = useMemo(
     () => ({
@@ -154,6 +162,110 @@ export function SettingsSection() {
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-3 mb-6">
+             <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center">
+                <MaterialIcon name="admin_panel_settings" filled />
+             </div>
+             <div>
+                <h3 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">Perfil de Usuario y Permisos</h3>
+                <p className="text-xs text-on-surface-variant">Configure su identidad y el alcance de visualización de datos.</p>
+             </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+             {/* Active Profile Info */}
+             <div className="bg-surface-container-low rounded-2xl p-6 border border-outline-variant/30 flex items-center gap-6">
+                <div className="relative">
+                   <img src={currentUser?.avatar} alt="" className="w-20 h-20 rounded-full border-2 border-white shadow-md" />
+                   <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-success border-2 border-white" title="Activo" />
+                </div>
+                <div className="flex-1 min-w-0">
+                   <h4 className="font-display-lg text-lg font-bold text-primary truncate">{currentUser?.name}</h4>
+                   <p className="text-sm font-medium text-on-surface-variant uppercase tracking-wide">{currentUser?.position}</p>
+                   <div className="flex items-center gap-2 mt-2">
+                      <span className="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase">{currentUser?.role}</span>
+                      <div className="flex items-center gap-1 text-[10px] text-on-surface-variant bg-surface px-2 py-0.5 rounded border border-outline-variant">
+                         <MaterialIcon name="location_on" className="text-[12px]" />
+                         {currentUser?.zone}
+                      </div>
+                   </div>
+                </div>
+             </div>
+
+             {/* Permissions Toggle */}
+             <div className="flex flex-col justify-center gap-4">
+                {currentUser?.role === "gerente" && (
+                   <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
+                      <div className="flex items-center gap-4">
+                         <div className={cn(
+                            "w-12 h-12 rounded-xl flex items-center justify-center transition-colors",
+                            currentUser?.showAllZones ? "bg-tertiary-container text-on-tertiary-container" : "bg-surface-container-high text-on-surface-variant"
+                         )}>
+                            <MaterialIcon name="public" filled={currentUser?.showAllZones} />
+                         </div>
+                         <div>
+                            <p className="font-title-sm text-title-sm text-on-surface">Visualización Global</p>
+                            <p className="text-xs text-on-surface-variant">Como Gerente, puede activar ver todas las zonas.</p>
+                         </div>
+                      </div>
+                      <button 
+                        onClick={() => currentUser && updateUser(currentUser.id, { showAllZones: !currentUser.showAllZones })}
+                        className={cn(
+                          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                          currentUser?.showAllZones ? "bg-primary" : "bg-outline"
+                        )}
+                      >
+                         <span className={cn(
+                           "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                           currentUser?.showAllZones ? "translate-x-5" : "translate-x-0"
+                         )} />
+                      </button>
+                   </div>
+                )}
+                {currentUser?.role === "administrador" && (
+                   <div className="flex items-center gap-4 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                         <MaterialIcon name="verified_user" filled />
+                      </div>
+                      <div>
+                         <p className="font-title-sm text-title-sm text-primary">Acceso Total de Administrador</p>
+                         <p className="text-xs text-on-surface-variant">Usted tiene visibilidad global permanente de todas las regiones.</p>
+                      </div>
+                   </div>
+                )}
+                <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/70 italic px-2">
+                   <MaterialIcon name="info" className="text-[14px]" />
+                   Los permisos se aplican instantáneamente a las vistas de Tablero y Asignaciones.
+                </div>
+             </div>
+          </div>
+
+          <div className="mt-8 border-t border-outline-variant pt-6">
+             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Cambiar perfil (Modo Desarrollo)</p>
+             <div className="flex flex-wrap gap-4">
+                {users.map(user => (
+                   <button
+                     key={user.id}
+                     onClick={() => setCurrentUser(user.id)}
+                     className={cn(
+                       "flex items-center gap-3 p-3 rounded-xl border transition-all",
+                       currentUserId === user.id 
+                         ? "bg-primary/5 border-primary shadow-sm" 
+                         : "bg-surface border-outline-variant hover:border-primary/50"
+                     )}
+                   >
+                      <img src={user.avatar} alt="" className="w-8 h-8 rounded-full" />
+                      <div className="text-left">
+                         <p className={cn("text-xs font-bold", currentUserId === user.id ? "text-primary" : "text-on-surface")}>{user.name}</p>
+                         <p className="text-[10px] text-on-surface-variant uppercase">{user.role}</p>
+                      </div>
+                   </button>
+                ))}
+             </div>
           </div>
         </section>
       </div>
