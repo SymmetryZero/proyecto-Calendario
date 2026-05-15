@@ -309,7 +309,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                               </p>
                               <div className="flex justify-between items-center text-[10px] text-on-surface-variant/70 font-data-mono">
                                  <span>
-                                   {note.metadata?.authorName || "ADMIN"} • {new Date(note.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                   {note.metadata?.authorName || "Sistema"} • {new Date(note.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                  </span>
                                  <MaterialIcon name="more_horiz" className="text-[18px]" />
                               </div>

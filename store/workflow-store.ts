@@ -1432,6 +1432,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
           })
         },
         addTaskActivity: (taskId, type, content, metadata) => {
+          const { users, currentUserId } = get()
+          const user = users.find(u => u.id === currentUserId)
           const now = new Date().toISOString()
           const activity: TaskActivity = {
             id: makeId("act"),
@@ -1439,7 +1441,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
             content,
             createdAt: now,
             updatedAt: now,
-            metadata
+            metadata: {
+              authorName: user?.name || "Sistema",
+              authorRole: user?.role || "sistema",
+              ...metadata
+            }
           }
 
           set((state) => ({
