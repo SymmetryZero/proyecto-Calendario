@@ -71,6 +71,7 @@ export function WorkflowApp() {
               <AssignmentSection 
                 onCreateTask={() => setTaskModalOpen(true)} 
                 onOpenTaskDetails={(taskId) => setTaskDetailsTaskId(taskId)}
+                searchQuery={searchQuery}
               />
             ) : null}
             {section === "drawing" ? <DrawingSection /> : null}

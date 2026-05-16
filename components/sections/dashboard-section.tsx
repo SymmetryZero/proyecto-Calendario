@@ -112,6 +112,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
   const deleteTask = useWorkflowStore((state) => state.deleteTask)
   const pauseTaskTimer = useWorkflowStore((state) => state.pauseTaskTimer)
   const startTaskTimer = useWorkflowStore((state) => state.startTaskTimer)
+  const setGlobalAlert = useWorkflowStore((state) => state.setGlobalAlert)
   
   const currentUser = useMemo(() => 
     workflowSelectors.getCurrentUser(users, currentUserId), 
@@ -164,14 +165,22 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
     // Role-based restrictions for employees
     if (currentUser?.role === "empleado") {
       if (task.status === "done") {
-        alert("No puedes modificar una tarea que ya ha sido finalizada.")
+        setGlobalAlert({
+          title: "Acción Denegada",
+          message: "No puedes modificar una tarea que ya ha sido finalizada.",
+          type: "error"
+        })
         return
       }
       const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
       const currentIndex = statusOrder.indexOf(task.status)
       const nextIndex = statusOrder.indexOf(nextStatus)
       if (nextIndex < currentIndex) {
-        alert("Como empleado, solo puedes avanzar el estado de las tareas.")
+        setGlobalAlert({
+          title: "Restricción de Rol",
+          message: "Como empleado, solo puedes avanzar el estado de las tareas.",
+          type: "warning"
+        })
         return
       }
     }
@@ -198,6 +207,17 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
 
     const task = tasks.find((item) => item.id === draggedTaskId)
     if (task && task.status !== status) {
+      // Restriction: done status can only be set/changed via buttons, not drag-and-drop
+      if (status === "done" || task.status === "done") {
+        setGlobalAlert({
+          title: "Movimiento Restringido",
+          message: "Los cambios hacia o desde el estado 'Hecho' deben realizarse mediante los botones de acción.",
+          type: "info"
+        })
+        setDraggedTaskId(null)
+        return
+      }
+
       const nextStatus = status
       
       // Permission check for dragging
@@ -207,7 +227,11 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
         const nextIndex = statusOrder.indexOf(nextStatus)
         
         if (task.status === "done" || nextIndex < currentIndex) {
-          alert("No tienes permisos para realizar este movimiento.")
+          setGlobalAlert({
+            title: "Movimiento Bloqueado",
+            message: "No tienes permisos para realizar este movimiento.",
+            type: "warning"
+          })
           setDraggedTaskId(null)
           return
         }
@@ -521,12 +545,19 @@ function TaskCard({
 
   return (
     <article
-      draggable
-      onDragStart={onDragStart}
+      draggable={task.status !== "done"}
+      onDragStart={(e) => {
+        if (task.status === "done") {
+          e.preventDefault()
+          return
+        }
+        onDragStart()
+      }}
       onDragEnd={onDragEnd}
       onClick={() => onOpenTaskDetails(task.id)}
       className={cn(
         "bg-surface-container-lowest rounded-DEFAULT border p-4 flex flex-col gap-stack-sm shadow-sm hover:shadow-md transition-all cursor-pointer relative group",
+        task.status === "done" ? "opacity-90 grayscale-[0.2]" : "opacity-100",
         task.status === "inProgress"
           ? "border-tertiary-container ring-1 ring-tertiary-container/20"
           : "border-outline-variant",

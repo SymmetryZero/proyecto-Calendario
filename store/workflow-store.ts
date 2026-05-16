@@ -13,6 +13,33 @@ import {
   makeId
 } from "@/utils/workflow"
 
+const statusLabels: Record<string, string> = {
+  todo: "Por Hacer",
+  inProgress: "En Progreso",
+  review: "En Revisión",
+  done: "Completada"
+}
+
+export type NotificationType = "movement" | "assignment" | "message" | "alert"
+
+export interface Notification {
+  id: string
+  title: string
+  message: string
+  timestamp: string
+  type: NotificationType
+  taskId?: string
+  userId?: string // Who triggered it
+  targetUserId?: string // Who it's for (null for everyone/admin)
+  read?: boolean
+}
+
+export interface GlobalAlert {
+  title: string
+  message: string
+  type: "error" | "warning" | "info"
+}
+
 export type SectionKey = "dashboard" | "assignments" | "users" | "statistics" | "drawing" | "evidence" | "settings"
 export type TaskStatus = "todo" | "inProgress" | "review" | "done"
 export type Priority = "high" | "medium" | "low"
@@ -906,9 +933,34 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       return {
         ...initial,
+        notifications: [],
+        globalAlert: null,
         hasHydrated: false,
         setHydrated: (value) => {
           set({ hasHydrated: value })
+        },
+        addNotification: (notification) => {
+          set((state) => ({
+            notifications: [
+              {
+                id: makeId("notif"),
+                timestamp: new Date().toISOString(),
+                read: false,
+                ...notification
+              },
+              ...state.notifications
+            ].slice(0, 50) // Keep last 50
+          }))
+        },
+        markNotificationAsRead: (notificationId) => {
+          set((state) => ({
+            notifications: state.notifications.map((n) =>
+              n.id === notificationId ? { ...n, read: true } : n
+            )
+          }))
+        },
+        setGlobalAlert: (alert) => {
+          set({ globalAlert: alert })
         },
         addTask: (input) => {
           const taskId = makeId("task")
@@ -983,7 +1035,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
             if (task) {
               const logs: string[] = []
               if (patch.status && patch.status !== task.status) {
-                logs.push(`Estado cambiado a: ${patch.status}`)
+                const labels: Record<string, string> = {
+                  todo: "Por hacer",
+                  inProgress: "En progreso",
+                  review: "En revisión",
+                  done: "Hecho"
+                }
+                logs.push(`Estado cambiado a: ${labels[patch.status] || patch.status}`)
               }
               if (patch.assigneeIds && JSON.stringify(patch.assigneeIds) !== JSON.stringify(task.assigneeIds)) {
                 logs.push(`Personal asignado actualizado`)
@@ -1002,7 +1060,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
               const currentUser = state.users.find(u => u.id === state.currentUserId)
               if (currentUser?.role === "empleado") {
                 if (t.status === "done") {
-                  alert("No puedes modificar una tarea que ya ha sido finalizada.")
+                  get().setGlobalAlert({
+                    title: "Acción Denegada",
+                    message: "No puedes modificar una tarea que ya ha sido finalizada.",
+                    type: "error"
+                  })
                   return t
                 }
                 if (patch.status) {
@@ -1010,7 +1072,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
                   const currentIndex = statusOrder.indexOf(t.status)
                   const nextIndex = statusOrder.indexOf(patch.status)
                   if (nextIndex < currentIndex) {
-                    alert("Como empleado, solo puedes avanzar el estado de las tareas.")
+                    get().setGlobalAlert({
+                      title: "Restricción de Rol",
+                      message: "Como empleado, solo puedes avanzar el estado de las tareas.",
+                      type: "warning"
+                    })
                     return t
                   }
                 }
@@ -1095,14 +1161,22 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
             if (currentUser.role === "empleado") {
               if (task.status === "done") {
-                alert("No puedes mover una tarea que ya ha sido finalizada.")
+                get().setGlobalAlert({
+                  title: "Acción Denegada",
+                  message: "No puedes mover una tarea que ya ha sido finalizada.",
+                  type: "error"
+                })
                 return state
               }
               const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
               const currentIndex = statusOrder.indexOf(task.status)
               const nextIndex = statusOrder.indexOf(status)
               if (nextIndex < currentIndex) {
-                alert("Como empleado, solo puedes avanzar el estado de las tareas.")
+                get().setGlobalAlert({
+                  title: "Restricción de Rol",
+                  message: "Como empleado, solo puedes avanzar el estado de las tareas.",
+                  type: "warning"
+                })
                 return state
               }
             }
@@ -1126,6 +1200,24 @@ export const useWorkflowStore = create<WorkflowStore>()(
               })
             }
           })
+
+          const updatedTask = get().tasks.find((t) => t.id === taskId)
+          if (updatedTask) {
+            const labels: Record<string, string> = {
+              todo: "Por hacer",
+              inProgress: "En progreso",
+              review: "En revisión",
+              done: "Completada"
+            }
+            get().addNotification({
+              title: "Movimiento de Tarea",
+              message: `La tarea "${updatedTask.title}" cambió a: ${labels[status]}`,
+              type: "movement",
+              taskId,
+              userId: get().currentUserId || "system",
+              targetUserId: null
+            })
+          }
         },
         startTaskTimer: (taskId) => {
           const now = Date.now()
@@ -1380,6 +1472,18 @@ export const useWorkflowStore = create<WorkflowStore>()(
               tasks: nextTasks
             }
           })
+
+          // Trigger notification for new assignment
+          if (req) {
+             get().addNotification({
+                title: "Nueva Asignación",
+                message: `Se te ha asignado la tarea: ${req.title}`,
+                type: "assignment",
+                taskId: null,
+                userId: get().currentUserId || "system",
+                targetUserId: userId
+              })
+          }
         },
         addUser: (input) => {
           const id = makeId("user")
@@ -1536,6 +1640,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 : task
             )
           }))
+
+          // Trigger notification for messages (notes)
+          if (type === "note") {
+            const task = get().tasks.find(t => t.id === taskId)
+            if (task) {
+              get().addNotification({
+                title: "Nuevo Mensaje",
+                message: `Nueva nota en "${task.title}": ${String(content).slice(0, 50)}${String(content).length > 50 ? "..." : ""}`,
+                type: "message",
+                taskId,
+                userId: get().currentUserId || "system",
+                targetUserId: null // Broadcast
+              })
+            }
+          }
         },
         addTaskLog: (taskId, content, metadata) => {
           const user = get().users.find(u => u.id === get().currentUserId)
@@ -1648,6 +1767,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
 export const workflowSelectors = {
   getTaskDuration(task: Task, now = Date.now()) {
     return accumulateTaskTime(task, now)
+  },
+  getTaskTotalDuration(task: Task, now = Date.now()) {
+    const accumulated = Object.values(task.statusDurations || {}).reduce((a, b) => a + b, 0)
+    const running = task.timerStartedAt === null ? 0 : Math.max(0, Math.floor((now - task.timerStartedAt) / 1000))
+    return accumulated + running
   },
   getFolderPath(folders: Folder[], folderId: string | null) {
     if (!folderId) {

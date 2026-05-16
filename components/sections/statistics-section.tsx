@@ -42,7 +42,7 @@ export function StatisticsSection() {
     let completedCount = 0
 
     tasks.forEach(t => {
-      const actual = workflowSelectors.getTaskDuration(t)
+      const actual = workflowSelectors.getTaskTotalDuration(t)
       totalActualSeconds += actual
       totalEstimatedSeconds += (t.estimatedHours || 0) * 3600
       if (t.status === "done") completedCount++
@@ -54,7 +54,7 @@ export function StatisticsSection() {
     // Performance per technician
     const techPerformance = technicians.map(tech => {
       const techTasks = tasks.filter(t => t.assigneeIds?.includes(tech.id))
-      const actualSecs = techTasks.reduce((acc, t) => acc + workflowSelectors.getTaskDuration(t), 0)
+      const actualSecs = techTasks.reduce((acc, t) => acc + workflowSelectors.getTaskTotalDuration(t), 0)
       const estimatedSecs = techTasks.reduce((acc, t) => acc + (t.estimatedHours || 0) * 3600, 0)
       
       return {
@@ -134,10 +134,10 @@ export function StatisticsSection() {
           {/* Chart: Status distribution */}
           <section className="lg:col-span-2 bg-surface p-6 rounded-3xl border border-outline-variant shadow-sm flex flex-col">
             <h3 className="font-title-lg text-title-lg text-primary mb-6">Estado del Flujo (Pipeline)</h3>
-            <div className="flex-1 flex items-end justify-between min-h-[240px] gap-4 px-4 pb-4">
-              <Bar label="Por hacer" value={stats.statusCounts.todo} total={tasks.length} color="bg-outline-variant" />
-              <Bar label="En progreso" value={stats.statusCounts.inProgress} total={tasks.length} color="bg-tertiary" />
-              <Bar label="Revisión" value={stats.statusCounts.review} total={tasks.length} color="bg-secondary" />
+            <div className="flex-1 flex items-end justify-between min-h-[260px] gap-2 md:gap-4 px-2 md:px-6 pb-4 bg-surface-container-low/30 rounded-2xl border border-outline-variant/50">
+              <Bar label="Por hacer" value={stats.statusCounts.todo} total={tasks.length} color="bg-surface-variant" />
+              <Bar label="En progreso" value={stats.statusCounts.inProgress} total={tasks.length} color="bg-secondary" />
+              <Bar label="Revisión" value={stats.statusCounts.review} total={tasks.length} color="bg-tertiary" />
               <Bar label="Hecho" value={stats.statusCounts.done} total={tasks.length} color="bg-primary" />
             </div>
             <div className="pt-4 border-t border-outline-variant mt-4 grid grid-cols-2 gap-4">
@@ -302,16 +302,16 @@ function PriorityRow({ label, count, total, color }: { label: string; count: num
 }
 
 function Bar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const height = total > 0 ? (value / total) * 100 : 0
+  const height = (value / Math.max(total, 1)) * 100
   return (
     <div className="flex flex-col items-center gap-2 flex-1 group">
       <div className="relative w-full flex-1 flex flex-col justify-end">
         <div 
-          className={cn("w-full rounded-t-xl transition-all duration-1000 group-hover:brightness-110 shadow-sm", color)}
+          className={cn("w-[60px] md:w-[80px] rounded-t-2xl transition-all duration-1000 group-hover:brightness-110 shadow-lg border-x border-t border-white/10", color)}
           style={{ height: `${Math.max(height, 5)}%` }}
         >
-          <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-surface-container px-2 py-1 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md">
-            {value} tareas
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-surface-container-high text-on-surface px-3 py-1.5 rounded-xl text-[11px] font-bold opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap shadow-xl border border-outline-variant">
+            {value} {value === 1 ? "tarea" : "tareas"}
           </div>
         </div>
       </div>

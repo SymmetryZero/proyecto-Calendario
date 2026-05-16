@@ -14,6 +14,7 @@ import {
 type AssignmentSectionProps = {
   onCreateTask: () => void
   onOpenTaskDetails: (taskId: string) => void
+  searchQuery?: string
 }
 
 const priorityStyles = {
@@ -74,7 +75,7 @@ function technicianSearchableText(technician: Technician) {
     .toLowerCase()
 }
 
-export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: AssignmentSectionProps) {
+export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery = "" }: AssignmentSectionProps) {
   const requirements = useWorkflowStore((state) => state.requirements)
   const users = useWorkflowStore((state) => state.users)
   const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
@@ -88,9 +89,17 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
     workflowSelectors.getCurrentUser(users, currentUserId),
     [users, currentUserId])
 
-  const zoneRequirements = useMemo(() =>
-    workflowSelectors.filterRequirementsByZone(requirements, currentUser),
-    [requirements, currentUser])
+  const zoneRequirements = useMemo(() => {
+    const base = workflowSelectors.filterRequirementsByZone(requirements, currentUser)
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return base
+    return base.filter(r => 
+      r.title.toLowerCase().includes(query) || 
+      r.description.toLowerCase().includes(query) ||
+      r.code.toLowerCase().includes(query) ||
+      r.location.toLowerCase().includes(query)
+    )
+  }, [requirements, currentUser, searchQuery])
 
   const zoneTasks = useMemo(() =>
     workflowSelectors.filterTasksByZone(tasks, currentUser),

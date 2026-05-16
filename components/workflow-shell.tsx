@@ -1,9 +1,12 @@
 "use client"
 
-import { useMemo, type ReactNode } from "react"
+import { useState, useMemo, type ReactNode } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
+import { HelpModal } from "@/components/modals/help-modal"
+import { NotificationPopout } from "@/components/notification-popout"
+import { GlobalAlertModal } from "@/components/modals/global-alert-modal"
 
 type WorkflowShellProps = {
   section: SectionKey
@@ -41,14 +44,32 @@ export function WorkflowShell({
   onSearchChange,
   children
 }: WorkflowShellProps) {
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+
   const assignments = useWorkflowStore((state) => state.assignments)
   const saves = useWorkflowStore((state) => state.saves)
   const users = useWorkflowStore((state) => state.users)
+  const notifications = useWorkflowStore((state) => state.notifications)
   const currentUserId = useWorkflowStore((state) => state.currentUserId)
 
   const currentUser = useMemo(() => 
     workflowSelectors.getCurrentUser(users, currentUserId), 
   [users, currentUserId])
+
+  const unreadCount = useMemo(() => {
+    if (!currentUser) return 0
+    return notifications.filter(n => {
+      if (!n.read) {
+        if (currentUser.role === "administrador") return true
+        if (currentUser.role === "gerente") return true
+        if (currentUser.role === "empleado") {
+          return n.targetUserId === currentUser.id || n.userId === currentUser.id
+        }
+      }
+      return false
+    }).length
+  }, [notifications, currentUser])
 
   const filteredSidebarItems = useMemo(() => {
     if (!currentUser) return sidebarItems
@@ -230,14 +251,30 @@ export function WorkflowShell({
             </div>
 
             <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  className={cn(
+                    "w-[48px] h-[48px] flex justify-center items-center rounded-DEFAULT transition-colors",
+                    notificationsOpen ? "bg-primary/10 text-primary" : "text-on-surface-variant hover:bg-surface-container"
+                  )}
+                >
+                  <MaterialIcon name="notifications" filled={notificationsOpen} />
+                </button>
+                {unreadCount > 0 && (
+                  <span className="absolute top-2 right-2 w-4 h-4 bg-error text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">
+                    {unreadCount}
+                  </span>
+                )}
+                <NotificationPopout 
+                  open={notificationsOpen} 
+                  onClose={() => setNotificationsOpen(false)} 
+                />
+              </div>
               <button
                 type="button"
-                className="w-[48px] h-[48px] flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-DEFAULT transition-colors"
-              >
-                <MaterialIcon name="notifications" />
-              </button>
-              <button
-                type="button"
+                onClick={() => setHelpOpen(true)}
                 className="w-[48px] h-[48px] flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-DEFAULT transition-colors"
               >
                 <MaterialIcon name="help_outline" />
@@ -318,6 +355,8 @@ export function WorkflowShell({
           })}
         </nav>
       </div>
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <GlobalAlertModal />
     </div>
   )
 }
