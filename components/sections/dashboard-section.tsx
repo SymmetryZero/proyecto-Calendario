@@ -161,6 +161,21 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
   }, [searchQuery, tasks, users, filterMode])
 
   function handleMove(task: Task, nextStatus: TaskStatus) {
+    // Role-based restrictions for employees
+    if (currentUser?.role === "empleado") {
+      if (task.status === "done") {
+        alert("No puedes modificar una tarea que ya ha sido finalizada.")
+        return
+      }
+      const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
+      const currentIndex = statusOrder.indexOf(task.status)
+      const nextIndex = statusOrder.indexOf(nextStatus)
+      if (nextIndex < currentIndex) {
+        alert("Como empleado, solo puedes avanzar el estado de las tareas.")
+        return
+      }
+    }
+
     if (nextStatus === "inProgress" && task.timerStartedAt === null) {
       startTaskTimer(task.id)
       if (task.status !== "inProgress") {
@@ -184,6 +199,20 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
     const task = tasks.find((item) => item.id === draggedTaskId)
     if (task && task.status !== status) {
       const nextStatus = status
+      
+      // Permission check for dragging
+      if (currentUser?.role === "empleado") {
+        const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
+        const currentIndex = statusOrder.indexOf(task.status)
+        const nextIndex = statusOrder.indexOf(nextStatus)
+        
+        if (task.status === "done" || nextIndex < currentIndex) {
+          alert("No tienes permisos para realizar este movimiento.")
+          setDraggedTaskId(null)
+          return
+        }
+      }
+
       setPendingAction({ type: "move", task, nextStatus })
     }
 
@@ -303,6 +332,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
                   }}
                   onOpenTaskDetails={onOpenTaskDetails}
                   now={now}
+                  currentUser={currentUser}
                 />
               </div>
             )
@@ -370,6 +400,7 @@ type KanbanColumnProps = {
   onDeleteTask: (taskId: string) => void
   onOpenTaskDetails: (taskId: string) => void
   now: number
+  currentUser: Technician | null
 }
 
 function KanbanColumn({
@@ -383,7 +414,8 @@ function KanbanColumn({
   onMoveTask,
   onDeleteTask,
   onOpenTaskDetails,
-  now
+  now,
+  currentUser
 }: KanbanColumnProps) {
   const meta = statusMeta[status]
 
@@ -431,6 +463,7 @@ function KanbanColumn({
             onDeleteTask={onDeleteTask}
             onOpenTaskDetails={onOpenTaskDetails}
             now={now}
+            currentUser={currentUser}
           />
         ))}
       </div>
@@ -449,6 +482,7 @@ type TaskCardProps = {
   onDeleteTask: (taskId: string) => void
   onOpenTaskDetails: (taskId: string) => void
   now: number
+  currentUser: Technician | null
 }
 
 function TaskCard({
@@ -461,7 +495,8 @@ function TaskCard({
   onMoveTask,
   onDeleteTask,
   onOpenTaskDetails,
-  now
+  now,
+  currentUser
 }: TaskCardProps) {
   const assignees = avatarByTechnicianIds(users, task.assigneeIds)
   const attachedEvidence = evidence.filter((item) => item.linkedTaskId === task.id)
@@ -515,25 +550,42 @@ function TaskCard({
           >
             <MaterialIcon name="attach_file" className="text-[18px]" />
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onMoveTask(task, nextStatus)
-            }}
-            className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-sm"
-            aria-label={`${statusLabel} tarea`}
-            title={statusLabel}
-          >
-            <MaterialIcon name={task.status === "review" ? "check_circle" : "arrow_forward"} className="text-[18px]" />
-          </button>
+          {(() => {
+            const isEmployee = currentUser?.role === "empleado"
+            const isDone = task.status === "done"
+            const canMove = !isEmployee || (!isDone && statusOrder.indexOf(nextStatus) >= statusOrder.indexOf(task.status))
+            
+            return (
+              <button
+                type="button"
+                disabled={!canMove}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMoveTask(task, nextStatus)
+                }}
+                className={cn(
+                  "flex items-center justify-center w-9 h-9 rounded-xl transition-all shadow-sm",
+                  canMove 
+                    ? "bg-primary/10 text-primary hover:bg-primary hover:text-white" 
+                    : "bg-surface-variant text-on-surface-variant opacity-40 cursor-not-allowed"
+                )}
+                aria-label={`${statusLabel} tarea`}
+                title={canMove ? statusLabel : "No permitido"}
+              >
+                <MaterialIcon name={task.status === "review" ? "check_circle" : "arrow_forward"} className="text-[18px]" />
+              </button>
+            )
+          })()}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               onDeleteTask(task.id)
             }}
-            className="flex items-center justify-center w-9 h-9 rounded-xl bg-error/10 text-error hover:bg-error hover:text-white transition-all shadow-sm"
+            className={cn(
+              "flex items-center justify-center w-9 h-9 rounded-xl bg-error/10 text-error hover:bg-error hover:text-white transition-all shadow-sm",
+              currentUser?.role === "empleado" && "hidden" // Ocultar eliminar para empleados
+            )}
             aria-label="Eliminar tarea"
             title="Eliminar"
           >

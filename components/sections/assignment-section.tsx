@@ -40,7 +40,7 @@ function scoreTechnician(requirement: Requirement, technician: Technician) {
   let score = 0
 
   // Todos los empleados son igualmente elegibles por defecto
-  score += 30 
+  score += 30
 
 
   requirement.requiredSkills?.forEach((skill) => {
@@ -64,10 +64,10 @@ function scoreTechnician(requirement: Requirement, technician: Technician) {
 
 function technicianSearchableText(technician: Technician) {
   return [
-    technician.name, 
-    technician.code || "", 
-    technician.position, 
-    ...(technician.skills || []), 
+    technician.name,
+    technician.code || "",
+    technician.position,
+    ...(technician.skills || []),
     ...(technician.clearances || [])
   ]
     .join(" ")
@@ -84,17 +84,17 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
   const updateRequirement = useWorkflowStore((state) => state.updateRequirement)
   const assignRequirement = useWorkflowStore((state) => state.assignRequirement)
 
-  const currentUser = useMemo(() => 
-    workflowSelectors.getCurrentUser(users, currentUserId), 
-  [users, currentUserId])
+  const currentUser = useMemo(() =>
+    workflowSelectors.getCurrentUser(users, currentUserId),
+    [users, currentUserId])
 
-  const zoneRequirements = useMemo(() => 
+  const zoneRequirements = useMemo(() =>
     workflowSelectors.filterRequirementsByZone(requirements, currentUser),
-  [requirements, currentUser])
+    [requirements, currentUser])
 
-  const zoneTasks = useMemo(() => 
+  const zoneTasks = useMemo(() =>
     workflowSelectors.filterTasksByZone(tasks, currentUser),
-  [tasks, currentUser])
+    [tasks, currentUser])
 
   const [selectedRequirementId, setSelectedRequirementId] = useState<string | null>(null)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string | null>(null)
@@ -241,13 +241,13 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                       {requirement.priority === "high" ? "ALTA" : requirement.priority === "medium" ? "MEDIA" : "BAJA"}
                     </span>
                     {(() => {
-                       const t = tasks.find(x => x.requirementId === requirement.id)
-                       if (!t) return null
-                       return (
-                         <span className={cn("font-label-caps text-[9px] px-2 py-0.5 rounded-full", statusStyles[t.status])}>
-                           {statusLabels[t.status]}
-                         </span>
-                       )
+                      const t = tasks.find(x => x.requirementId === requirement.id)
+                      if (!t) return null
+                      return (
+                        <span className={cn("font-label-caps text-[9px] px-2 py-0.5 rounded-full", statusStyles[t.status])}>
+                          {statusLabels[t.status]}
+                        </span>
+                      )
                     })()}
                   </div>
                 </div>
@@ -262,8 +262,8 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                   </div>
                   <div className="flex items-center gap-1 font-body-sm text-body-sm">
                     <MaterialIcon name="schedule" className="text-[16px]" />
-                    Vence: {requirement.dueLabel && !isNaN(Date.parse(requirement.dueLabel)) 
-                      ? formatDateTime(requirement.dueLabel) 
+                    Vence: {requirement.dueLabel && !isNaN(Date.parse(requirement.dueLabel))
+                      ? formatDateTime(requirement.dueLabel)
                       : requirement.dueLabel}
                   </div>
                   {assignedTechnician ? (
@@ -291,17 +291,17 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                   Prioridad {selectedRequirement.priority === "high" ? "Alta" : selectedRequirement.priority === "medium" ? "Media" : "Baja"}
                 </span>
                 {(() => {
-                   const t = tasks.find(x => x.requirementId === selectedRequirement.id)
-                   if (!t) return (
-                      <span className="font-label-caps text-label-caps text-secondary bg-secondary-fixed px-3 py-1 rounded-full uppercase">
-                        Sin asignar
-                      </span>
-                   )
-                   return (
-                      <span className={cn("font-label-caps text-label-caps px-3 py-1 rounded-full uppercase", statusStyles[t.status])}>
-                        {statusLabels[t.status]}
-                      </span>
-                   )
+                  const t = tasks.find(x => x.requirementId === selectedRequirement.id)
+                  if (!t) return (
+                    <span className="font-label-caps text-label-caps text-secondary bg-secondary-fixed px-3 py-1 rounded-full uppercase">
+                      Sin asignar
+                    </span>
+                  )
+                  return (
+                    <span className={cn("font-label-caps text-label-caps px-3 py-1 rounded-full uppercase", statusStyles[t.status])}>
+                      {statusLabels[t.status]}
+                    </span>
+                  )
                 })()}
               </div>
               <h1 className="font-headline-md text-headline-md text-tertiary-container">
@@ -365,8 +365,8 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails }: Assignmen
                 <li className="flex items-center justify-between border-b border-outline-variant pb-2 gap-4">
                   <span className="font-body-sm text-body-sm text-on-surface-variant">Fecha límite</span>
                   <span className="font-data-mono text-data-mono text-error text-right">
-                    {selectedRequirement.dueLabel && !isNaN(Date.parse(selectedRequirement.dueLabel)) 
-                      ? formatDateTime(selectedRequirement.dueLabel) 
+                    {selectedRequirement.dueLabel && !isNaN(Date.parse(selectedRequirement.dueLabel))
+                      ? formatDateTime(selectedRequirement.dueLabel)
                       : selectedRequirement.dueLabel}
                   </span>
                 </li>

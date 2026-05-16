@@ -27,8 +27,7 @@ const sidebarItems: Array<{ key: SectionKey; label: string; icon: string }> = [
 
 const topTabs: Array<{ key: SectionKey; label: string }> = [
   { key: "dashboard", label: "Resumen" },
-  { key: "assignments", label: "Programación" },
-  { key: "evidence", label: "Evidencias" }
+  { key: "assignments", label: "Programación" }
 ]
 
 export function WorkflowShell({
@@ -57,7 +56,7 @@ export function WorkflowShell({
     if (currentUser.role === "gerente") {
       return sidebarItems.filter(item => item.key !== "statistics")
     }
-    // Empleado: Solo Tablero y Evidencias (que está en topTabs, pero aquí filtramos sidebar)
+    // Empleado: Solo Tablero (que está en topTabs, pero aquí filtramos sidebar)
     return sidebarItems.filter(item => item.key === "dashboard")
   }, [currentUser])
 

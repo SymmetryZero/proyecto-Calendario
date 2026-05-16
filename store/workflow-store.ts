@@ -71,7 +71,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   timerStartedAt: number | null
-  accumulatedSeconds: number
+  statusDurations: Record<TaskStatus, number>
   location?: string
   drawingScene?: DrawingScene | null
   activities: TaskActivity[]
@@ -521,7 +521,7 @@ function createSeedData(): WorkflowSeed {
       createdAt: threeHoursAgo,
       updatedAt: hourAgo,
       timerStartedAt: Date.now() - 7200000,
-      accumulatedSeconds: 7200,
+      statusDurations: { todo: 0, inProgress: 7200, review: 0, done: 0 },
       estimatedHours: 4,
       location: "Zona Norte",
       drawingScene: null,
@@ -539,7 +539,7 @@ function createSeedData(): WorkflowSeed {
       createdAt: dayAgo,
       updatedAt: hourAgo,
       timerStartedAt: null,
-      accumulatedSeconds: 10800,
+      statusDurations: { todo: 0, inProgress: 10800, review: 0, done: 0 },
       estimatedHours: 6,
       location: "Zona Sur",
       drawingScene: null,
@@ -557,7 +557,7 @@ function createSeedData(): WorkflowSeed {
       createdAt: hourAgo,
       updatedAt: hourAgo,
       timerStartedAt: Date.now(),
-      accumulatedSeconds: 0,
+      statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
       estimatedHours: 2,
       location: "Centro",
       drawingScene: null,
@@ -575,7 +575,7 @@ function createSeedData(): WorkflowSeed {
       createdAt: dayAgo,
       updatedAt: twoHoursAgo,
       timerStartedAt: null,
-      accumulatedSeconds: 18000,
+      statusDurations: { todo: 0, inProgress: 18000, review: 0, done: 0 },
       estimatedHours: 4,
       location: "Zona Norte",
       drawingScene: null,
@@ -593,7 +593,7 @@ function createSeedData(): WorkflowSeed {
       createdAt: twoHoursAgo,
       updatedAt: hourAgo,
       timerStartedAt: Date.now() - 3600000,
-      accumulatedSeconds: 3600,
+      statusDurations: { todo: 0, inProgress: 3600, review: 0, done: 0 },
       estimatedHours: 3,
       location: "Zona Sur",
       drawingScene: null,
@@ -747,9 +747,14 @@ function patchItems<T extends { id: string }>(
 }
 
 function translateLegacyWorkflowState(state: Partial<WorkflowStore>) {
+  const nextTasks = (state.tasks || []).map(t => ({
+    ...t,
+    statusDurations: t.statusDurations || { todo: 0, inProgress: t.accumulatedSeconds || 0, review: 0, done: 0 }
+  }))
+
   return {
     ...state,
-    tasks: patchItems(state.tasks, {
+    tasks: patchItems(nextTasks, {
       "task-foundation": {
         title: "Inspeccionar el vaciado de cimentación - Sector C",
         description:
@@ -886,10 +891,12 @@ function translateLegacyWorkflowState(state: Partial<WorkflowStore>) {
 }
 
 function accumulateTaskTime(task: Task, now = Date.now()) {
+  if (task.status === "done") return task.statusDurations?.["done"] || 0
+
   const runningSeconds =
     task.timerStartedAt === null ? 0 : Math.max(0, Math.floor((now - task.timerStartedAt) / 1000))
 
-  return task.accumulatedSeconds + runningSeconds
+  return (task.statusDurations?.[task.status] || 0) + runningSeconds
 }
 
 export const useWorkflowStore = create<WorkflowStore>()(
@@ -938,13 +945,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
             assigneeIds,
             createdAt: now,
             updatedAt: now,
-            timerStartedAt: Date.now(),
-            accumulatedSeconds: 0,
+            timerStartedAt: status === "done" ? null : Date.now(),
+            statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
             location: input.location,
             dueLabel: input.dueLabel,
             drawingScene: null,
             activities: input.activities ?? [],
-            requirementId
+            requirementId,
+            creatorId: get().currentUserId || "system"
           }
 
           set((state) => {
@@ -988,9 +996,52 @@ export const useWorkflowStore = create<WorkflowStore>()(
               }
             }
 
-            const nextTasks = state.tasks.map((t) =>
-              t.id === taskId ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t
-            )
+            const nextTasks = state.tasks.map((t) => {
+              if (t.id !== taskId) return t
+              
+              const currentUser = state.users.find(u => u.id === state.currentUserId)
+              if (currentUser?.role === "empleado") {
+                if (t.status === "done") {
+                  alert("No puedes modificar una tarea que ya ha sido finalizada.")
+                  return t
+                }
+                if (patch.status) {
+                  const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
+                  const currentIndex = statusOrder.indexOf(t.status)
+                  const nextIndex = statusOrder.indexOf(patch.status)
+                  if (nextIndex < currentIndex) {
+                    alert("Como empleado, solo puedes avanzar el estado de las tareas.")
+                    return t
+                  }
+                }
+              }
+
+              const now = Date.now()
+              const updatedStatus = patch.status ?? t.status
+              
+              // If status changed, accumulate time for the old status
+              let nextDurations = { ...t.statusDurations }
+              let nextTimerStart = t.timerStartedAt
+              
+              if (patch.status && patch.status !== t.status) {
+                const totalForOldStatus = accumulateTaskTime(t, now)
+                nextDurations[t.status] = totalForOldStatus
+                
+                if (patch.status === "done") {
+                  nextTimerStart = null
+                } else if (t.timerStartedAt !== null) {
+                  nextTimerStart = now
+                }
+              }
+              
+              return { 
+                ...t, 
+                ...patch, 
+                statusDurations: nextDurations,
+                timerStartedAt: nextTimerStart,
+                updatedAt: new Date(now).toISOString() 
+              }
+            })
             
             const updatedTask = nextTasks.find(t => t.id === taskId)
             const requirementId = updatedTask?.requirementId
@@ -1036,38 +1087,60 @@ export const useWorkflowStore = create<WorkflowStore>()(
         moveTask: (taskId, status) => {
           const now = Date.now()
 
-          set((state) => ({
-            tasks: state.tasks.map((task) => {
-              if (task.id !== taskId) {
-                return task
-              }
+          set((state) => {
+            const task = state.tasks.find(t => t.id === taskId)
+            const currentUser = state.users.find(u => u.id === state.currentUserId)
+            
+            if (!task || !currentUser) return state
 
-              const currentlyRunning = task.timerStartedAt !== null
-              const totalSeconds = accumulateTaskTime(task, now)
-
-              return {
-                ...task,
-                status,
-                timerStartedAt: status === "done" ? null : (task.timerStartedAt ?? now),
-                accumulatedSeconds: status === "done" ? totalSeconds : task.accumulatedSeconds,
-                updatedAt: new Date(now).toISOString()
+            if (currentUser.role === "empleado") {
+              if (task.status === "done") {
+                alert("No puedes mover una tarea que ya ha sido finalizada.")
+                return state
               }
-            })
-          }))
+              const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
+              const currentIndex = statusOrder.indexOf(task.status)
+              const nextIndex = statusOrder.indexOf(status)
+              if (nextIndex < currentIndex) {
+                alert("Como empleado, solo puedes avanzar el estado de las tareas.")
+                return state
+              }
+            }
+
+            return {
+              tasks: state.tasks.map((t) => {
+                if (t.id !== taskId) {
+                  return t
+                }
+
+                const nextDurations = { ...t.statusDurations }
+                nextDurations[t.status] = accumulateTaskTime(t, now)
+
+                return {
+                  ...t,
+                  status,
+                  timerStartedAt: status === "done" ? null : (t.timerStartedAt !== null ? now : null),
+                  statusDurations: nextDurations,
+                  updatedAt: new Date(now).toISOString()
+                }
+              })
+            }
+          })
         },
         startTaskTimer: (taskId) => {
           const now = Date.now()
           set((state) => ({
-            tasks: state.tasks.map((task) =>
-              task.id === taskId && task.timerStartedAt === null
-                ? {
-                    ...task,
-                    status: "inProgress",
-                    timerStartedAt: now,
-                    updatedAt: new Date(now).toISOString()
-                  }
-                : task
-            )
+            tasks: state.tasks.map((task) => {
+              if (task.id !== taskId || task.timerStartedAt !== null || task.status === "done") {
+                return task
+              }
+              
+              return {
+                ...task,
+                timerStartedAt: now,
+                updatedAt: new Date(now).toISOString()
+              }
+            })
           }))
         },
         pauseTaskTimer: (taskId) => {
@@ -1078,9 +1151,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 return task
               }
 
+              const nextDurations = { ...task.statusDurations }
+              nextDurations[task.status] = accumulateTaskTime(task, now)
+
               return {
                 ...task,
-                accumulatedSeconds: accumulateTaskTime(task, now),
+                statusDurations: nextDurations,
                 timerStartedAt: null,
                 updatedAt: new Date(now).toISOString()
               }
@@ -1282,11 +1358,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 createdAt: now,
                 updatedAt: now,
                 timerStartedAt: null,
-                accumulatedSeconds: 0,
+                statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
                 location: requirement.location,
                 drawingScene: null,
                 activities: [],
-                requirementId: requirement.id
+                requirementId: requirement.id,
+                creatorId: get().currentUserId || "system"
               }
               nextTasks = [newTask, ...state.tasks]
             } else {

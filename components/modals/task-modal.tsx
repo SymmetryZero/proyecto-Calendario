@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { type Priority, type TaskStatus, useWorkflowStore } from "@/store/workflow-store"
@@ -25,7 +25,7 @@ const statusOptions: Array<{ value: TaskStatus; label: string }> = [
 
 export function TaskModal({ open, onClose }: TaskModalProps) {
   const users = useWorkflowStore((state) => state.users)
-  const technicians = users.filter(u => u.role === "empleado" || u.role === "gerente")
+  const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
   const addTask = useWorkflowStore((state) => state.addTask)
 
   const [title, setTitle] = useState("")
@@ -52,7 +52,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     const now = new Date()
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
     setDueLabel(now.toISOString().slice(0, 16))
-  }, [open, technicians])
+  }, [open])
 
   if (!open) {
     return null

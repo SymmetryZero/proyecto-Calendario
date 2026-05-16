@@ -54,6 +54,18 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     data?: any
   } | null>(null)
 
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    if (!open || !task || task.timerStartedAt === null) return
+    
+    const interval = setInterval(() => {
+      setNow(Date.now())
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [open, task?.timerStartedAt])
+
   useEffect(() => {
     if (!open) return
     setDrawingScene(task?.drawingScene ?? null)
@@ -258,8 +270,49 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             )}
                          </div>
 
-                         <div className="pt-4 border-t border-outline-variant">
-                            <p className="font-label-caps text-[10px] text-on-surface-variant uppercase mb-3 tracking-widest">Asignado a</p>
+                          <div className="pt-6 border-t border-outline-variant">
+                             <div className="flex items-center justify-between mb-4">
+                                <p className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest">Desglose de Tiempos</p>
+                                <div className={cn(
+                                  "px-2 py-0.5 rounded-full font-data-mono text-[10px]",
+                                  task.timerStartedAt ? "bg-secondary text-white animate-pulse" : "bg-surface-container-highest text-on-surface-variant"
+                                )}>
+                                   {task.timerStartedAt ? "ACTIVO" : "PAUSADO"}
+                                </div>
+                             </div>
+                             <div className="space-y-2">
+                                {(["todo", "inProgress", "review", "done"] as const).map(s => {
+                                  const isCurrentStatus = task.status === s
+                                  const isActive = isCurrentStatus && task.timerStartedAt !== null
+                                  const accumulatedForStatus = task.statusDurations?.[s] || 0
+                                  const currentSessionTime = isActive ? Math.max(0, Math.floor((now - (task.timerStartedAt || 0)) / 1000)) : 0
+                                  const duration = accumulatedForStatus + currentSessionTime
+                                  
+                                  return (
+                                    <div key={s} className={cn(
+                                      "flex items-center justify-between p-2.5 rounded-xl border transition-all",
+                                      isCurrentStatus ? "bg-primary/5 border-primary/20 shadow-sm" : "bg-transparent border-transparent opacity-60"
+                                    )}>
+                                       <div className="flex items-center gap-2">
+                                          <MaterialIcon 
+                                            name={s === "todo" ? "schedule" : s === "inProgress" ? "pending" : s === "review" ? "done_all" : "check_circle"} 
+                                            className={cn("text-[16px]", isCurrentStatus ? "text-primary" : "text-on-surface-variant")} 
+                                            filled={isCurrentStatus}
+                                          />
+                                          <span className="text-[11px] font-bold text-on-surface">
+                                            {s === "todo" ? "Por Hacer" : s === "inProgress" ? "En Progreso" : s === "review" ? "En Revisión" : "Finalizado"}
+                                          </span>
+                                       </div>
+                                       <span className="font-data-mono text-[12px] font-bold text-primary">
+                                         {Math.floor(duration / 3600)}h {Math.floor((duration % 3600) / 60)}m {duration % 60}s
+                                       </span>
+                                    </div>
+                                  )
+                                })}
+                             </div>
+                          </div>
+
+                             <p className="font-label-caps text-[10px] text-on-surface-variant uppercase mb-3 tracking-widest">Asignado a</p>
                             {assignees.map(tech => (
                               <div key={tech.id} className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/50 mb-2 last:mb-0 group hover:border-secondary transition-colors">
                                  <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
@@ -272,7 +325,6 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                  </button>
                               </div>
                             ))}
-                         </div>
                       </div>
                    </section>
 
