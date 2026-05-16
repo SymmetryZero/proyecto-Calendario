@@ -545,7 +545,7 @@ export function TaskDrawingCanvas({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [strokeColor, setStrokeColor] = useState(SHAPE_COLORS.pen)
-  const [strokeWidth, setStrokeWidth] = useState(3)
+  const [strokeWidth, setStrokeWidth] = useState(10)
   const [showStyleMenu, setShowStyleMenu] = useState(false)
   const [internalPrompt, setInternalPrompt] = useState<{
     type: "text" | "number" | "edit"
@@ -1561,40 +1561,94 @@ export function TaskDrawingCanvas({
           <div className="h-px w-full bg-outline-variant hidden sm:block" />
           <div className="w-px h-4 bg-outline-variant sm:hidden" />
 
-          {/* Widths */}
-          <div className="flex flex-row sm:flex-col items-center gap-2">
-            {STROKE_WIDTHS.map((sw) => (
-              <button
-                key={sw.width}
-                type="button"
-                title={sw.label}
-                onClick={() => setStrokeWidth(sw.width)}
-                className={cn(
-                  "flex items-center justify-center rounded-lg transition-all",
-                  "h-6 w-6 sm:h-8 sm:w-8",
-                  strokeWidth === sw.width
-                    ? "bg-secondary-container text-on-secondary-container"
-                    : "text-on-surface-variant hover:bg-surface-container-high"
-                )}
-              >
-                <div 
-                  className="rounded-full bg-current" 
-                  style={{ 
-                    width: Math.max(2, sw.width * 1.5), 
-                    height: Math.max(2, sw.width * 1.5) 
-                  }} 
-                />
-                <span className="sr-only">{sw.label}</span>
-              </button>
-            ))}
+          {/* Widths - Estilo de slider de volumen premium */}
+          <div className="flex flex-row sm:flex-col items-center gap-3 p-3 bg-surface-container rounded-2xl w-full sm:w-auto shadow-inner">
+            <MaterialIcon name="line_weight" className="text-[20px] text-primary hidden sm:block mb-1" />
+            
+            {/* Desktop vertical slider */}
+            <div className="relative h-40 w-10 hidden sm:flex items-center justify-center bg-surface-container-highest/50 rounded-full py-4">
+               <input
+                 type="range"
+                 min="1"
+                 max="20"
+                 step="0.5"
+                 value={strokeWidth}
+                 onChange={(e) => setStrokeWidth(parseFloat(e.target.value))}
+                 className="absolute w-32 h-2 rounded-lg appearance-none cursor-pointer -rotate-90 origin-center bg-transparent z-10"
+                 style={{ 
+                   WebkitAppearance: "none",
+                 }}
+               />
+               {/* Custom track visualization */}
+               <div className="absolute w-1.5 h-32 bg-outline-variant/30 rounded-full overflow-hidden flex flex-col-reverse">
+                  <div 
+                    className="w-full bg-primary shadow-[0_0_10px_rgba(0,64,100,0.3)] transition-all duration-150" 
+                    style={{ height: `${(strokeWidth / 20) * 100}%` }} 
+                  />
+               </div>
+            </div>
+            
+            {/* Mobile horizontal slider */}
+            <div className="flex sm:hidden items-center gap-4 w-full px-1">
+               <MaterialIcon name="line_weight" className="text-[18px] text-primary" />
+               <div className="relative flex-1 h-8 flex items-center">
+                 <input
+                   type="range"
+                   min="1"
+                   max="20"
+                   step="0.5"
+                   value={strokeWidth}
+                   onChange={(e) => setStrokeWidth(parseFloat(e.target.value))}
+                   className="absolute w-full h-2 rounded-lg appearance-none cursor-pointer bg-transparent z-10"
+                   style={{ 
+                     WebkitAppearance: "none",
+                   }}
+                 />
+                 {/* Custom track visualization */}
+                 <div className="absolute w-full h-2 bg-outline-variant/30 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary shadow-[0_0_10px_rgba(0,64,100,0.3)] transition-all duration-150" 
+                      style={{ width: `${(strokeWidth / 20) * 100}%` }} 
+                    />
+                 </div>
+               </div>
+               <span className="font-data-mono text-xs font-bold text-primary min-w-[36px] text-right">{strokeWidth}px</span>
+            </div>
+
+            <style jsx>{`
+              input[type='range']::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 20px;
+                height: 20px;
+                background: white;
+                border: 3px solid #004064;
+                border-radius: 50%;
+                cursor: pointer;
+                box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+                transition: transform 0.1s ease;
+              }
+              input[type='range']::-webkit-slider-thumb:hover {
+                transform: scale(1.15);
+              }
+              input[type='range']::-moz-range-thumb {
+                width: 16px;
+                height: 16px;
+                background: white;
+                border: 3px solid #004064;
+                border-radius: 50%;
+                cursor: pointer;
+                box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+              }
+            `}</style>
           </div>
           
           <button 
             onClick={() => setShowStyleMenu(false)} 
-            className="hidden sm:flex h-6 w-full items-center justify-center rounded-lg hover:bg-surface-container mt-1"
+            className="hidden sm:flex h-8 w-full items-center justify-center rounded-xl hover:bg-surface-container mt-2 text-on-surface-variant transition-colors"
             title="Cerrar men\u00fa de estilos"
           >
-            <MaterialIcon name="keyboard_arrow_left" className="text-[18px]" />
+            <MaterialIcon name="expand_more" className="text-[20px]" />
           </button>
         </div>
 

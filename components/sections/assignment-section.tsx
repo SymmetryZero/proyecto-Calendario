@@ -206,13 +206,6 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery
               {zoneRequirements.length} requerimientos por asignar
             </p>
           </div>
-          <button
-            type="button"
-            className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-colors"
-            title="Filtrar requerimientos"
-          >
-            <MaterialIcon name="filter_list" />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
