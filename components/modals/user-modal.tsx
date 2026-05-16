@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, type FormEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
-import { cn, createAvatarDataUri } from "@/utils/workflow"
+import { cn, createAvatarDataUri, fileToDataUrl } from "@/utils/workflow"
 import { type UserRole, useWorkflowStore, type User } from "@/store/workflow-store"
 
 type UserModalProps = {
@@ -27,6 +27,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
   const [position, setPosition] = useState("")
   const [zone, setZone] = useState("")
   const [role, setRole] = useState<UserRole>("empleado")
+  const [avatar, setAvatar] = useState("")
 
   const existingZones = useMemo(() => {
     return Array.from(new Set(users.map((u) => u.zone).filter(Boolean)))
@@ -41,16 +42,30 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       setPosition(userToEdit.position)
       setZone(userToEdit.zone)
       setRole(userToEdit.role)
+      setAvatar(userToEdit.avatar)
     } else {
       setName("")
       setBirthDate("")
       setPosition("")
       setZone("")
       setRole("empleado")
+      setAvatar("")
     }
   }, [open, userToEdit])
 
   if (!open) return null
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      setAvatar(dataUrl)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -59,7 +74,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
 
     const userData = {
       name: name.trim(),
-      avatar: createAvatarDataUri(name.trim()),
+      avatar: avatar || createAvatarDataUri(name.trim()),
       birthDate,
       position: position.trim() || "Colaborador",
       zone: zone.trim() || "General",
@@ -97,7 +112,42 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
           </button>
         </div>
 
-        <div className="p-6 grid gap-5">
+        <div className="p-6 grid gap-6">
+          {/* Photo Upload Section */}
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="relative group">
+              <div className="w-28 h-28 rounded-full border-4 border-surface-container shadow-inner overflow-hidden bg-surface-container-low flex items-center justify-center">
+                {avatar ? (
+                  <img src={avatar} alt="Vista previa" className="w-full h-full object-cover" />
+                ) : (
+                  <MaterialIcon name="person" className="text-[48px] text-on-surface-variant" />
+                )}
+              </div>
+              <label 
+                className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                <div className="flex flex-col items-center">
+                  <MaterialIcon name="photo_camera" />
+                  <span className="text-[10px] font-bold uppercase mt-1">Cambiar</span>
+                </div>
+              </label>
+              {avatar && (
+                <button
+                  type="button"
+                  onClick={() => setAvatar("")}
+                  className="absolute -top-1 -right-1 w-8 h-8 bg-error text-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                  title="Eliminar foto"
+                >
+                  <MaterialIcon name="close" className="text-[16px]" />
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-on-surface-variant text-center max-w-[200px]">
+              Sube una foto cuadrada para mejores resultados (.jpg, .png)
+            </p>
+          </div>
+
           <div className="grid gap-2">
             <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
               Nombre completo
