@@ -1030,30 +1030,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
           return taskId
         },
         updateTask: (taskId, patch) => {
-          set((state) => {
-            const task = state.tasks.find(t => t.id === taskId)
-            if (task) {
-              const logs: string[] = []
-              if (patch.status && patch.status !== task.status) {
-                const labels: Record<string, string> = {
-                  todo: "Por hacer",
-                  inProgress: "En progreso",
-                  review: "En revisión",
-                  done: "Hecho"
-                }
-                logs.push(`Estado cambiado a: ${labels[patch.status] || patch.status}`)
-              }
-              if (patch.assigneeIds && JSON.stringify(patch.assigneeIds) !== JSON.stringify(task.assigneeIds)) {
-                logs.push(`Personal asignado actualizado`)
-              }
-              
-              if (logs.length > 0) {
-                setTimeout(() => {
-                  logs.forEach(msg => get().addTaskLog(taskId, msg))
-                }, 0)
-              }
-            }
+          const previousTask = get().tasks.find(t => t.id === taskId)
 
+          set((state) => {
             const nextTasks = state.tasks.map((t) => {
               if (t.id !== taskId) return t
               
@@ -1061,8 +1040,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
               if (currentUser?.role === "empleado") {
                 if (t.status === "done") {
                   get().setGlobalAlert({
-                    title: "Acción Denegada",
-                    message: "No puedes modificar una tarea que ya ha sido finalizada.",
+                    title: "Acción no disponible",
+                    message: "Esta tarea ya está finalizada y no admite cambios.",
                     type: "error"
                   })
                   return t
@@ -1073,8 +1052,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                   const nextIndex = statusOrder.indexOf(patch.status)
                   if (nextIndex < currentIndex) {
                     get().setGlobalAlert({
-                      title: "Restricción de Rol",
-                      message: "Como empleado, solo puedes avanzar el estado de las tareas.",
+                      title: "Movimiento no permitido",
+                      message: "Este cambio no está permitido en esta etapa.",
                       type: "warning"
                     })
                     return t
@@ -1133,6 +1112,30 @@ export const useWorkflowStore = create<WorkflowStore>()(
               requirements: nextRequirements
             }
           })
+
+          const updatedTask = get().tasks.find(t => t.id === taskId)
+          if (previousTask && updatedTask) {
+            const logs: string[] = []
+            if (updatedTask.status !== previousTask.status) {
+              const labels: Record<string, string> = {
+                todo: "Por hacer",
+                inProgress: "En progreso",
+                review: "En revisión",
+                done: "Hecho"
+              }
+              logs.push(`Estado cambiado a: ${labels[updatedTask.status] || updatedTask.status}`)
+            }
+            if (
+              patch.assigneeIds &&
+              JSON.stringify(updatedTask.assigneeIds) !== JSON.stringify(previousTask.assigneeIds)
+            ) {
+              logs.push("Personal asignado actualizado")
+            }
+
+            if (logs.length > 0) {
+              logs.forEach((msg) => get().addTaskLog(taskId, msg))
+            }
+          }
         },
         deleteTask: (taskId) => {
           set((state) => {
@@ -1152,6 +1155,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         moveTask: (taskId, status) => {
           const now = Date.now()
+          const previousTask = get().tasks.find((t) => t.id === taskId)
 
           set((state) => {
             const task = state.tasks.find(t => t.id === taskId)
@@ -1162,8 +1166,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
             if (currentUser.role === "empleado") {
               if (task.status === "done") {
                 get().setGlobalAlert({
-                  title: "Acción Denegada",
-                  message: "No puedes mover una tarea que ya ha sido finalizada.",
+                  title: "Acción no disponible",
+                  message: "Esta tarea ya está finalizada y no admite cambios.",
                   type: "error"
                 })
                 return state
@@ -1173,8 +1177,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
               const nextIndex = statusOrder.indexOf(status)
               if (nextIndex < currentIndex) {
                 get().setGlobalAlert({
-                  title: "Restricción de Rol",
-                  message: "Como empleado, solo puedes avanzar el estado de las tareas.",
+                  title: "Movimiento no permitido",
+                  message: "Este cambio no está permitido en esta etapa.",
                   type: "warning"
                 })
                 return state
@@ -1217,6 +1221,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
               userId: get().currentUserId || "system",
               targetUserId: null
             })
+
+            if (previousTask && updatedTask.status !== previousTask.status) {
+              get().addTaskLog(taskId, `Estado cambiado a: ${labels[updatedTask.status] || updatedTask.status}`)
+            }
           }
         },
         startTaskTimer: (taskId) => {

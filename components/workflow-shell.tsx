@@ -118,7 +118,7 @@ export function WorkflowShell({
       <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center justify-between px-4 z-40 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-xs">GP</div>
-          <h1 className="font-title-sm text-title-sm font-bold text-primary tracking-tight">Flujo Pro</h1>
+          <h1 className="font-title-sm text-title-sm font-bold text-primary tracking-tight">Demo</h1>
         </div>
         <div className="flex items-center gap-2">
           <button className="p-2 text-on-surface-variant"><MaterialIcon name="search" /></button>
@@ -209,7 +209,7 @@ export function WorkflowShell({
 
             <div className="flex items-center gap-8 min-w-0">
               <h1 className="font-headline-md text-headline-md font-bold text-primary tracking-tight">
-                Flujo Pro
+                Demo
               </h1>
 
               <nav className="hidden lg:flex gap-6 mt-4">

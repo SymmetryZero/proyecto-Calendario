@@ -151,8 +151,39 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
   const activities = task.activities || []
   const notes = activities.filter(a => a.type === "note")
-  const historyItems = activities.filter(a => a.type === "note" || a.type === "log")
+  const historyItems = activities
   const evidence = activities.filter(a => a.type !== "note" && a.type !== "log")
+
+  const activityMeta: Record<TaskActivity["type"], { icon: string; className: string; label: string }> = {
+    note: { icon: "chat", className: "bg-surface-container-low border-secondary", label: "Mensaje" },
+    log: { icon: "info", className: "bg-surface-container border-primary/30", label: "Cambio" },
+    image: { icon: "photo_camera", className: "bg-surface-container-lowest border-tertiary/30", label: "Imagen" },
+    video: { icon: "videocam", className: "bg-surface-container-lowest border-tertiary/30", label: "Video" },
+    audio: { icon: "mic", className: "bg-surface-container-lowest border-tertiary/30", label: "Audio" },
+    drawing: { icon: "draw", className: "bg-surface-container-lowest border-tertiary/30", label: "Plano" }
+  }
+
+  const getActivityText = (activity: TaskActivity) => {
+    const fileName = activity.metadata?.fileName?.trim()
+    const rawText = typeof activity.content === "string" ? activity.content : ""
+
+    switch (activity.type) {
+      case "note":
+        return `"${rawText || "Mensaje registrado"}"`
+      case "log":
+        return rawText || "Cambio registrado"
+      case "image":
+        return `Imagen subida${fileName ? `: ${fileName}` : ""}`
+      case "video":
+        return `Video subido${fileName ? `: ${fileName}` : ""}`
+      case "audio":
+        return `Audio subido${fileName ? `: ${fileName}` : ""}`
+      case "drawing":
+        return `Plano guardado${fileName ? `: ${fileName}` : ""}`
+      default:
+        return rawText || "Actividad registrada"
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/80 backdrop-blur-md sm:px-6 sm:py-4">
@@ -344,32 +375,48 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                       </div>
                       
                       <div className="space-y-4">
-                         {(showHistory ? activities.filter(a => a.type === "log" || a.type === "note") : notes).map(note => (
-                           <div key={note.id} className={cn(
-                             "p-4 rounded-xl border-l-4 shadow-sm",
-                             note.type === "log" ? "bg-surface-container border-primary/30" : "bg-surface-container-low border-secondary"
-                           )}>
-                              <p className={cn(
-                                "font-body-sm text-sm text-on-surface mb-3",
-                                note.type === "note" && "italic"
-                              )}>
-                                {note.type === "log" ? (
-                                  <span className="flex items-center gap-2">
-                                    <MaterialIcon name="info" className="text-[14px] text-primary" />
-                                    {note.content}
-                                  </span>
-                                ) : `"${note.content}"`}
-                              </p>
-                              <div className="flex justify-between items-center text-[10px] text-on-surface-variant/70 font-data-mono">
-                                 <span>
-                                   {note.metadata?.authorName || "Sistema"} • {new Date(note.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                 </span>
-                                 <MaterialIcon name="more_horiz" className="text-[18px]" />
-                              </div>
-                           </div>
-                         ))}
+                         {(showHistory ? historyItems : notes).map((activity) => {
+                           const meta = activityMeta[activity.type]
+                           const description =
+                             activity.type !== "note" && activity.type !== "log"
+                               ? activity.metadata?.description?.trim()
+                               : ""
 
-                         {isAddingNote ? (
+                           return (
+                             <div key={activity.id} className={cn("p-4 rounded-xl border-l-4 shadow-sm", meta.className)}>
+                               <div className="flex items-start gap-2">
+                                 <MaterialIcon name={meta.icon} className="text-[14px] text-primary" />
+                                 <div className="flex-1">
+                                   <p
+                                     className={cn(
+                                       "font-body-sm text-sm text-on-surface mb-2",
+                                       activity.type === "note" && "italic"
+                                     )}
+                                   >
+                                     {getActivityText(activity)}
+                                   </p>
+                                   {description ? (
+                                     <p className="text-xs text-on-surface-variant">{description}</p>
+                                   ) : null}
+                                 </div>
+                               </div>
+                               <div className="flex justify-between items-center text-[10px] text-on-surface-variant/70 font-data-mono mt-2">
+                                 <span>
+                                   {activity.metadata?.authorName || "Sistema"} • {new Date(activity.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                 </span>
+                                 <span className="uppercase">{meta.label}</span>
+                               </div>
+                             </div>
+                           )
+                         })}
+
+                         {showHistory && historyItems.length === 0 ? (
+                           <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                             Aun no hay cambios registrados en esta tarea.
+                           </div>
+                         ) : null}
+
+                         {!showHistory && isAddingNote ? (
                            <div className="bg-surface-container-highest p-4 rounded-xl border-2 border-secondary/30 animate-in slide-in-from-top-2 duration-200">
                               <textarea 
                                 autoFocus
@@ -383,7 +430,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                  <button onClick={handleAddNote} className="px-4 py-1.5 bg-secondary text-white text-[11px] font-bold uppercase rounded-lg shadow-sm hover:opacity-90 transition-all">Guardar Nota</button>
                               </div>
                            </div>
-                         ) : (
+                         ) : !showHistory ? (
                            <button 
                              onClick={() => setIsAddingNote(true)}
                              className="w-full py-4 border-2 border-dashed border-outline-variant rounded-xl text-on-surface-variant font-title-sm text-sm flex items-center justify-center gap-2 hover:bg-secondary/5 hover:border-secondary/50 hover:text-secondary transition-all group"
@@ -391,7 +438,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                               <MaterialIcon name="add_comment" className="group-hover:scale-110 transition-transform" />
                               Agregar Observación
                            </button>
-                         )}
+                         ) : null}
                       </div>
                    </section>
                 </div>

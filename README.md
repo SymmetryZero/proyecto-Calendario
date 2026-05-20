@@ -1,4 +1,4 @@
-# Flujo Pro
+# Demo
 
 PWA para la gestión de flujos de trabajo construida con Next.js, React, Tailwind CSS y Zustand, con persistencia local en `localStorage`.
 

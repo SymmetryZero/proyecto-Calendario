@@ -166,8 +166,8 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
     if (currentUser?.role === "empleado") {
       if (task.status === "done") {
         setGlobalAlert({
-          title: "Acción Denegada",
-          message: "No puedes modificar una tarea que ya ha sido finalizada.",
+          title: "Acción no disponible",
+          message: "Esta tarea ya está finalizada y no admite cambios.",
           type: "error"
         })
         return
@@ -177,8 +177,8 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
       const nextIndex = statusOrder.indexOf(nextStatus)
       if (nextIndex < currentIndex) {
         setGlobalAlert({
-          title: "Restricción de Rol",
-          message: "Como empleado, solo puedes avanzar el estado de las tareas.",
+          title: "Movimiento no permitido",
+          message: "Este cambio no está permitido en esta etapa.",
           type: "warning"
         })
         return
@@ -210,8 +210,8 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
       // Restriction: done status can only be set/changed via buttons, not drag-and-drop
       if (status === "done" || task.status === "done") {
         setGlobalAlert({
-          title: "Movimiento Restringido",
-          message: "Los cambios hacia o desde el estado 'Hecho' deben realizarse mediante los botones de acción.",
+          title: "Movimiento no permitido",
+          message: "Para mover desde o hacia 'Hecho', usa los botones de acción.",
           type: "info"
         })
         setDraggedTaskId(null)
@@ -228,8 +228,8 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
         
         if (task.status === "done" || nextIndex < currentIndex) {
           setGlobalAlert({
-            title: "Movimiento Bloqueado",
-            message: "No tienes permisos para realizar este movimiento.",
+            title: "Movimiento no permitido",
+            message: "Este movimiento no está permitido.",
             type: "warning"
           })
           setDraggedTaskId(null)

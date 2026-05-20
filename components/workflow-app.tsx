@@ -44,7 +44,7 @@ export function WorkflowApp() {
             <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-primary flex items-center justify-center text-on-primary">
               <MaterialIcon name="dashboard" filled />
             </div>
-            <h1 className="font-headline-md text-headline-md text-primary">Flujo Pro</h1>
+            <h1 className="font-headline-md text-headline-md text-primary">Demo</h1>
             <p className="mt-2 text-on-surface-variant">Cargando los datos locales del flujo de trabajo...</p>
           </div>
         </div>

@@ -14,7 +14,7 @@ const jetBrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Flujo Pro",
+  title: "Demo",
   description: "PWA para gestionar flujos de trabajo con persistencia local."
 }
 

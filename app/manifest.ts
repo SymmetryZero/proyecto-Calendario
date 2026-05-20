@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Flujo Pro",
-    short_name: "Flujo Pro",
+    name: "Demo",
+    short_name: "Demo",
     description: "PWA de gestión de flujos de trabajo con almacenamiento local.",
     start_url: "/",
     scope: "/",

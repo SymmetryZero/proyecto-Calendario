@@ -93,8 +93,8 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery
     const base = workflowSelectors.filterRequirementsByZone(requirements, currentUser)
     const query = searchQuery.trim().toLowerCase()
     if (!query) return base
-    return base.filter(r => 
-      r.title.toLowerCase().includes(query) || 
+    return base.filter(r =>
+      r.title.toLowerCase().includes(query) ||
       r.description.toLowerCase().includes(query) ||
       r.code.toLowerCase().includes(query) ||
       r.location.toLowerCase().includes(query)
