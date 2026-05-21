@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { Avatar } from "@/components/ui/avatar"
 import { cn, fileToDataUrl, formatBytes, formatDateTime } from "@/utils/workflow"
+import { EscalateTaskModal } from "@/components/modals/escalate-task-modal"
 import {
-  createEvidencePreview,
   type DrawingScene,
   type EvidenceFile,
+  type Priority,
   type TaskActivity,
+  type User,
   useWorkflowStore,
   workflowSelectors
 } from "@/store/workflow-store"
@@ -19,14 +21,19 @@ type TaskDetailsModalProps = {
   taskId: string | null
   onClose: () => void
 }
-
 export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProps) {
   const task = useWorkflowStore((state) => workflowSelectors.getTaskById(state.tasks, taskId))
   const users = useWorkflowStore((state) => state.users)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const updateTask = useWorkflowStore((state) => state.updateTask)
   const addTaskActivity = useWorkflowStore((state) => state.addTaskActivity)
   const updateTaskActivity = useWorkflowStore((state) => state.updateTaskActivity)
   const removeTaskActivity = useWorkflowStore((state) => state.removeTaskActivity)
+  const globalEvidence = useWorkflowStore((state) => state.evidence)
+  const updateEvidence = useWorkflowStore((state) => state.updateEvidence)
+  const deleteEvidence = useWorkflowStore((state) => state.deleteEvidence)
+  const addEvidence = useWorkflowStore((state) => state.addEvidence)
+  const claimTask = useWorkflowStore((state) => state.claimTask)
 
   const [activeView, setActiveView] = useState<"bento" | "drawing">("bento")
   const [drawingScene, setDrawingScene] = useState<DrawingScene | null>(task?.drawingScene ?? null)
@@ -36,6 +43,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const [isAddingNote, setIsAddingNote] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [previewItem, setPreviewItem] = useState<TaskActivity | null>(null)
+  const [escalateOpen, setEscalateOpen] = useState(false)
   
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   
@@ -81,10 +89,97 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     if (!task) return []
     return task.assigneeIds
       .map((id) => users.find((u) => u.id === id))
-      .filter(Boolean)
+      .filter((u): u is User => !!u)
   }, [task, users])
 
+  const currentUser = useMemo(() => {
+    return users.find((u) => u.id === currentUserId) ?? null
+  }, [users, currentUserId])
+
+  // Unify and de-duplicate evidence by filename
+  const evidence = useMemo(() => {
+    if (!task) return []
+    const map = new Map<string, any>()
+    const activities = task.activities || []
+
+    // 1. Load internal media activities
+    activities.forEach((a) => {
+      if (a.type === "image" || a.type === "video" || a.type === "audio" || a.type === "drawing") {
+        const name = a.metadata?.fileName || `${a.type.toUpperCase()}_${a.id.slice(-4)}`
+        const key = name.toLowerCase().trim()
+        map.set(key, {
+          id: a.id,
+          type: a.type,
+          content: a.content,
+          createdAt: a.createdAt,
+          metadata: {
+            fileName: name,
+            mimeType: a.metadata?.mimeType || "",
+            description: a.metadata?.description || ""
+          },
+          isGlobal: false,
+          activityId: a.id
+        })
+      }
+    })
+
+    // 2. Load global evidence linked to this task
+    globalEvidence.forEach((item) => {
+      if (item.linkedTaskId === task.id) {
+        const name = item.name
+        const key = name.toLowerCase().trim()
+        
+        if (map.has(key)) {
+          const existing = map.get(key)
+          map.set(key, {
+            ...existing,
+            isGlobal: true,
+            globalId: item.id
+          })
+        } else {
+          map.set(key, {
+            id: item.id,
+            type: item.mediaType,
+            content: item.mediaType === "drawing"
+              ? (task.drawingScene || { elements: [], appState: {}, files: {}, updatedAt: item.createdAt, preview: item.previewBase64 || item.base64 })
+              : (item.base64 || item.previewBase64 || ""),
+            createdAt: item.createdAt,
+            metadata: {
+              fileName: item.name,
+              mimeType: item.mimeType,
+              description: item.caption || ""
+            },
+            isGlobal: true,
+            globalId: item.id
+          })
+        }
+      }
+    })
+
+    return Array.from(map.values())
+  }, [task, globalEvidence])
+
+  const canEscalateArea =
+    !!task &&
+    !!currentUserId &&
+    task.assigneeIds.includes(currentUserId)
+
   if (!open || !task) return null
+
+  const priorityMeta: Record<Priority, { label: string; className: string }> = {
+    high: {
+      label: "Alta",
+      className: "bg-error-container text-on-error-container"
+    },
+    medium: {
+      label: "Media",
+      className: "bg-secondary-fixed text-on-secondary-fixed-variant"
+    },
+    low: {
+      label: "Baja",
+      className: "bg-surface-variant text-on-surface-variant"
+    }
+  }
 
   const handleAddNote = () => {
     if (!noteText.trim()) return
@@ -134,6 +229,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
         fileName,
         description: description?.trim()
       })
+      addEvidence({
+        mediaType: "drawing",
+        mimeType: "application/json",
+        name: fileName,
+        base64: nextScene.preview || "",
+        previewBase64: nextScene.preview || "",
+        caption: description?.trim() || "",
+        linkedTaskId: task.id,
+        size: JSON.stringify(nextScene).length
+      })
       updateTask(task.id, { drawingScene: nextScene })
       setEditingActivityId(null)
       setActiveView("bento")
@@ -144,6 +249,15 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
         mimeType,
         description: value.trim()
       })
+      addEvidence({
+        mediaType: type,
+        mimeType: mimeType || "",
+        name: fileName,
+        base64: base64,
+        caption: value.trim() || "",
+        linkedTaskId: task.id,
+        size: base64.length
+      })
     }
     
     setInternalPrompt(null)
@@ -151,8 +265,9 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
   const activities = task.activities || []
   const notes = activities.filter(a => a.type === "note")
-  const historyItems = activities
-  const evidence = activities.filter(a => a.type !== "note" && a.type !== "log")
+  const historyItems = activities.filter(a => a.type === "log")
+
+
 
   const activityMeta: Record<TaskActivity["type"], { icon: string; className: string; label: string }> = {
     note: { icon: "chat", className: "bg-surface-container-low border-secondary", label: "Mensaje" },
@@ -208,6 +323,10 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
               <div className="flex flex-wrap items-center gap-3">
                  <h2 className="font-display-lg text-xl sm:text-display-lg text-primary leading-tight truncate max-w-[280px] sm:max-w-none">{task.title}</h2>
                  
+                 <span className={cn("px-2 py-0.5 font-label-caps text-label-caps rounded-DEFAULT flex-shrink-0", priorityMeta[task.priority].className)}>
+                    {priorityMeta[task.priority].label}
+                 </span>
+
                  {/* Status Selector */}
                  <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-full border border-outline-variant">
                     {(["todo", "inProgress", "review", "done"] as const).map((s) => (
@@ -249,7 +368,10 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                    
                    {/* Task Information Card */}
                    <section className="bg-white border border-outline-variant p-6 rounded-2xl shadow-sm overflow-hidden relative">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                      <div className={cn(
+                        "absolute top-0 left-0 w-1 h-full",
+                        task.priority === "high" ? "bg-error" : task.priority === "medium" ? "bg-warning" : "bg-success"
+                      )} />
                       <h3 className="font-title-sm text-title-sm text-primary mb-5 flex items-center gap-2">
                          <MaterialIcon name="info" className="text-secondary" filled />
                          Información de Tarea
@@ -270,6 +392,35 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                               </span>
                            </div>
                          )}
+
+                         {/* Area Selector — Redirigir a otro departamento */}
+                          <div className="flex flex-col gap-1.5">
+                            <p className="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-widest">Departamento / Área</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex-1 min-w-[180px] h-10 pl-3 pr-3 rounded-xl border border-outline-variant bg-surface-container-low text-sm font-semibold text-on-surface flex items-center">
+                                  {task.area ?? "Sin area"}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setEscalateOpen(true)}
+                                  disabled={!canEscalateArea}
+                                  className={cn(
+                                    "h-10 px-3 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all",
+                                    canEscalateArea
+                                      ? "bg-tertiary-fixed text-tertiary-container hover:bg-tertiary hover:text-white"
+                                      : "bg-surface-variant text-on-surface-variant opacity-60 cursor-not-allowed"
+                                  )}
+                                >
+                                  <MaterialIcon name="forward_to_inbox" className="text-[16px]" />
+                                  Enviar a otra area
+                                </button>
+                              </div>
+                            <p className="text-[10px] text-on-surface-variant">
+                              {canEscalateArea
+                                ? "Redirige esta tarea a otro departamento. Los asignados seguirán viéndola."
+                                : "Disponible solo para el asignado de la tarea."}
+                            </p>
+                          </div>
                          
                          <div className="grid grid-cols-2 gap-4">
                             <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/30">
@@ -344,18 +495,45 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                           </div>
 
                              <p className="font-label-caps text-[10px] text-on-surface-variant uppercase mb-3 tracking-widest">Asignado a</p>
-                            {assignees.map(tech => (
-                              <div key={tech.id} className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/50 mb-2 last:mb-0 group hover:border-secondary transition-colors">
-                                 <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
-                                 <div className="min-w-0 flex-1">
-                                    <p className="font-title-sm text-sm font-bold text-on-surface">{tech.name}</p>
-                                    <p className="text-[11px] text-on-surface-variant">{tech.role}</p>
-                                 </div>
-                                 <button className="h-8 w-8 rounded-full flex items-center justify-center text-secondary hover:bg-secondary/10 opacity-0 group-hover:opacity-100 transition-all">
-                                    <MaterialIcon name="mail" className="text-[18px]" />
-                                 </button>
+                            {assignees.length === 0 ? (
+                              <div className="flex flex-col gap-3 bg-surface-container-lowest p-4 rounded-xl border border-dashed border-outline-variant/60 text-center">
+                                 <p className="text-xs text-on-surface-variant italic">Sin responsables asignados</p>
+                                 {(() => {
+                                   const currentUserAreas = currentUser?.areas ?? []
+                                   const taskArea = task.escalation ? task.escalation.toArea : task.area
+                                   const canClaim =
+                                     !!taskArea &&
+                                     !!currentUser &&
+                                     (currentUserAreas.includes(taskArea) || currentUser.role === "administrador")
+                                   
+                                   if (!canClaim) return null
+                                   
+                                   return (
+                                     <button
+                                       type="button"
+                                       onClick={() => claimTask(task.id)}
+                                       className="w-full h-9 bg-secondary text-white font-bold text-[11px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-secondary-container hover:text-on-secondary-container active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                                     >
+                                        <MaterialIcon name="assignment_ind" className="text-[14px]" />
+                                        Tomar Tarea
+                                     </button>
+                                   )
+                                 })()}
                               </div>
-                            ))}
+                            ) : (
+                              assignees.map(tech => (
+                                <div key={tech.id} className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/50 mb-2 last:mb-0 group hover:border-secondary transition-colors">
+                                   <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
+                                   <div className="min-w-0 flex-1">
+                                      <p className="font-title-sm text-sm font-bold text-on-surface">{tech.name}</p>
+                                      <p className="text-[11px] text-on-surface-variant">{tech.role}</p>
+                                   </div>
+                                   <button className="h-8 w-8 rounded-full flex items-center justify-center text-secondary hover:bg-secondary/10 opacity-0 group-hover:opacity-100 transition-all">
+                                      <MaterialIcon name="mail" className="text-[18px]" />
+                                   </button>
+                                </div>
+                              ))
+                            )}
                       </div>
                    </section>
 
@@ -366,12 +544,14 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             <MaterialIcon name={showHistory ? "history" : "description"} className="text-secondary" filled />
                             {showHistory ? "Historial de Cambios" : "Notas Técnicas"}
                          </h3>
-                         <button 
-                           onClick={() => setShowHistory(!showHistory)}
-                           className="text-secondary font-label-caps text-[10px] uppercase hover:underline tracking-wider"
-                         >
-                           {showHistory ? "Ver Notas" : "Ver Historial"}
-                         </button>
+                         <div className="flex items-center gap-2">
+                           <button 
+                             onClick={() => setShowHistory(!showHistory)}
+                             className="text-secondary font-label-caps text-[10px] uppercase hover:underline tracking-wider"
+                           >
+                             {showHistory ? "Ver Notas" : "Ver Historial"}
+                           </button>
+                         </div>
                       </div>
                       
                       <div className="space-y-4">
@@ -607,7 +787,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                <div className={cn(
                                   "absolute flex gap-2 transition-all duration-300",
                                   viewMode === "grid" 
-                                    ? "top-3 right-3 flex-col opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0" 
+                                    ? "top-3 right-3 flex-col opacity-100 sm:opacity-0 sm:group-hover:opacity-100 translate-x-0 sm:translate-x-2 sm:group-hover:translate-x-0" 
                                     : "right-4 top-4 sm:top-1/2 sm:-translate-y-1/2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 translate-x-0 sm:translate-x-4 sm:group-hover:translate-x-0"
                                 )}>
                                   <button 
@@ -667,6 +847,13 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                     
                     if (editingActivityId) {
                       updateTaskActivity(task.id, editingActivityId, { content: nextScene })
+                      const matchingItem = evidence.find(item => item.activityId === editingActivityId)
+                      if (matchingItem?.globalId) {
+                        updateEvidence(matchingItem.globalId, {
+                          base64: nextScene.preview || "",
+                          previewBase64: nextScene.preview || ""
+                        })
+                      }
                     } else {
                        const drawingCount = evidence.filter(e => e.type === "drawing").length + 1
                       const dateStr = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
@@ -804,14 +991,37 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                  <div className="px-8 py-6 bg-surface-container-low flex flex-col sm:flex-row-reverse gap-3 border-t border-outline-variant">
                    <button 
                      onClick={() => {
-                       updateTask(task.id, {
-                         activities: task.activities.map(a => 
-                           a.id === renamingItem.id 
-                             ? { ...a, metadata: { ...a.metadata, fileName: editNameValue, description: editDescriptionValue } } 
-                             : a
-                         )
-                       })
-                       setRenamingItem(null)
+                       const actId = (renamingItem as any).activityId;
+                       const globId = (renamingItem as any).globalId;
+
+                       if (actId) {
+                         updateTaskActivity(task.id, actId, {
+                           metadata: {
+                             ...renamingItem.metadata,
+                             fileName: editNameValue,
+                             description: editDescriptionValue
+                           }
+                         });
+                       }
+                       
+                       if (globId) {
+                         updateEvidence(globId, {
+                           name: editNameValue,
+                           caption: editDescriptionValue
+                         });
+                       }
+
+                       if (!actId && !globId) {
+                         updateTaskActivity(task.id, renamingItem.id, {
+                           metadata: {
+                             ...renamingItem.metadata,
+                             fileName: editNameValue,
+                             description: editDescriptionValue
+                           }
+                         });
+                       }
+                       
+                       setRenamingItem(null);
                      }}
                      className="flex-1 h-12 bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-white font-bold rounded-full transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm"
                    >
@@ -868,8 +1078,12 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 <div className="bg-surface-container p-4 flex flex-col sm:flex-row-reverse gap-3">
                   <button 
                     onClick={() => {
-                      removeTaskActivity(task.id, deletingItem.id)
-                      setDeletingItem(null)
+                      const actId = (deletingItem as any).activityId;
+                      const globId = (deletingItem as any).globalId;
+                      if (actId) removeTaskActivity(task.id, actId);
+                      if (globId) deleteEvidence(globId);
+                      if (!actId && !globId) removeTaskActivity(task.id, deletingItem.id);
+                      setDeletingItem(null);
                     }}
                     className="flex-1 bg-error text-white h-12 px-6 rounded-lg font-title-sm text-sm font-bold flex items-center justify-center active:scale-95 transition-transform"
                   >
@@ -1105,11 +1319,17 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
           )}
 
       </div>
+
+      <EscalateTaskModal
+        open={escalateOpen}
+        taskId={task.id}
+        onClose={() => setEscalateOpen(false)}
+      />
     </div>
   )
 }
 
-function ActivityItem({ activity }: { activity: TaskActivity }) {
+function ActivityItem({ activity, onPreview }: { activity: TaskActivity; onPreview?: (a: TaskActivity) => void }) {
   const isMedia = activity.type === "image" || activity.type === "video" || activity.type === "audio"
   const isDrawing = activity.type === "drawing"
 
@@ -1155,7 +1375,7 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
               {activity.type === "drawing" && (
                  <div 
                    className="h-full w-full bg-white flex items-center justify-center p-4 cursor-pointer hover:bg-surface-container-lowest transition-colors"
-                   onClick={() => setPreviewItem(activity)}
+                   onClick={() => onPreview?.(activity)}
                  >
                     <DrawingPreview scene={activity.content} className="w-full h-full" />
                  </div>
@@ -1177,7 +1397,26 @@ function ActivityItem({ activity }: { activity: TaskActivity }) {
 }
  
  function DrawingPreview({ scene, className }: { scene: any; className?: string }) {
-   if (!scene || !scene.elements || scene.elements.length === 0) {
+   if (!scene) {
+     return (
+       <div className={cn("flex flex-col items-center justify-center gap-2 text-on-surface-variant/30", className)}>
+         <MaterialIcon name="draw" className="text-[48px]" />
+         <span className="text-xs italic">Dibujo vacío</span>
+       </div>
+     )
+   }
+
+   if ((!scene.elements || scene.elements.length === 0) && scene.preview) {
+     return (
+       <img 
+         src={scene.preview} 
+         alt="Croquis estático" 
+         className={cn("w-full h-full object-contain p-2", className)} 
+       />
+     )
+   }
+
+   if (!scene.elements || scene.elements.length === 0) {
      return (
        <div className={cn("flex flex-col items-center justify-center gap-2 text-on-surface-variant/30", className)}>
          <MaterialIcon name="draw" className="text-[48px]" />

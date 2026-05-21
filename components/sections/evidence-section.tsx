@@ -213,7 +213,7 @@ function EvidenceCard({ item, onCaptionChange, onDelete, onToggleFlag }: Evidenc
           {item.flagged ? "MARCADA" : isVideo ? "MP4" : "JPG"}
         </div>
 
-        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+        <div className="absolute top-3 right-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex gap-2">
           <button
             type="button"
             onClick={onToggleFlag}

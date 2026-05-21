@@ -1,11 +1,15 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { formatLongDateTime, formatBytes, cn } from "@/utils/workflow"
 import { useWorkflowStore } from "@/store/workflow-store"
 
-export function SettingsSection() {
+type SettingsSectionProps = {
+  onSwitchUser?: () => void
+}
+
+export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
   const tasks = useWorkflowStore((state) => state.tasks)
   const requirements = useWorkflowStore((state) => state.requirements)
   const evidence = useWorkflowStore((state) => state.evidence)
@@ -17,6 +21,7 @@ export function SettingsSection() {
   const setCurrentUser = useWorkflowStore((state) => state.setCurrentUser)
   const updateUser = useWorkflowStore((state) => state.updateUser)
   const resetDemoData = useWorkflowStore((state) => state.resetDemoData)
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null)
 
   const currentUser = useMemo(() => 
     users.find(u => u.id === currentUserId) ?? null,
@@ -36,6 +41,19 @@ export function SettingsSection() {
 
   const serializedSize = JSON.stringify(snapshot).length
   const lastSave = saves[0] ?? null
+
+  useEffect(() => {
+    if (!switchNotice) return
+    const timer = window.setTimeout(() => setSwitchNotice(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [switchNotice])
+
+  function handleSwitchUser(userId: string) {
+    const nextUser = users.find((user) => user.id === userId)
+    setCurrentUser(userId)
+    setSwitchNotice(nextUser?.name ?? "Perfil actualizado")
+    onSwitchUser?.()
+  }
 
   function handleExport() {
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
@@ -58,6 +76,12 @@ export function SettingsSection() {
             Administra el almacenamiento local, las exportaciones y los datos de demostración sin salir del navegador.
           </p>
         </div>
+        {switchNotice ? (
+          <div className="rounded-xl border border-secondary/30 bg-secondary/10 px-4 py-3 text-sm text-secondary flex items-center gap-2">
+            <MaterialIcon name="swap_horiz" />
+            Perfil activo actualizado: <span className="font-bold">{switchNotice}</span>
+          </div>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-sm">
@@ -250,7 +274,7 @@ export function SettingsSection() {
                 {users.map(user => (
                    <button
                      key={user.id}
-                     onClick={() => setCurrentUser(user.id)}
+                     onClick={() => handleSwitchUser(user.id)}
                      className={cn(
                        "flex items-center gap-3 p-3 rounded-xl border transition-all",
                        currentUserId === user.id 

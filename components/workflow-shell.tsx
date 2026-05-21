@@ -3,7 +3,7 @@
 import { useState, useMemo, type ReactNode } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
-import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
+import { AREA_OPTIONS, type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { HelpModal } from "@/components/modals/help-modal"
 import { NotificationPopout } from "@/components/notification-popout"
 import { GlobalAlertModal } from "@/components/modals/global-alert-modal"
@@ -17,12 +17,18 @@ type WorkflowShellProps = {
   sidebarOpen: boolean
   searchQuery: string
   onSearchChange: (value: string) => void
+  zoneFilter: string
+  areaFilter: string
+  onZoneFilterChange: (value: string) => void
+  onAreaFilterChange: (value: string) => void
   children: ReactNode
 }
 
 const sidebarItems: Array<{ key: SectionKey; label: string; icon: string }> = [
   { key: "dashboard", label: "Tablero", icon: "dashboard" },
   { key: "assignments", label: "Tareas", icon: "assignment" },
+  { key: "drawing", label: "Planos Técnicos", icon: "architecture" },
+  { key: "evidence", label: "Evidencia", icon: "upload_file" },
   { key: "users", label: "Usuarios", icon: "people" },
   { key: "statistics", label: "Estadísticas", icon: "bar_chart" },
   { key: "settings", label: "Configuración", icon: "settings" }
@@ -42,20 +48,37 @@ export function WorkflowShell({
   sidebarOpen,
   searchQuery,
   onSearchChange,
+  zoneFilter,
+  areaFilter,
+  onZoneFilterChange,
+  onAreaFilterChange,
   children
 }: WorkflowShellProps) {
   const [helpOpen, setHelpOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
+  const tasks = useWorkflowStore((state) => state.tasks)
+  const requirements = useWorkflowStore((state) => state.requirements)
   const assignments = useWorkflowStore((state) => state.assignments)
   const saves = useWorkflowStore((state) => state.saves)
   const users = useWorkflowStore((state) => state.users)
   const notifications = useWorkflowStore((state) => state.notifications)
   const currentUserId = useWorkflowStore((state) => state.currentUserId)
+  const evidence = useWorkflowStore((state) => state.evidence)
+  const folders = useWorkflowStore((state) => state.folders)
 
   const currentUser = useMemo(() => 
     workflowSelectors.getCurrentUser(users, currentUserId), 
   [users, currentUserId])
+
+  const currentUserInitials = useMemo(() => {
+    if (!currentUser?.name) return "US"
+    const parts = currentUser.name.split(" ")
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return currentUser.name.slice(0, 2).toUpperCase()
+  }, [currentUser])
 
   const unreadCount = useMemo(() => {
     if (!currentUser) return 0
@@ -73,20 +96,33 @@ export function WorkflowShell({
 
   const filteredSidebarItems = useMemo(() => {
     if (!currentUser) return sidebarItems
-    if (currentUser.role === "administrador") return sidebarItems
-    if (currentUser.role === "gerente") {
-      return sidebarItems.filter(item => item.key !== "statistics")
+    if (currentUser.role === "administrador" || currentUser.role === "gerente") {
+      return sidebarItems
     }
-    // Empleado: Solo Tablero (que está en topTabs, pero aquí filtramos sidebar)
-    return sidebarItems.filter(item => item.key === "dashboard")
+    // Empleado: Solamente Tablero y Tareas
+    return sidebarItems.filter(item => 
+      item.key === "dashboard" || 
+      item.key === "assignments"
+    )
   }, [currentUser])
 
   const filteredTopTabs = useMemo(() => {
     if (!currentUser) return topTabs
     if (currentUser.role === "administrador" || currentUser.role === "gerente") return topTabs
-    // Empleado: No ve Programación (assignments)
-    return topTabs.filter(tab => tab.key !== "assignments")
+    // Empleado: Ve Resumen y Programación
+    return topTabs
   }, [currentUser])
+
+  const zoneOptions = useMemo(() => {
+    const zones = new Set<string>()
+    tasks.forEach((task) => task.location && zones.add(task.location))
+    requirements.forEach((req) => req.location && zones.add(req.location))
+    users.forEach((user) => user.zone && zones.add(user.zone))
+    return Array.from(zones).sort()
+  }, [tasks, requirements, users])
+
+  const showFilters = currentUser?.role === "administrador" || currentUser?.role === "gerente"
+  const zoneLocked = currentUser?.role !== "administrador"
 
   function handleExport() {
     const snapshot = {
@@ -129,27 +165,30 @@ export function WorkflowShell({
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen w-72 bg-surface border-r border-outline-variant z-50 flex flex-col py-6 transition-transform duration-300",
-          "md:translate-x-0 md:static md:h-full",
+          "md:translate-x-0 md:static md:h-full md:flex-shrink-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
         <div className="px-6 mb-8 hidden md:flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full border border-outline-variant overflow-hidden shadow-sm">
-               <img src={currentUser?.avatar} alt="" className="w-full h-full object-cover" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-title-sm text-title-sm font-bold text-primary truncate">
-                {currentUser?.name || "Usuario"}
-              </span>
-              <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
-                {currentUser?.position || "Visitante"}
-              </span>
-              <div className="flex items-center gap-1 text-[10px] text-secondary font-bold uppercase tracking-tight mt-0.5">
-                 <MaterialIcon name="location_on" className="text-[12px]" />
-                 <span className="truncate">{currentUser?.zone || "Sin zona"}</span>
-              </div>
-            </div>
+             <img 
+               src={currentUser?.avatar} 
+               alt="User profile" 
+               className="w-12 h-12 rounded-full object-cover border-2 border-outline-variant flex-shrink-0" 
+             />
+             <div className="flex flex-col min-w-0">
+               <span className="font-title-sm text-title-sm font-bold text-primary truncate">
+                 {currentUser?.name || "Usuario"}
+               </span>
+               <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                 {currentUser?.position || "Visitante"}
+               </span>
+               {currentUser?.zone && (
+                 <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                   Site Alfa - {currentUser.zone}
+                 </span>
+               )}
+             </div>
           </div>
         </div>
 
@@ -164,8 +203,9 @@ export function WorkflowShell({
                 className={cn(
                   "flex items-center gap-4 p-4 mx-2 rounded-xl transition-all duration-200 text-left",
                   isActive
-                    ? "bg-secondary-container text-on-secondary-container opacity-90"
-                    : "text-on-surface-variant hover:bg-surface-container-high"
+                    ? "bg-secondary-container text-on-secondary-container opacity-90 shadow-sm"
+                    : "text-on-surface-variant hover:bg-surface-container-high",
+                  item.key === "settings" && "mt-auto mb-4"
                 )}
               >
                 <MaterialIcon name={item.icon} filled={isActive} />
@@ -197,105 +237,200 @@ export function WorkflowShell({
       ) : null}
 
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <header className="bg-surface z-40 hidden md:flex items-center justify-between gap-6 px-gutter h-20 w-full border-b border-outline-variant flex-shrink-0">
-          <div className="flex items-center gap-4 lg:gap-8 min-w-0">
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              className="md:hidden w-12 h-12 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-DEFAULT transition-colors"
-            >
-              <MaterialIcon name="menu" />
-            </button>
-
+        <header className="bg-surface z-40 hidden md:flex flex-col w-full border-b border-outline-variant flex-shrink-0">
+          {/* Top Header Row */}
+          <div className="flex justify-between items-center px-gutter h-16 border-b border-outline-variant/30 w-full">
             <div className="flex items-center gap-8 min-w-0">
-              <h1 className="font-headline-md text-headline-md font-bold text-primary tracking-tight">
-                Demo
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                className="md:hidden w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+              >
+                <MaterialIcon name="menu" />
+              </button>
+              
+              <h1 className="font-headline-md text-headline-md font-bold text-primary tracking-tight shrink-0">
+                Workflow Pro
               </h1>
+              
+              <div className="relative hidden md:block w-80">
+                <MaterialIcon
+                  name="search"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm pointer-events-none"
+                />
+                <input
+                  className="w-full h-9 pl-9 pr-4 bg-surface-container-low border border-outline-variant rounded-lg text-sm outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container transition-all"
+                  placeholder="Buscar tareas, planos y evidencias..."
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                />
+              </div>
+            </div>
 
-              <nav className="hidden lg:flex gap-6 mt-4">
-                {filteredTopTabs.map((tab) => {
-                  const isActive = activeTopSection === tab.key
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => onSectionChange(tab.key)}
-                      className={cn(
-                        "pb-4 transition-transform",
-                        isActive
-                          ? "text-secondary border-b-2 border-secondary font-bold scale-95"
-                          : "text-on-surface-variant hover:text-primary"
-                      )}
-                    >
-                      {tab.label}
-                    </button>
-                  )
-                })}
-              </nav>
+            <div className="flex items-center gap-4">
+              {/* + Agregar Task Button */}
+              <button
+                type="button"
+                onClick={onOpenTaskModal}
+                className="flex items-center gap-2 px-3 h-9 bg-primary text-on-primary rounded-full cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0"
+              >
+                <MaterialIcon name="add" className="text-lg" />
+                <span className="text-xs font-bold">Agregar Tarea</span>
+              </button>
+
+              <div className="flex items-center gap-4 ml-4 flex-shrink-0">
+                <span className="text-sm font-medium text-on-surface hidden lg:inline">
+                  {currentUser?.name || "Usuario"}
+                </span>
+                
+                <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-primary border border-outline-variant/40">
+                  {currentUserInitials}
+                </div>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setNotificationsOpen(!notificationsOpen)}
+                    className={cn(
+                      "relative w-9 h-9 flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors",
+                      notificationsOpen && "bg-primary/10 text-primary"
+                    )}
+                  >
+                    <MaterialIcon name="notifications" filled={notificationsOpen} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-error text-white text-[10px] flex items-center justify-center rounded-full font-bold">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  <NotificationPopout 
+                    open={notificationsOpen} 
+                    onClose={() => setNotificationsOpen(false)} 
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setHelpOpen(true)}
+                  className="w-9 h-9 flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                  title="Ayuda"
+                >
+                  <MaterialIcon name="help_outline" />
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 lg:gap-6">
-            <div className="relative hidden md:block w-64 lg:w-72">
-              <MaterialIcon
-                name="search"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
-              />
-              <input
-                className="w-full h-[48px] pl-10 pr-4 bg-surface-container-low border border-outline-variant rounded-DEFAULT focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container text-body-md font-body-md outline-none transition-colors"
-                placeholder="Buscar flujos de trabajo..."
-                type="text"
-                value={searchQuery}
-                onChange={(event) => onSearchChange(event.target.value)}
-              />
+          {/* Sub-Header Row */}
+          <div className="flex justify-between items-center px-gutter h-14 w-full">
+            {/* Left: Interactive Dropdown Filters */}
+            <div className="flex gap-6 items-center">
+              {showFilters ? (
+                <>
+                  <div className="relative flex items-center group">
+                    <select
+                      value={zoneFilter}
+                      onChange={(event) => onZoneFilterChange(event.target.value)}
+                      disabled={zoneLocked}
+                      className="appearance-none bg-transparent pr-6 pl-1 py-1 text-sm font-semibold text-on-surface outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Filtro de zona"
+                    >
+                      <option value="todas">Todas las Zonas</option>
+                      {zoneOptions.map((zone) => (
+                        <option key={zone} value={zone}>
+                          {zone}
+                        </option>
+                      ))}
+                    </select>
+                    <MaterialIcon name="expand_more" className="absolute right-0 text-sm text-on-surface-variant pointer-events-none" />
+                  </div>
+
+                  <div className="relative flex items-center group">
+                    <select
+                      value={areaFilter}
+                      onChange={(event) => onAreaFilterChange(event.target.value)}
+                      className="appearance-none bg-transparent pr-6 pl-1 py-1 text-sm font-semibold text-on-surface outline-none cursor-pointer"
+                      aria-label="Filtro de area"
+                    >
+                      <option value="todas">Todas las Áreas</option>
+                      {AREA_OPTIONS.map((area) => (
+                        <option key={area} value={area}>
+                          {area}
+                        </option>
+                      ))}
+                    </select>
+                    <MaterialIcon name="expand_more" className="absolute right-0 text-sm text-on-surface-variant pointer-events-none" />
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/70 flex items-center gap-1.5">
+                  <MaterialIcon name="verified_user" className="text-sm text-secondary" />
+                  Región {currentUser?.zone || "Alfa"}
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setNotificationsOpen(!notificationsOpen)}
-                  className={cn(
-                    "w-[48px] h-[48px] flex justify-center items-center rounded-DEFAULT transition-colors",
-                    notificationsOpen ? "bg-primary/10 text-primary" : "text-on-surface-variant hover:bg-surface-container"
-                  )}
-                >
-                  <MaterialIcon name="notifications" filled={notificationsOpen} />
-                </button>
-                {unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 w-4 h-4 bg-error text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">
-                    {unreadCount}
-                  </span>
-                )}
-                <NotificationPopout 
-                  open={notificationsOpen} 
-                  onClose={() => setNotificationsOpen(false)} 
-                />
-              </div>
+            {/* Middle: Tab Navigation */}
+            <nav className="flex gap-10">
+              {filteredTopTabs.map((tab) => {
+                const isActive = activeTopSection === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => onSectionChange(tab.key)}
+                    className={cn(
+                      "text-sm py-4 border-b-2 transition-all",
+                      isActive
+                        ? "font-bold text-secondary border-b-2 border-secondary scale-95"
+                        : "text-on-surface-variant hover:text-primary border-transparent"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </nav>
+
+            {/* Right: Export & Guardar progress buttons */}
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setHelpOpen(true)}
-                className="w-[48px] h-[48px] flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-DEFAULT transition-colors"
+                onClick={handleExport}
+                className="px-4 h-9 flex items-center gap-2 bg-primary text-on-primary rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
               >
-                <MaterialIcon name="help_outline" />
+                Exportar
               </button>
-            </div>
-
-            <div className="hidden xl:flex items-center gap-3">
-              {/* Export button removed as requested */}
-              {/* Save progress button hidden as requested */}
               <button
                 type="button"
                 onClick={onOpenSaveModal}
-                className="hidden px-6 h-[48px] font-title-sm text-title-sm bg-primary text-on-primary rounded-DEFAULT hover:opacity-90 transition-opacity shadow-sm"
+                className="px-4 h-9 flex items-center gap-2 bg-secondary-container text-on-secondary-container rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
               >
-                Guardar progreso
+                Guardar
               </button>
             </div>
           </div>
         </header>
 
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
+
+        {/* Bottom Stats Footer (Desktop only) */}
+        <footer className="hidden md:flex h-10 bg-white border-t border-outline-variant items-center px-gutter justify-between text-[11px] text-on-surface-variant flex-shrink-0">
+          <div className="flex gap-4 items-center">
+            <span>Mostrando {tasks.length} de {tasks.length} Tarea(s).</span>
+            <div className="flex gap-2">
+              <button onClick={() => onSectionChange("dashboard")} className="font-bold underline">Ver Todo</button>
+              <span>|</span>
+              <span className="text-secondary font-bold flex items-center gap-0.5">
+                Activos <MaterialIcon name="expand_more" className="text-[14px]" />
+              </span>
+            </div>
+          </div>
+          <div className="italic opacity-70">
+            "Tanto si piensas que puedes, como si piensas que no puedes, estás en lo cierto." — Henry Ford
+          </div>
+        </footer>
 
         {/* Bottom Navigation for Mobile */}
         <nav className="md:hidden bg-surface border-t border-outline-variant h-20 flex items-center justify-around z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2">

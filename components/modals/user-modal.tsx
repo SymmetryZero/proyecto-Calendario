@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn, createAvatarDataUri, fileToDataUrl } from "@/utils/workflow"
-import { type UserRole, useWorkflowStore, type User } from "@/store/workflow-store"
+import { AREA_OPTIONS, type UserRole, useWorkflowStore, type User, type Area } from "@/store/workflow-store"
 
 type UserModalProps = {
   open: boolean
@@ -26,6 +26,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
   const [birthDate, setBirthDate] = useState("")
   const [position, setPosition] = useState("")
   const [zone, setZone] = useState("")
+  const [areas, setAreas] = useState<Area[]>([])
   const [role, setRole] = useState<UserRole>("empleado")
   const [avatar, setAvatar] = useState("")
 
@@ -41,6 +42,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       setBirthDate(userToEdit.birthDate)
       setPosition(userToEdit.position)
       setZone(userToEdit.zone)
+      setAreas(userToEdit.areas ?? [])
       setRole(userToEdit.role)
       setAvatar(userToEdit.avatar)
     } else {
@@ -48,6 +50,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       setBirthDate("")
       setPosition("")
       setZone("")
+      setAreas([])
       setRole("empleado")
       setAvatar("")
     }
@@ -78,6 +81,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       birthDate,
       position: position.trim() || "Colaborador",
       zone: zone.trim() || "General",
+      areas: areas.length > 0 ? areas : (["Operacion"] as Area[]),
       role
     }
 
@@ -221,6 +225,42 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
                 ))}
               </datalist>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
+              Areas de trabajo
+            </label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {AREA_OPTIONS.map((area) => {
+                const isActive = areas.includes(area)
+                return (
+                  <button
+                    key={area}
+                    type="button"
+                    onClick={() => {
+                      setAreas((current) =>
+                        current.includes(area)
+                          ? current.filter((item) => item !== area)
+                          : [...current, area]
+                      )
+                    }}
+                    className={cn(
+                      "px-3 py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors",
+                      isActive
+                        ? "bg-secondary-container text-on-secondary-container border-secondary-fixed"
+                        : "bg-surface border-outline-variant text-on-surface-variant hover:bg-surface-container"
+                    )}
+                    aria-pressed={isActive}
+                  >
+                    {area}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-on-surface-variant">
+              Selecciona una o varias areas para asignar tareas.
+            </p>
           </div>
         </div>
 

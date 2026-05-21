@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Avatar } from "@/components/ui/avatar"
 import { MaterialIcon } from "@/components/ui/material-icon"
+import { EscalateTaskModal } from "@/components/modals/escalate-task-modal"
 import {
   formatDuration,
   cn
@@ -12,15 +13,19 @@ import {
   type Priority,
   type Task,
   type TaskStatus,
-  type User as Technician,
+  type User,
   useWorkflowStore,
   workflowSelectors
 } from "@/store/workflow-store"
+
+type Technician = User
 
 type DashboardSectionProps = {
   onCreateTask: () => void
   onOpenTaskDetails: (taskId: string) => void
   searchQuery?: string
+  zoneFilter?: string
+  areaFilter?: string
 }
 
 const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
@@ -32,28 +37,28 @@ const statusMeta: Record<
   todo: {
     label: "Por hacer",
     accent: "bg-error-container text-on-error-container",
-    columnClass: "bg-surface-container-low",
+    columnClass: "bg-transparent",
     countClass: "bg-surface-variant text-on-surface-variant",
     icon: "schedule"
   },
   inProgress: {
     label: "En progreso",
     accent: "bg-secondary-container text-on-secondary-container",
-    columnClass: "bg-surface-container-low",
+    columnClass: "bg-transparent",
     countClass: "bg-surface-variant text-on-surface-variant",
     icon: "pending"
   },
   review: {
     label: "En revisión",
     accent: "bg-tertiary-fixed text-tertiary-container",
-    columnClass: "bg-surface-container-low",
+    columnClass: "bg-transparent",
     countClass: "bg-surface-variant text-on-surface-variant",
     icon: "done_all"
   },
   done: {
     label: "Hecho",
     accent: "bg-surface-variant text-on-surface-variant",
-    columnClass: "bg-surface-container-low/50",
+    columnClass: "bg-transparent",
     countClass: "bg-surface-variant text-on-surface-variant",
     icon: "check_circle"
   }
@@ -72,6 +77,12 @@ const priorityMeta: Record<Priority, { label: string; className: string }> = {
     label: "Baja",
     className: "bg-surface-variant text-on-surface-variant"
   }
+}
+
+const prioritySignal: Record<Priority, { label: string; className: string }> = {
+  high: { label: "Rojo", className: "bg-error" },
+  medium: { label: "Amarillo", className: "bg-warning" },
+  low: { label: "Verde", className: "bg-success" }
 }
 
 function useTicker(intervalMs = 1000) {
@@ -102,7 +113,13 @@ function getSortedTasks(tasks: Task[], mode: "manual" | "recent") {
   return tasks
 }
 
-export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery = "" }: DashboardSectionProps) {
+export function DashboardSection({
+  onCreateTask,
+  onOpenTaskDetails,
+  searchQuery = "",
+  zoneFilter,
+  areaFilter
+}: DashboardSectionProps) {
   const now = useTicker()
   const tasks = useWorkflowStore((state) => state.tasks)
   const users = useWorkflowStore((state) => state.users)
@@ -110,6 +127,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
   const evidence = useWorkflowStore((state) => state.evidence)
   const moveTask = useWorkflowStore((state) => state.moveTask)
   const deleteTask = useWorkflowStore((state) => state.deleteTask)
+  const claimTask = useWorkflowStore((state) => state.claimTask)
   const pauseTaskTimer = useWorkflowStore((state) => state.pauseTaskTimer)
   const startTaskTimer = useWorkflowStore((state) => state.startTaskTimer)
   const setGlobalAlert = useWorkflowStore((state) => state.setGlobalAlert)
@@ -121,12 +139,29 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
   const zoneTasks = useMemo(() => 
     workflowSelectors.filterTasksByZone(tasks, currentUser),
   [tasks, currentUser])
+
+  const scopedTasks = useMemo(() => {
+    if (currentUser?.role === "empleado") {
+      return zoneTasks
+    }
+
+    const normalizedZone = zoneFilter && zoneFilter !== "todas" ? zoneFilter : null
+    const normalizedArea = areaFilter && areaFilter !== "todas" ? areaFilter : null
+    return zoneTasks.filter((task) => {
+      if (currentUser?.id && task.creatorId === currentUser.id) return true
+      if (normalizedZone && task.location !== normalizedZone) return false
+      if (normalizedArea && task.area !== normalizedArea) return false
+      return true
+    })
+  }, [zoneTasks, zoneFilter, areaFilter, currentUser?.role, currentUser?.id])
   
   const [pendingAction, setPendingAction] = useState<{
     type: "move" | "delete"
     task: Task
     nextStatus?: TaskStatus
   } | null>(null)
+
+  const [escalateTaskId, setEscalateTaskId] = useState<string | null>(null)
 
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [filterMode, setFilterMode] = useState<"all" | "high">("all")
@@ -138,7 +173,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
 
     const query = searchQuery.trim().toLowerCase()
 
-    zoneTasks
+    scopedTasks
       .filter((task) => (filterMode === "high" ? task.priority === "high" : true))
       .filter((task) => {
         if (!query) {
@@ -159,7 +194,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
       })
 
     return byStatus
-  }, [searchQuery, tasks, users, filterMode])
+  }, [searchQuery, scopedTasks, users, filterMode])
 
   function handleMove(task: Task, nextStatus: TaskStatus) {
     // Role-based restrictions for employees
@@ -226,7 +261,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
         const currentIndex = statusOrder.indexOf(task.status)
         const nextIndex = statusOrder.indexOf(nextStatus)
         
-        if (task.status === "done" || nextIndex < currentIndex) {
+        if (nextIndex < currentIndex) {
           setGlobalAlert({
             title: "Movimiento no permitido",
             message: "Este movimiento no está permitido.",
@@ -258,7 +293,7 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
   const [activeTab, setActiveTab] = useState<TaskStatus>("todo")
 
   return (
-    <main className="flex-1 min-h-0 p-4 md:p-gutter overflow-hidden flex flex-col gap-4 md:gap-6">
+    <main className="flex-1 min-h-0 p-4 md:p-gutter overflow-hidden flex flex-col gap-4 md:gap-6 bg-[#f0f2f5]">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h2 className="font-display-lg text-headline-md md:text-display-lg text-primary leading-tight">Flujos de trabajo activos</h2>
@@ -355,6 +390,8 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
                     if (task) setPendingAction({ type: "delete", task })
                   }}
                   onOpenTaskDetails={onOpenTaskDetails}
+                  onEscalateTask={(taskId) => setEscalateTaskId(taskId)}
+                  onClaimTask={(taskId) => claimTask(taskId)}
                   now={now}
                   currentUser={currentUser}
                 />
@@ -363,6 +400,12 @@ export function DashboardSection({ onCreateTask, onOpenTaskDetails, searchQuery 
           })}
         </div>
       </div>
+
+      <EscalateTaskModal
+        open={escalateTaskId !== null}
+        taskId={escalateTaskId}
+        onClose={() => setEscalateTaskId(null)}
+      />
 
       {/* Confirmation Modal */}
       {pendingAction && (
@@ -423,6 +466,8 @@ type KanbanColumnProps = {
   onMoveTask: (task: Task, nextStatus: TaskStatus) => void
   onDeleteTask: (taskId: string) => void
   onOpenTaskDetails: (taskId: string) => void
+  onEscalateTask: (taskId: string) => void
+  onClaimTask: (taskId: string) => void
   now: number
   currentUser: Technician | null
 }
@@ -438,6 +483,8 @@ function KanbanColumn({
   onMoveTask,
   onDeleteTask,
   onOpenTaskDetails,
+  onEscalateTask,
+  onClaimTask,
   now,
   currentUser
 }: KanbanColumnProps) {
@@ -446,7 +493,7 @@ function KanbanColumn({
   return (
     <section
       className={cn(
-        "w-80 flex-shrink-0 flex flex-col rounded-lg p-4 border border-outline-variant/50 h-full min-h-0",
+        "w-full flex-shrink-0 flex flex-col rounded-lg p-4 h-full min-h-0",
         meta.columnClass,
         draggedTaskId ? "ring-2 ring-secondary-container/40" : ""
       )}
@@ -486,6 +533,8 @@ function KanbanColumn({
             onMoveTask={onMoveTask}
             onDeleteTask={onDeleteTask}
             onOpenTaskDetails={onOpenTaskDetails}
+            onEscalateTask={onEscalateTask}
+            onClaimTask={onClaimTask}
             now={now}
             currentUser={currentUser}
           />
@@ -505,6 +554,8 @@ type TaskCardProps = {
   onMoveTask: (task: Task, nextStatus: TaskStatus) => void
   onDeleteTask: (taskId: string) => void
   onOpenTaskDetails: (taskId: string) => void
+  onEscalateTask: (taskId: string) => void
+  onClaimTask: (taskId: string) => void
   now: number
   currentUser: Technician | null
 }
@@ -519,12 +570,30 @@ function TaskCard({
   onMoveTask,
   onDeleteTask,
   onOpenTaskDetails,
+  onEscalateTask,
+  onClaimTask,
   now,
   currentUser
 }: TaskCardProps) {
   const assignees = avatarByTechnicianIds(users, task.assigneeIds)
   const attachedEvidence = evidence.filter((item) => item.linkedTaskId === task.id)
   const duration = workflowSelectors.getTaskDuration(task, now)
+  const canEscalate = !!currentUser?.id && task.assigneeIds.includes(currentUser.id)
+  const currentUserAreas = currentUser?.areas ?? []
+  const canClaimEscalation =
+    !!task.escalation &&
+    task.escalation.targetUserId == null &&
+    !!currentUser?.id &&
+    !task.assigneeIds.includes(currentUser.id) &&
+    currentUserAreas.includes(task.escalation.toArea)
+  const isUnassigned = !task.assigneeIds || task.assigneeIds.length === 0
+  const canClaimTask =
+    isUnassigned &&
+    !!task.area &&
+    !!currentUser?.id &&
+    (currentUserAreas.includes(task.area) || currentUser.role === "administrador")
+  const isCreatedByCurrentUser = !!currentUser?.id && task.creatorId === currentUser.id
+  
   const statusLabel =
     task.status === "todo"
       ? "Iniciar"
@@ -543,6 +612,43 @@ function TaskCard({
           ? "done"
           : "todo"
 
+  // Dynamic progress percentage
+  const progressPercentage =
+    task.status === "done" ? 100 :
+    task.status === "review" ? 80 :
+    task.status === "inProgress" ? 40 : 0;
+
+  const durationInHours = (duration / 3600).toFixed(1);
+
+  // Dynamic due status label in Spanish
+  let dynamicDueLabel = "Por iniciar";
+  if (task.status === "done") {
+    dynamicDueLabel = "Completada";
+  } else if (task.status === "review") {
+    dynamicDueLabel = "En revisión";
+  } else if (task.dueLabel) {
+    dynamicDueLabel = task.dueLabel;
+  } else if (task.status === "inProgress") {
+    dynamicDueLabel = "En progreso";
+  }
+
+  const notesCount = task.activities?.filter(a => a.type === "note").length || 0;
+  const logsCount = task.activities?.filter(a => a.type === "log").length || 0;
+
+  // Unify and de-duplicate attachments by filename to prevent double counting
+  const attachmentNames = new Set<string>()
+  task.activities?.forEach((a) => {
+    if (a.type === "image" || a.type === "video" || a.type === "audio" || a.type === "drawing") {
+      const name = a.metadata?.fileName || `${a.type.toUpperCase()}_${a.id.slice(-4)}`
+      attachmentNames.add(name.toLowerCase().trim())
+    }
+  })
+  attachedEvidence.forEach((item) => {
+    const name = item.name
+    attachmentNames.add(name.toLowerCase().trim())
+  })
+  const totalAttachments = attachmentNames.size;
+
   return (
     <article
       draggable={task.status !== "done"}
@@ -556,31 +662,65 @@ function TaskCard({
       onDragEnd={onDragEnd}
       onClick={() => onOpenTaskDetails(task.id)}
       className={cn(
-        "bg-surface-container-lowest rounded-DEFAULT border p-4 flex flex-col gap-stack-sm shadow-sm hover:shadow-md transition-all cursor-pointer relative group",
+        "bg-white rounded-xl border p-4 flex flex-col gap-3 shadow-sm relative group hover:ring-1 hover:ring-secondary-container transition-all cursor-pointer",
         task.status === "done" ? "opacity-90 grayscale-[0.2]" : "opacity-100",
         task.status === "inProgress"
           ? "border-tertiary-container ring-1 ring-tertiary-container/20"
-          : "border-outline-variant",
+          : "border-outline-variant/50",
+        task.priority === "high"
+          ? "border-l-4 border-l-error"
+          : task.priority === "medium"
+            ? "border-l-4 border-l-warning"
+            : "border-l-4 border-l-success",
         isDragging ? "opacity-50 scale-[0.98]" : ""
       )}
     >
-      <div className="flex justify-between items-start gap-2">
-        <span className={cn("px-2 py-0.5 font-label-caps text-label-caps rounded-DEFAULT", priorityMeta[task.priority].className)}>
-          {priorityMeta[task.priority].label}
+      <div className="flex justify-between items-start gap-2 w-full min-w-0">
+        <span className="text-[10px] font-semibold text-on-surface-variant opacity-60 uppercase tracking-wider">
+          {dynamicDueLabel}
         </span>
-        <div className="flex items-center gap-1.5">
+        
+        <div className="flex items-center gap-1.5 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               onOpenTaskDetails(task.id)
             }}
-            className="flex items-center justify-center w-9 h-9 rounded-xl bg-secondary/10 text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm"
+            className="flex items-center justify-center w-7 h-7 rounded-lg text-secondary/70 hover:text-secondary hover:bg-secondary/10 transition-all flex-shrink-0"
             aria-label="Agregar evidencia"
             title="Agregar evidencia"
           >
-            <MaterialIcon name="attach_file" className="text-[18px]" />
+            <MaterialIcon name="attach_file" className="text-[16px]" />
           </button>
+          {canEscalate ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEscalateTask(task.id)
+              }}
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-tertiary/70 hover:text-tertiary hover:bg-tertiary-fixed transition-all flex-shrink-0"
+              aria-label="Enviar a otra area"
+              title="Enviar a otra area"
+            >
+              <MaterialIcon name="forward_to_inbox" className="text-[16px]" />
+            </button>
+          ) : null}
+          {(canClaimEscalation || canClaimTask) ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClaimTask(task.id)
+              }}
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-secondary/70 hover:text-secondary hover:bg-secondary-fixed transition-all flex-shrink-0"
+              aria-label="Tomar tarea"
+              title="Tomar tarea"
+            >
+              <MaterialIcon name="assignment_ind" className="text-[16px]" />
+            </button>
+          ) : null}
           {(() => {
             const isEmployee = currentUser?.role === "empleado"
             const isDone = task.status === "done"
@@ -595,15 +735,15 @@ function TaskCard({
                   onMoveTask(task, nextStatus)
                 }}
                 className={cn(
-                  "flex items-center justify-center w-9 h-9 rounded-xl transition-all shadow-sm",
+                  "flex items-center justify-center w-7 h-7 rounded-lg transition-all flex-shrink-0",
                   canMove 
-                    ? "bg-primary/10 text-primary hover:bg-primary hover:text-white" 
-                    : "bg-surface-variant text-on-surface-variant opacity-40 cursor-not-allowed"
+                    ? "text-primary/70 hover:text-primary hover:bg-primary/10" 
+                    : "text-on-surface-variant opacity-30 cursor-not-allowed"
                 )}
                 aria-label={`${statusLabel} tarea`}
                 title={canMove ? statusLabel : "No permitido"}
               >
-                <MaterialIcon name={task.status === "review" ? "check_circle" : "arrow_forward"} className="text-[18px]" />
+                <MaterialIcon name={task.status === "review" ? "check_circle" : "arrow_forward"} className="text-[16px]" />
               </button>
             )
           })()}
@@ -614,69 +754,103 @@ function TaskCard({
               onDeleteTask(task.id)
             }}
             className={cn(
-              "flex items-center justify-center w-9 h-9 rounded-xl bg-error/10 text-error hover:bg-error hover:text-white transition-all shadow-sm",
+              "flex items-center justify-center w-7 h-7 rounded-lg text-error/70 hover:text-error hover:bg-error/10 transition-all flex-shrink-0",
               currentUser?.role === "empleado" && "hidden" // Ocultar eliminar para empleados
             )}
             aria-label="Eliminar tarea"
             title="Eliminar"
           >
-            <MaterialIcon name="delete" className="text-[18px]" />
+            <MaterialIcon name="delete" className="text-[16px]" />
           </button>
         </div>
       </div>
 
-      <h4 className="font-title-sm text-title-sm text-primary leading-tight">{task.title}</h4>
-      {task.creatorId && (
-        <p className="text-[10px] text-on-surface-variant font-medium mt-0.5">
-          Creado por: {users.find(u => u.id === task.creatorId)?.name || "Sistema"}
-        </p>
-      )}
-      <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">{task.description}</p>
+      <h4 className="text-sm font-bold text-primary leading-snug">{task.title}</h4>
 
-      <div className="flex justify-between items-end mt-2 gap-3">
-        <div className="flex items-center -space-x-2">
-          {assignees.slice(0, 2).map((user) => (
-            <Avatar
-              key={user.id}
-              name={user.name}
-              src={user.avatar}
-              className="h-8 w-8"
-              badgeClassName="border-2 border-surface-container-lowest"
-            />
-          ))}
-          {assignees.length > 2 ? (
-            <div className="w-8 h-8 rounded-full bg-surface-variant border-2 border-surface-container-lowest flex items-center justify-center font-title-sm text-[10px] text-on-surface-variant">
-              +{assignees.length - 2}
-            </div>
-          ) : null}
+      <div className="flex items-center gap-2 mt-1 flex-wrap">
+        <span className={cn(
+          "px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider",
+          task.status === "done" ? "bg-green-100 text-green-700" :
+          task.status === "review" ? "bg-tertiary-fixed text-on-tertiary-fixed-variant" :
+          task.status === "inProgress" ? "bg-secondary-container/20 text-secondary" :
+          "bg-surface-container-high text-on-surface-variant"
+        )}>
+          {task.status === "done" ? "Completado" :
+           task.status === "review" ? "En revisión" :
+           task.status === "inProgress" ? "En progreso" : "Por hacer"}
+        </span>
+        <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider font-label-caps", priorityMeta[task.priority].className)}>
+          {priorityMeta[task.priority].label}
+        </span>
+        {isCreatedByCurrentUser && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold uppercase text-primary font-label-caps">
+            <MaterialIcon name="person" className="text-[10px]" />
+            Mía
+          </span>
+        )}
+        {task.escalation && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-tertiary-fixed px-2 py-0.5 text-[9px] font-bold uppercase text-tertiary-container font-label-caps">
+            Escalada
+          </span>
+        )}
+      </div>
+
+      {/* Progress Section */}
+      <div className="mt-2">
+        <div className="flex justify-between items-center mb-1 text-[10px] font-medium text-on-surface-variant">
+          <span>{progressPercentage}%</span>
+          <span>{durationInHours}hr</span>
         </div>
-
-        <div className="flex flex-col items-end gap-2">
+        <div className="w-full bg-surface-container-high h-1 rounded-full overflow-hidden">
           <div
             className={cn(
-              "flex items-center gap-1 font-data-mono text-[12px] bg-surface-container py-1 px-2 rounded-DEFAULT border border-outline-variant/30",
-              task.status === "inProgress"
-                ? "text-tertiary-container bg-tertiary-fixed border-tertiary-fixed-dim/50"
-                : "text-on-surface-variant"
+              "h-full transition-all duration-500",
+              task.status === "done" ? "bg-green-500" :
+              task.priority === "high" ? "bg-error" :
+              task.priority === "medium" ? "bg-secondary-container" : "bg-primary"
             )}
-          >
-            <MaterialIcon name={task.status === "done" ? "check_circle" : task.status === "review" ? "done_all" : task.status === "inProgress" ? "pending" : "schedule"} className="text-[16px]" />
-            <span>{formatDuration(duration)}</span>
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="font-body-sm text-xs text-on-surface-variant line-clamp-2 mt-1">{task.description}</p>
+
+      {/* Footer / Avatars and stats */}
+      <div className="flex justify-between items-center mt-3 pt-3 border-t border-outline-variant/20">
+        <div className="flex items-center -space-x-1.5">
+          {assignees.slice(0, 2).map((user) => (
+            <img
+              key={user.id}
+              src={user.avatar}
+              alt={user.name}
+              className="w-6 h-6 rounded-full border-2 border-white object-cover"
+              title={user.name}
+            />
+          ))}
+          {assignees.length > 2 && (
+            <div className="w-6 h-6 rounded-full bg-surface-variant border-2 border-white flex items-center justify-center text-[8px] font-bold text-on-surface-variant">
+              +{assignees.length - 2}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-on-surface-variant/60">
+          <div className="flex items-center gap-0.5" title="Notas de la tarea">
+            <MaterialIcon name="chat_bubble" className="text-sm" />
+            <span className="text-[10px] font-bold">{notesCount}</span>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            {attachedEvidence.length > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-tertiary-fixed px-2 py-1 font-data-mono text-[12px] text-tertiary-container">
-                <MaterialIcon name="attachment" className="text-[14px]" />
-                {attachedEvidence.length} evidencias
-              </span>
-            ) : null}
-            {task.drawingScene ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-secondary-fixed px-2 py-1 font-data-mono text-[12px] text-secondary">
-                <MaterialIcon name="architecture" className="text-[14px]" />
-                Plano
-              </span>
-            ) : null}
+          <div className="flex items-center gap-0.5" title="Evidencias">
+            <MaterialIcon name="attachment" className="text-sm" />
+            <span className="text-[10px] font-bold">{totalAttachments}</span>
           </div>
+
+          {task.priority === "high" && task.status !== "done" && (
+            <div className="text-error flex items-center gap-0.5 ml-1 animate-pulse" title="Alta Prioridad">
+              <MaterialIcon name="warning" className="text-sm" />
+            </div>
+          )}
         </div>
       </div>
     </article>

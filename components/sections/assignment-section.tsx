@@ -15,6 +15,8 @@ type AssignmentSectionProps = {
   onCreateTask: () => void
   onOpenTaskDetails: (taskId: string) => void
   searchQuery?: string
+  zoneFilter?: string
+  areaFilter?: string
 }
 
 const priorityStyles = {
@@ -75,7 +77,13 @@ function technicianSearchableText(technician: Technician) {
     .toLowerCase()
 }
 
-export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery = "" }: AssignmentSectionProps) {
+export function AssignmentSection({
+  onCreateTask,
+  onOpenTaskDetails,
+  searchQuery = "",
+  zoneFilter,
+  areaFilter
+}: AssignmentSectionProps) {
   const requirements = useWorkflowStore((state) => state.requirements)
   const users = useWorkflowStore((state) => state.users)
   const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
@@ -91,19 +99,35 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery
 
   const zoneRequirements = useMemo(() => {
     const base = workflowSelectors.filterRequirementsByZone(requirements, currentUser)
+    const normalizedZone = zoneFilter && zoneFilter !== "todas" ? zoneFilter : null
+    const normalizedArea = areaFilter && areaFilter !== "todas" ? areaFilter : null
+    const scoped = base.filter((req) => {
+      if (normalizedZone && req.location !== normalizedZone) return false
+      if (normalizedArea && req.area !== normalizedArea) return false
+      return true
+    })
+
     const query = searchQuery.trim().toLowerCase()
-    if (!query) return base
-    return base.filter(r =>
+    if (!query) return scoped
+    return scoped.filter(r =>
       r.title.toLowerCase().includes(query) ||
       r.description.toLowerCase().includes(query) ||
       r.code.toLowerCase().includes(query) ||
-      r.location.toLowerCase().includes(query)
+      r.location.toLowerCase().includes(query) ||
+      (r.area || "").toLowerCase().includes(query)
     )
-  }, [requirements, currentUser, searchQuery])
+  }, [requirements, currentUser, searchQuery, zoneFilter, areaFilter])
 
-  const zoneTasks = useMemo(() =>
-    workflowSelectors.filterTasksByZone(tasks, currentUser),
-    [tasks, currentUser])
+  const zoneTasks = useMemo(() => {
+    const base = workflowSelectors.filterTasksByZone(tasks, currentUser)
+    const normalizedZone = zoneFilter && zoneFilter !== "todas" ? zoneFilter : null
+    const normalizedArea = areaFilter && areaFilter !== "todas" ? areaFilter : null
+    return base.filter((task) => {
+      if (normalizedZone && task.location !== normalizedZone) return false
+      if (normalizedArea && task.area !== normalizedArea) return false
+      return true
+    })
+  }, [tasks, currentUser, zoneFilter, areaFilter])
 
   const [selectedRequirementId, setSelectedRequirementId] = useState<string | null>(null)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string | null>(null)
@@ -242,6 +266,11 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery
                     >
                       {requirement.priority === "high" ? "ALTA" : requirement.priority === "medium" ? "MEDIA" : "BAJA"}
                     </span>
+                    {requirement.area ? (
+                      <span className="font-label-caps text-[9px] px-2 py-0.5 rounded-full bg-surface-container-low text-on-surface-variant">
+                        {requirement.area}
+                      </span>
+                    ) : null}
                     {(() => {
                       const t = tasks.find(x => x.requirementId === requirement.id)
                       if (!t) return null
@@ -362,6 +391,12 @@ export function AssignmentSection({ onCreateTask, onOpenTaskDetails, searchQuery
                   <span className="font-body-sm text-body-sm text-on-surface-variant">Ubicación</span>
                   <span className="font-data-mono text-data-mono text-on-surface text-right truncate max-w-[150px]">
                     {selectedRequirement.location}
+                  </span>
+                </li>
+                <li className="flex items-center justify-between border-b border-outline-variant pb-2 gap-4">
+                  <span className="font-body-sm text-body-sm text-on-surface-variant">Area</span>
+                  <span className="font-data-mono text-data-mono text-on-surface text-right truncate max-w-[150px]">
+                    {selectedRequirement.area || "Operacion"}
                   </span>
                 </li>
                 <li className="flex items-center justify-between border-b border-outline-variant pb-2 gap-4">

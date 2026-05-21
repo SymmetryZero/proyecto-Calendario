@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
-import { type Priority, type TaskStatus, useWorkflowStore } from "@/store/workflow-store"
+import { AREA_OPTIONS, type Area, type Priority, type TaskStatus, useWorkflowStore } from "@/store/workflow-store"
 
 type TaskModalProps = {
   open: boolean
@@ -31,6 +31,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
+  const [area, setArea] = useState<Area>("Operacion")
   const [priority, setPriority] = useState<Priority>("medium")
   const [status, setStatus] = useState<TaskStatus>("todo")
   const [assigneeId, setAssigneeId] = useState<string>("")
@@ -45,6 +46,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     setTitle("")
     setDescription("")
     setLocation("")
+    setArea("Operacion")
     setPriority("medium")
     setStatus("todo")
     setAssigneeId(technicians[0]?.id ?? "")
@@ -69,6 +71,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
       title: title.trim(),
       description: description.trim() || "No se proporcionó descripción.",
       location: location.trim() || undefined,
+      area,
       priority,
       status,
       assigneeIds: assigneeId ? [assigneeId] : [],
@@ -161,6 +164,20 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
                 {priorityOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </select>
+            </FieldGroup>
+
+            <FieldGroup label="Area">
+              <select
+                value={area}
+                onChange={(event) => setArea(event.target.value as Area)}
+                className="h-12 w-full rounded-lg border border-outline-variant bg-surface px-3 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
+              >
+                {AREA_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
                   </option>
                 ))}
               </select>

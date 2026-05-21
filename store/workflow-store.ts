@@ -28,9 +28,9 @@ export interface Notification {
   message: string
   timestamp: string
   type: NotificationType
-  taskId?: string
+  taskId?: string | null
   userId?: string // Who triggered it
-  targetUserId?: string // Who it's for (null for everyone/admin)
+  targetUserId?: string | null // Who it's for (null for everyone/admin)
   read?: boolean
 }
 
@@ -44,10 +44,22 @@ export type SectionKey = "dashboard" | "assignments" | "users" | "statistics" | 
 export type TaskStatus = "todo" | "inProgress" | "review" | "done"
 export type Priority = "high" | "medium" | "low"
 export type RequirementStatus = "unassigned" | "assigned"
-export type EvidenceType = "image" | "video" | "audio"
+export type EvidenceType = "image" | "video" | "audio" | "drawing"
 export type FolderMode = "existing" | "new"
 export type TechnicianAvailability = "available" | "soon" | "offline"
 export type UserRole = "administrador" | "gerente" | "empleado"
+export type Area = "Direccion" | "Contabilidad" | "Compras" | "Proyectos" | "RH" | "Operacion"
+
+export const AREA_OPTIONS: Area[] = [
+  "Direccion",
+  "Contabilidad",
+  "Compras",
+  "Proyectos",
+  "RH",
+  "Operacion"
+]
+
+const DEFAULT_AREA: Area = "Operacion"
 
 export interface User {
   id: string
@@ -59,6 +71,7 @@ export interface User {
   role: UserRole
   createdAt: string
   showAllZones?: boolean
+  areas?: Area[]
   // Technician-specific fields (Optional for non-technicians)
   skills?: string[]
   clearances?: string[]
@@ -88,6 +101,15 @@ export interface TaskActivity {
   }
 }
 
+export interface TaskEscalation {
+  fromArea: Area
+  toArea: Area
+  escalatedBy: string
+  escalatedAt: string
+  originalAssigneeIds: string[]
+  targetUserId?: string | null
+}
+
 export interface Task {
   id: string
   title: string
@@ -100,12 +122,14 @@ export interface Task {
   timerStartedAt: number | null
   statusDurations: Record<TaskStatus, number>
   location?: string
+  area?: Area | null
   drawingScene?: DrawingScene | null
   activities: TaskActivity[]
   requirementId?: string | null
   dueLabel?: string
   estimatedHours?: number
   creatorId: string
+  escalation?: TaskEscalation | null
 }
 
 export interface Requirement {
@@ -114,16 +138,18 @@ export interface Requirement {
   title: string
   description: string
   location: string
-  dueLabel: string
+  area?: Area | null
+  dueLabel?: string
   priority: Priority
   status: RequirementStatus
   requiredSkills: string[]
   requiredClearances: string[]
-  estimatedHours: number
+  estimatedHours?: number
   selectedTechnicianId: string | null
   notes: string
   assignedAt: string | null
   creatorId: string
+  createdAt?: string
 }
 
 export interface AssignmentRecord {
@@ -190,6 +216,7 @@ export interface CreateTaskInput {
   status?: TaskStatus
   assigneeIds?: string[]
   location?: string
+  area?: Area
   activities?: TaskActivity[]
   dueLabel?: string
   estimatedHours?: number
@@ -212,11 +239,12 @@ export interface CreateRequirementInput {
   title: string
   description: string
   location: string
-  dueLabel: string
+  area?: Area
+  dueLabel?: string
   priority: Priority
   requiredSkills: string[]
   requiredClearances: string[]
-  estimatedHours: number
+  estimatedHours?: number
 }
 
 export interface CreateFolderInput {
@@ -241,6 +269,8 @@ export interface WorkflowSeed {
   saves: SaveRecord[]
   drawingScene: DrawingScene | null
   currentUserId: string | null
+  notifications: Notification[]
+  globalAlert: GlobalAlert | null
 }
 
 export interface WorkflowStore extends WorkflowSeed {
@@ -250,6 +280,9 @@ export interface WorkflowStore extends WorkflowSeed {
   updateTask: (taskId: string, patch: Partial<Task>) => void
   deleteTask: (taskId: string) => void
   moveTask: (taskId: string, status: TaskStatus) => void
+  escalateTask: (taskId: string, toArea: Area, targetUserId?: string | null, note?: string) => void
+  claimEscalatedTask: (taskId: string) => void
+  claimTask: (taskId: string) => void
   startTaskTimer: (taskId: string) => void
   pauseTaskTimer: (taskId: string) => void
   addEvidence: (input: CreateEvidenceInput) => string
@@ -274,6 +307,9 @@ export interface WorkflowStore extends WorkflowSeed {
   setCurrentUser: (userId: string | null) => void
   resetDemoData: () => void
   addTaskLog: (taskId: string, content: string, metadata?: any) => void
+  addNotification: (notification: Omit<Notification, "id" | "timestamp">) => void
+  markNotificationAsRead: (notificationId: string) => void
+  setGlobalAlert: (alert: GlobalAlert | null) => void
 }
 
 const memoryStorage: StateStorage = {
@@ -308,7 +344,6 @@ function buildThumbnail(label: string, accent = "#172839", fill = "#fea520") {
     </svg>
   `)
 }
-
 function createSeedData(): WorkflowSeed {
   const now = Date.now()
   const createdAt = new Date(now).toISOString()
@@ -316,18 +351,21 @@ function createSeedData(): WorkflowSeed {
   const twoHoursAgo = new Date(now - 2 * 60 * 60 * 1000).toISOString()
   const threeHoursAgo = new Date(now - 3 * 60 * 60 * 1000).toISOString()
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString()
+  const twoDaysAgo = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
+  const threeDaysAgo = new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString()
 
   const users: User[] = [
     {
       id: "user-1",
-      name: "Admin User",
-      avatar: createAvatarDataUri("Admin User", "#172839", "#ffffff"),
+      name: "Admin Principal",
+      avatar: createAvatarDataUri("Admin Principal", "#172839", "#ffffff"),
       birthDate: "1985-05-15",
       position: "Administrador de Sistemas",
       zone: "Oficina Central",
       role: "administrador",
-      createdAt: hourAgo,
+      createdAt: threeDaysAgo,
       showAllZones: true,
+      areas: AREA_OPTIONS,
       availability: "available",
       code: "ADM-001"
     },
@@ -339,8 +377,9 @@ function createSeedData(): WorkflowSeed {
       position: "Gerente de Operaciones",
       zone: "Zona Norte",
       role: "gerente",
-      createdAt: hourAgo,
+      createdAt: threeDaysAgo,
       showAllZones: false,
+      areas: AREA_OPTIONS,
       availability: "available",
       code: "GER-001"
     },
@@ -352,8 +391,9 @@ function createSeedData(): WorkflowSeed {
       position: "Técnico Especialista",
       zone: "Zona Sur",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["Operacion", "Proyectos"],
       skills: ["HVAC", "Electricidad", "Fontanería"],
       clearances: ["Altura", "Espacios Confinados"],
       availability: "available",
@@ -368,8 +408,9 @@ function createSeedData(): WorkflowSeed {
       position: "Líder HVAC",
       zone: "Zona Norte",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["Operacion", "Contabilidad"],
       skills: ["HVAC", "Termografía", "Sistemas de Control"],
       clearances: ["Alta Tensión", "Altura"],
       availability: "available",
@@ -384,8 +425,9 @@ function createSeedData(): WorkflowSeed {
       position: "Técnico Electricista",
       zone: "Zona Sur",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["Operacion", "Compras", "RH", "Proyectos"],
       skills: ["Electricidad", "Motores", "PLC"],
       clearances: ["Arco Eléctrico"],
       availability: "soon",
@@ -400,12 +442,13 @@ function createSeedData(): WorkflowSeed {
       position: "Inspectora de Seguridad",
       zone: "Zona Norte",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["RH", "Direccion"],
       skills: ["Auditoría", "Seguridad Industrial", "Normativa ISO"],
       clearances: ["Clase 2"],
-      availability: "available",
-      availabilityLabel: "Disponible",
+      availability: "offline",
+      availabilityLabel: "Fuera de servicio",
       code: "TECH-004"
     },
     {
@@ -416,8 +459,9 @@ function createSeedData(): WorkflowSeed {
       position: "Especialista en Bombas",
       zone: "Zona Sur",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["Operacion"],
       skills: ["Mecánica", "Bombas Hidráulicas", "Fontanería"],
       clearances: ["Espacios Confinados"],
       availability: "available",
@@ -432,8 +476,9 @@ function createSeedData(): WorkflowSeed {
       position: "Técnico General",
       zone: "Zona Norte",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["Operacion", "Proyectos"],
       skills: ["Estructural", "Escaneo Láser", "Inspecciones"],
       clearances: ["Clase 2"],
       availability: "soon",
@@ -446,10 +491,11 @@ function createSeedData(): WorkflowSeed {
       avatar: createAvatarDataUri("David Smith", "#b3261e", "#ffffff"),
       birthDate: "1987-12-01",
       position: "Especialista HVAC",
-      zone: "Centro",
+      zone: "Oficina Central",
       role: "empleado",
-      createdAt: hourAgo,
+      createdAt: twoDaysAgo,
       showAllZones: false,
+      areas: ["Operacion", "Contabilidad"],
       skills: ["HVAC", "Balance de Carga", "Controles"],
       clearances: ["Clase 3"],
       availability: "available",
@@ -458,124 +504,258 @@ function createSeedData(): WorkflowSeed {
     }
   ]
 
-  const req1Id = makeId("req")
-  const req2Id = makeId("req")
-  const req3Id = makeId("req")
-  const req4Id = makeId("req")
-  const req5Id = makeId("req")
+  const req1Id = "req-1"
+  const req2Id = "req-2"
+  const req3Id = "req-3"
+  const req4Id = "req-4"
+  const req5Id = "req-5"
+  const req6Id = "req-6"
+  const req7Id = "req-7"
+  const req8Id = "req-8"
+  const req9Id = "req-9"
+  const req10Id = "req-10"
+  const req11Id = "req-11"
 
   const requirements: Requirement[] = [
     {
       id: req1Id,
       code: "REQ-001",
       title: "Mantenimiento Preventivo Transformador T-45",
-      description: "Revisión anual y cambio de aceite dieléctrico.",
+      description: "Revisión anual y cambio de aceite dieléctrico en subestación principal.",
       priority: "high",
       status: "assigned",
       location: "Zona Norte",
+      area: "Operacion",
       selectedTechnicianId: "user-4",
-      notes: "Urgente antes de temporada de lluvias",
+      notes: "Urgente realizar antes de la temporada alta de lluvias.",
       createdAt: threeHoursAgo,
       assignedAt: twoHoursAgo,
-      creatorId: "user-2"
+      creatorId: "user-2",
+      requiredSkills: ["HVAC"],
+      requiredClearances: ["Altura"]
     },
     {
       id: req2Id,
       code: "REQ-002",
       title: "Instalación de Luminarias LED - Almacén",
-      description: "Sustitución de 20 campanas industriales por LED.",
+      description: "Sustitución de 20 campanas de halogenuro metálico por campanas industriales LED.",
       priority: "medium",
       status: "assigned",
       location: "Zona Sur",
+      area: "Proyectos",
       selectedTechnicianId: "user-5",
-      notes: "Requiere plataforma elevadora",
+      notes: "Se requiere el uso de plataforma de elevación articulada.",
       createdAt: dayAgo,
       assignedAt: hourAgo,
-      creatorId: "user-2"
+      creatorId: "user-2",
+      requiredSkills: ["Electricidad"],
+      requiredClearances: []
     },
     {
       id: req3Id,
       code: "REQ-003",
       title: "Reparación Falla Eléctrica Oficina 302",
-      description: "Cortocircuito en tomas de corriente reguladas.",
+      description: "Diagnóstico y corrección de cortocircuito en línea de contactos regulados.",
       priority: "high",
       status: "assigned",
-      location: "Centro",
+      location: "Oficina Central",
+      area: "Contabilidad",
       selectedTechnicianId: "user-4",
-      notes: "Personal sin luz en área contable",
+      notes: "El personal administrativo se encuentra sin energía eléctrica.",
       createdAt: hourAgo,
       assignedAt: hourAgo,
-      creatorId: "user-2"
+      creatorId: "user-2",
+      requiredSkills: ["HVAC"],
+      requiredClearances: ["Alta Tensión"]
     },
     {
       id: req4Id,
       code: "REQ-004",
       title: "Limpieza de Tableros de Control",
-      description: "Remover polvo y reapriete de terminales.",
+      description: "Limpieza con aire comprimido y reapriete de terminales en tableros secundarios.",
       priority: "low",
       status: "assigned",
       location: "Zona Norte",
+      area: "Operacion",
       selectedTechnicianId: "user-3",
-      notes: "Ruta de rutina",
+      notes: "Ruta de rutina mensual de mantenimiento preventivo.",
       createdAt: dayAgo,
       assignedAt: dayAgo,
-      creatorId: "user-2"
+      creatorId: "user-2",
+      requiredSkills: ["Electricidad"],
+      requiredClearances: []
     },
     {
       id: req5Id,
       code: "REQ-005",
       title: "Auditoría de Seguridad Eléctrica",
-      description: "Verificación de tierras físicas en planta.",
+      description: "Inspección de tierras físicas y semáforos de advertencia en subestación R-3.",
       priority: "medium",
       status: "assigned",
       location: "Zona Sur",
+      area: "RH",
       selectedTechnicianId: "user-5",
-      notes: "Preparación para certificación ISO",
+      notes: "Requerido como parte de la preparación de la auditoría de certificación ISO.",
       createdAt: twoHoursAgo,
       assignedAt: hourAgo,
-      creatorId: "user-2"
+      creatorId: "user-2",
+      requiredSkills: ["Electricidad"],
+      requiredClearances: ["Arco Eléctrico"]
+    },
+    {
+      id: req6Id,
+      code: "REQ-006",
+      title: "Calibración de Sensores de Temperatura",
+      description: "Calibrar los termopares del sistema de enfriamiento de la Cámara Fría 3.",
+      priority: "high",
+      status: "unassigned",
+      location: "Zona Norte",
+      area: "Operacion",
+      selectedTechnicianId: null,
+      notes: "El cliente reporta discrepancias en los registros automáticos de temperatura.",
+      createdAt: hourAgo,
+      assignedAt: null,
+      creatorId: "user-2",
+      requiredSkills: ["HVAC"],
+      requiredClearances: ["Clase 3"]
+    },
+    {
+      id: req7Id,
+      code: "REQ-007",
+      title: "Escaneo de Integridad Estructural - Muelle A",
+      description: "Escaneo ultrasónico no destructivo en los soportes de carga de concreto.",
+      priority: "medium",
+      status: "unassigned",
+      location: "Zona Sur",
+      area: "Proyectos",
+      selectedTechnicianId: null,
+      notes: "Revisión rutinaria post-microtemor para descartar fisuras internas.",
+      createdAt: twoHoursAgo,
+      assignedAt: null,
+      creatorId: "user-2",
+      requiredSkills: ["Estructural"],
+      requiredClearances: ["Clase 2"]
+    },
+    {
+      id: req8Id,
+      code: "REQ-008",
+      title: "Inspección de Extintores - Ala Oeste",
+      description: "Inspección visual de manómetros, sellos y fecha de vigencia de 15 extintores.",
+      priority: "low",
+      status: "unassigned",
+      location: "Oficina Central",
+      area: "RH",
+      selectedTechnicianId: null,
+      notes: "Inspección mensual reglamentaria de protección civil.",
+      createdAt: threeHoursAgo,
+      assignedAt: null,
+      creatorId: "user-2",
+      requiredSkills: ["Seguridad Industrial"],
+      requiredClearances: []
+    },
+    {
+      id: req9Id,
+      code: "REQ-009",
+      title: "Auditoría Interna de Consumo Eléctrico",
+      description: "Instalar analizador de redes para medir fluctuaciones y armónicas en el tablero principal.",
+      priority: "high",
+      status: "unassigned",
+      location: "Oficina Central",
+      area: "Operacion",
+      selectedTechnicianId: null,
+      notes: "Se sospecha de picos de tensión dañando equipos electrónicos del ala norte.",
+      createdAt: hourAgo,
+      assignedAt: null,
+      creatorId: "user-2",
+      requiredSkills: ["Electricidad"],
+      requiredClearances: []
+    },
+    {
+      id: req10Id,
+      code: "REQ-010",
+      title: "Aprobación de Contrato de Mantenimiento Externo",
+      description: "Revisión de términos jurídicos y firma de renovación del acuerdo anual del corporativo.",
+      priority: "high",
+      status: "unassigned",
+      location: "Oficina Central",
+      area: "Direccion",
+      selectedTechnicianId: null,
+      notes: "Clave para las garantías de los equipos enfriadores de agua (chillers).",
+      createdAt: dayAgo,
+      assignedAt: null,
+      creatorId: "user-2",
+      requiredSkills: ["Auditoría"],
+      requiredClearances: []
+    },
+    {
+      id: req11Id,
+      code: "REQ-011",
+      title: "Cotización de Aceite Dieléctrico de Alta Densidad",
+      description: "Solicitar cotizaciones detalladas a tres proveedores certificados para la reposición del T-45.",
+      priority: "medium",
+      status: "assigned",
+      location: "Oficina Central",
+      area: "Compras",
+      selectedTechnicianId: "user-5",
+      notes: "Asegurar cumplimiento con norma internacional de rigidez dieléctrica.",
+      createdAt: dayAgo,
+      assignedAt: hourAgo,
+      creatorId: "user-2",
+      requiredSkills: ["PLC"],
+      requiredClearances: []
     }
   ]
 
+  const mockDrawingScene: DrawingScene = {
+    elements: [
+      { id: "el-1", type: "rectangle", x: 100, y: 100, width: 220, height: 140, strokeColor: "#172839", strokeWidth: 2, fillStyle: "solid" },
+      { id: "el-2", type: "text", x: 120, y: 160, text: "ROUTING HVAC REVISADO", fontSize: 14, color: "#004064" },
+      { id: "el-3", type: "arrow", x: 320, y: 170, points: [[0, 0], [80, 50]], strokeColor: "#865300", strokeWidth: 3 }
+    ],
+    appState: { viewBackgroundColor: "#ffffff" },
+    files: {},
+    updatedAt: new Date().toISOString(),
+    preview: buildThumbnail("Ductos HVAC Modificado", "#172839")
+  }
+
   const tasks: Task[] = [
     {
-      id: makeId("task"),
-      title: requirements[0].title,
-      description: requirements[0].description,
-      priority: "high",
-      status: "inProgress",
-      assigneeIds: ["user-4"],
-      createdAt: threeHoursAgo,
-      updatedAt: hourAgo,
-      timerStartedAt: Date.now() - 7200000,
-      statusDurations: { todo: 0, inProgress: 7200, review: 0, done: 0 },
-      estimatedHours: 4,
-      location: "Zona Norte",
-      drawingScene: null,
-      activities: [],
-      requirementId: req1Id,
-      creatorId: "user-1"
-    },
-    {
-      id: makeId("task"),
+      id: "task-todo-1",
       title: requirements[1].title,
       description: requirements[1].description,
       priority: "medium",
-      status: "done",
-      assigneeIds: ["user-5"],
+      status: "todo",
+      assigneeIds: [],
       createdAt: dayAgo,
       updatedAt: hourAgo,
       timerStartedAt: null,
-      statusDurations: { todo: 0, inProgress: 10800, review: 0, done: 0 },
+      statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
       estimatedHours: 6,
       location: "Zona Sur",
+      area: "Operacion",
       drawingScene: null,
-      activities: [],
+      activities: [
+        {
+          id: "act-todo1-1",
+          type: "log",
+          content: "Tarea escalada desde RH a Operación por Nina Patel.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Nina Patel", authorRole: "empleado" }
+        }
+      ],
       requirementId: req2Id,
-      creatorId: "user-2"
+      creatorId: "user-6",
+      escalation: {
+        fromArea: "RH",
+        toArea: "Operacion",
+        escalatedBy: "user-6",
+        escalatedAt: hourAgo,
+        originalAssigneeIds: ["user-6"],
+        targetUserId: null
+      }
     },
     {
-      id: makeId("task"),
+      id: "task-todo-2",
       title: requirements[2].title,
       description: requirements[2].description,
       priority: "high",
@@ -583,17 +763,244 @@ function createSeedData(): WorkflowSeed {
       assigneeIds: ["user-4"],
       createdAt: hourAgo,
       updatedAt: hourAgo,
-      timerStartedAt: Date.now(),
+      timerStartedAt: null,
       statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
       estimatedHours: 2,
-      location: "Centro",
+      location: "Oficina Central",
+      area: "Contabilidad",
+      dueLabel: "Hoy, 17:00 HRS",
       drawingScene: null,
-      activities: [],
+      activities: [
+        {
+          id: "act-todo2-1",
+          type: "note",
+          content: "Marta Gerente: Por favor, revisen el calibre de los conductores en la caja de paso antes de intervenir.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        },
+        {
+          id: "act-todo2-2",
+          type: "log",
+          content: "Requerimiento asignado a Sarah Jenkins",
+          createdAt: hourAgo,
+          metadata: { authorName: "Admin Principal", authorRole: "administrador" }
+        }
+      ],
       requirementId: req3Id,
       creatorId: "user-1"
     },
     {
-      id: makeId("task"),
+      id: "task-todo-3",
+      title: "Remplazo Rutinario de Extintores",
+      description: "Llevar 5 unidades cargadas de CO2 y PQS al edificio administrativo.",
+      priority: "low",
+      status: "todo",
+      assigneeIds: ["user-3"],
+      createdAt: dayAgo,
+      updatedAt: dayAgo,
+      timerStartedAt: null,
+      statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
+      estimatedHours: 1.5,
+      location: "Oficina Central",
+      area: "RH",
+      drawingScene: null,
+      activities: [
+        {
+          id: "act-todo3-1",
+          type: "log",
+          content: "Tarea creada automáticamente tras el reporte de audio de gas.",
+          createdAt: dayAgo,
+          metadata: { authorName: "Sistema", authorRole: "sistema" }
+        }
+      ],
+      requirementId: null,
+      creatorId: "user-2"
+    },
+    {
+      id: "task-comp-1",
+      title: requirements[10].title,
+      description: requirements[10].description,
+      priority: "medium",
+      status: "todo",
+      assigneeIds: ["user-5"],
+      createdAt: dayAgo,
+      updatedAt: hourAgo,
+      timerStartedAt: null,
+      statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
+      estimatedHours: 3,
+      location: "Oficina Central",
+      area: "Compras",
+      drawingScene: null,
+      activities: [],
+      requirementId: req11Id,
+      creatorId: "user-2"
+    },
+    {
+      id: "task-ip-1",
+      title: requirements[0].title,
+      description: requirements[0].description,
+      priority: "high",
+      status: "inProgress",
+      assigneeIds: ["user-4"],
+      createdAt: threeHoursAgo,
+      updatedAt: hourAgo,
+      timerStartedAt: Date.now() - 7200000, // 2 horas corriendo
+      statusDurations: { todo: 0, inProgress: 7200, review: 0, done: 0 },
+      estimatedHours: 4,
+      location: "Zona Norte",
+      area: "Operacion",
+      drawingScene: null,
+      activities: [
+        {
+          id: "act-ip1-1",
+          type: "note",
+          content: "Iniciado el cambio de aceite dieléctrico. Esperando el drenado del filtro secundario.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado" }
+        },
+        {
+          id: "act-ip1-2",
+          type: "log",
+          content: "Estado cambiado a En progreso",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado" }
+        },
+        {
+          id: "act-ip1-3",
+          type: "image",
+          content: buildThumbnail("Lectura de Presión de Aceite", "#172839"),
+          createdAt: hourAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado", fileName: "presion_aceite.jpg", mimeType: "image/jpeg", description: "Lectura del manómetro de presión de aceite dieléctrico." }
+        }
+      ],
+      requirementId: req1Id,
+      creatorId: "user-1"
+    },
+    {
+      id: "task-ip-2",
+      title: requirements[4].title,
+      description: requirements[4].description,
+      priority: "medium",
+      status: "inProgress",
+      assigneeIds: ["user-5"],
+      createdAt: twoHoursAgo,
+      updatedAt: hourAgo,
+      timerStartedAt: null, // Pausado
+      statusDurations: { todo: 0, inProgress: 3600, review: 0, done: 0 },
+      estimatedHours: 3,
+      location: "Zona Sur",
+      area: "RH",
+      drawingScene: null,
+      activities: [
+        {
+          id: "act-ip2-1",
+          type: "log",
+          content: "Tarea creada y asignada a Mike Rodriguez",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        },
+        {
+          id: "act-ip2-2",
+          type: "log",
+          content: "Estado cambiado a En progreso",
+          createdAt: hourAgo,
+          metadata: { authorName: "Mike Rodriguez", authorRole: "empleado" }
+        }
+      ],
+      requirementId: req5Id,
+      creatorId: "user-1"
+    },
+    {
+      id: "task-ip-3",
+      title: "Revisión de fugas en la sala de bombas B2",
+      description: "Inspeccionar las bombas hidráulicas del sótano B2. Hay reportes de ruidos y goteos continuos.",
+      priority: "high",
+      status: "inProgress",
+      assigneeIds: ["user-3", "user-7"], // Multi-asignee
+      createdAt: dayAgo,
+      updatedAt: hourAgo,
+      timerStartedAt: null, // Pausado
+      statusDurations: { todo: 0, inProgress: 54000, review: 0, done: 0 }, // 15 horas acumuladas
+      estimatedHours: 18,
+      location: "Zona Sur",
+      area: "Operacion",
+      drawingScene: null,
+      activities: [
+        {
+          id: "act-ip3-1",
+          type: "note",
+          content: "Trabajando en conjunto para sellar la junta tórica de la bomba 2. Se percibe un chirrido constante.",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "Juan Empleado", authorRole: "empleado" }
+        },
+        {
+          id: "act-ip3-2",
+          type: "log",
+          content: "Estado cambiado a En progreso",
+          createdAt: dayAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        },
+        {
+          id: "act-ip3-3",
+          type: "log",
+          content: "Personal adicional asignado: Alex Thompson",
+          createdAt: dayAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        },
+        {
+          id: "act-ip3-4",
+          type: "video",
+          content: buildThumbnail("Prueba de Goteo Bomba 2", "#b3261e"),
+          createdAt: hourAgo,
+          metadata: { authorName: "Alex Thompson", authorRole: "empleado", fileName: "goteo_bomba.mp4", mimeType: "video/mp4", description: "Grabación corta para documentar el goteo de sellos." }
+        }
+      ],
+      requirementId: null,
+      creatorId: "user-2"
+    },
+    {
+      id: "task-cont-1",
+      title: "Auditoría de Gastos de Caja Chica - Q2",
+      description: "Conciliación de facturas de refacciones menores adquiridas de emergencia.",
+      priority: "medium",
+      status: "inProgress",
+      assigneeIds: ["user-9"],
+      createdAt: dayAgo,
+      updatedAt: twoHoursAgo,
+      timerStartedAt: null, // Pausado
+      statusDurations: { todo: 0, inProgress: 7200, review: 0, done: 0 }, // 2 horas acumuladas
+      estimatedHours: 4,
+      location: "Oficina Central",
+      area: "Contabilidad",
+      drawingScene: null,
+      activities: [
+        {
+          id: "act-cont1",
+          type: "note",
+          content: "Falta comprobante fiscal de la compra de fusibles del ala norte. Se solicitó copia al proveedor.",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "David Smith", authorRole: "empleado" }
+        },
+        {
+          id: "act-cont2",
+          type: "audio",
+          content: buildThumbnail("Audio: Factura Perdida", "#b3261e"),
+          createdAt: hourAgo,
+          metadata: { authorName: "David Smith", authorRole: "empleado", fileName: "factura_perdida.mp3", mimeType: "audio/mp3", description: "Audio explicando la falta de comprobante de fusibles." }
+        },
+        {
+          id: "act-cont3",
+          type: "log",
+          content: "Iniciado el proceso de auditoría y revisión de caja chica.",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "David Smith", authorRole: "empleado" }
+        }
+      ],
+      requirementId: null,
+      creatorId: "user-2"
+    },
+    {
+      id: "task-rev-1",
       title: requirements[3].title,
       description: requirements[3].description,
       priority: "low",
@@ -605,27 +1012,188 @@ function createSeedData(): WorkflowSeed {
       statusDurations: { todo: 0, inProgress: 18000, review: 0, done: 0 },
       estimatedHours: 4,
       location: "Zona Norte",
+      area: "Operacion",
       drawingScene: null,
-      activities: [],
+      activities: [
+        {
+          id: "act-rev1-1",
+          type: "note",
+          content: "Se terminaron de limpiar todos los contactores. Se adjunta foto y video del tablero energizado nuevamente.",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "Juan Empleado", authorRole: "empleado" }
+        },
+        {
+          id: "act-rev1-2",
+          type: "image",
+          content: buildThumbnail("Contactores Limpios", "#228b22"),
+          createdAt: hourAgo,
+          metadata: { authorName: "Juan Empleado", authorRole: "empleado", fileName: "contactores_limpios.jpg", mimeType: "image/jpeg", description: "Foto final del ensamble de contactores." }
+        },
+        {
+          id: "act-rev1-3",
+          type: "log",
+          content: "Limpieza finalizada y contactores re-ensamblados.",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "Juan Empleado", authorRole: "empleado" }
+        },
+        {
+          id: "act-rev1-4",
+          type: "log",
+          content: "Tarea enviada a En Revisión.",
+          createdAt: twoHoursAgo,
+          metadata: { authorName: "Juan Empleado", authorRole: "empleado" }
+        }
+      ],
       requirementId: req4Id,
       creatorId: "user-2"
     },
     {
-      id: makeId("task"),
-      title: requirements[4].title,
-      description: requirements[4].description,
-      priority: "medium",
-      status: "inProgress",
-      assigneeIds: ["user-5"],
-      createdAt: twoHoursAgo,
+      id: "task-rev-2",
+      title: "Verificación de planos de ductos HVAC",
+      description: "Contrasta los planos de recorrido y documenta cualquier interferencia con la estructura de acero.",
+      priority: "high",
+      status: "review",
+      assigneeIds: ["user-4"],
+      createdAt: dayAgo,
       updatedAt: hourAgo,
-      timerStartedAt: Date.now() - 3600000,
-      statusDurations: { todo: 0, inProgress: 3600, review: 0, done: 0 },
+      timerStartedAt: null,
+      statusDurations: { todo: 0, inProgress: 7200, review: 0, done: 0 },
       estimatedHours: 3,
-      location: "Zona Sur",
+      location: "Zona Norte",
+      area: "Operacion",
+      drawingScene: mockDrawingScene, // Croquis adjunto
+      activities: [
+        {
+          id: "act-rev2-1",
+          type: "note",
+          content: "Planos modificados y subidos como croquis técnico. Se ajustó el codo a 45 grados.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado" }
+        },
+        {
+          id: "act-rev2-2",
+          type: "drawing",
+          content: mockDrawingScene,
+          createdAt: hourAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado", fileName: "plano_rediseño_hvac.png", mimeType: "image/png", description: "Croquis de desvío de ducto técnico." }
+        },
+        {
+          id: "act-rev2-3",
+          type: "log",
+          content: "Planos modificados y subidos como croquis técnico en la pizarra.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado" }
+        },
+        {
+          id: "act-rev2-4",
+          type: "log",
+          content: "Tarea movida a En Revisión.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Sarah Jenkins", authorRole: "empleado" }
+        }
+      ],
+      requirementId: null,
+      creatorId: "user-1"
+    },
+    {
+      id: "task-dir-1",
+      title: "Revisión del Plan Maestro de Mantenimiento",
+      description: "Evaluar y aprobar los objetivos anuales y el presupuesto asignado para la infraestructura de Servimeci.",
+      priority: "high",
+      status: "review",
+      assigneeIds: ["user-1", "user-2"], // Multi-assignee (Admin y Gerente)
+      createdAt: dayAgo,
+      updatedAt: hourAgo,
+      timerStartedAt: null,
+      statusDurations: { todo: 0, inProgress: 14400, review: 3600, done: 0 },
+      estimatedHours: 5,
+      location: "Oficina Central",
+      area: "Direccion",
+      drawingScene: null,
+      activities: [
+        {
+          id: "act-dir1-1",
+          type: "note",
+          content: "Plan maestro cargado. Se ajustaron los indicadores de respuesta de fallas críticas (SLA) a 15 minutos.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        },
+        {
+          id: "act-dir1-2",
+          type: "log",
+          content: "Presupuesto anual y SLA cargado al sistema por Gerencia.",
+          createdAt: hourAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        }
+      ],
+      requirementId: null,
+      creatorId: "user-1"
+    },
+    {
+      id: "task-done-1",
+      title: "Inspeccionar el vaciado de cimentación - Sector C",
+      description: "Verifica la profundidad del colado de concreto y la posición del refuerzo antes del fraguado final.",
+      priority: "high",
+      status: "done",
+      assigneeIds: ["user-8"],
+      createdAt: twoDaysAgo,
+      updatedAt: hourAgo,
+      timerStartedAt: null,
+      statusDurations: { todo: 0, inProgress: 28800, review: 7200, done: 0 },
+      estimatedHours: 8,
+      location: "Zona Norte",
+      area: "Proyectos",
+      drawingScene: mockDrawingScene,
+      activities: [
+        {
+          id: "act-d1-1",
+          type: "note",
+          content: "Verificación de varillas de refuerzo exitosa. El vaciado se realizó con mezcla F'c 250 kg/cm2.",
+          createdAt: dayAgo,
+          metadata: { authorName: "Marcus Chen", authorRole: "empleado" }
+        },
+        {
+          id: "act-d1-2",
+          type: "log",
+          content: "Estado cambiado a En Revisión",
+          createdAt: dayAgo,
+          metadata: { authorName: "Marcus Chen", authorRole: "empleado" }
+        },
+        {
+          id: "act-d1-3",
+          type: "log",
+          content: "Estado cambiado a Finalizado",
+          createdAt: hourAgo,
+          metadata: { authorName: "Marta Gerente", authorRole: "gerente" }
+        },
+        {
+          id: "act-d1-4",
+          type: "drawing",
+          content: mockDrawingScene,
+          createdAt: dayAgo,
+          metadata: { authorName: "Marcus Chen", authorRole: "empleado", fileName: "cimentacion_sector_c.png", mimeType: "image/png", description: "Croquis de inspección de cimentación." }
+        }
+      ],
+      requirementId: null,
+      creatorId: "user-2"
+    },
+    {
+      id: "task-done-2",
+      title: "Reemplazo de Fusible en Planta de Fuerza",
+      description: "Reemplazar fusible de 15A quemado en el módulo auxiliar 4.",
+      priority: "low",
+      status: "done",
+      assigneeIds: ["user-9"],
+      createdAt: dayAgo,
+      updatedAt: twoHoursAgo,
+      timerStartedAt: null,
+      statusDurations: { todo: 0, inProgress: 1200, review: 300, done: 0 },
+      estimatedHours: 0.5,
+      location: "Oficina Central",
+      area: "Operacion",
       drawingScene: null,
       activities: [],
-      requirementId: req5Id,
+      requirementId: null,
       creatorId: "user-1"
     }
   ]
@@ -644,39 +1212,189 @@ function createSeedData(): WorkflowSeed {
       parentId: "folder-1",
       createdAt: hourAgo,
       updatedAt: hourAgo
+    },
+    {
+      id: "folder-foundations",
+      name: "Cimientos",
+      parentId: "folder-2",
+      createdAt: hourAgo,
+      updatedAt: hourAgo
+    },
+    {
+      id: "folder-evidence",
+      name: "Evidencias Generales",
+      parentId: null,
+      createdAt: dayAgo,
+      updatedAt: dayAgo
+    },
+    {
+      id: "folder-drawings",
+      name: "Planos e Inspecciones",
+      parentId: null,
+      createdAt: dayAgo,
+      updatedAt: dayAgo
     }
   ]
 
   const evidence: EvidenceFile[] = [
     {
-      id: makeId("ev"),
-      name: "transformador_antes.jpg",
+      id: "evd-1",
+      name: "armado_cimientos.jpg",
       mediaType: "image",
       mimeType: "image/jpeg",
-      folderId: "folder-2",
+      folderId: "folder-foundations",
       createdAt: threeHoursAgo,
-      previewBase64: buildThumbnail("Evidencia T-45", "#172839"),
+      previewBase64: buildThumbnail("Cimientos", "#172839"),
       base64: "",
-      caption: "Estado inicial del transformador",
+      caption: "Cimientos armados en el Sector C listos para colado.",
       flagged: false,
-      linkedTaskId: null,
-      size: 1024 * 500
+      linkedTaskId: "task-done-1",
+      size: 1024 * 450
     },
     {
-      id: makeId("ev"),
-      name: "lectura_multimetro.png",
+      id: "evd-2",
+      name: "lectura_voltaje.png",
       mediaType: "image",
       mimeType: "image/png",
-      folderId: "folder-2",
-      createdAt: hourAgo,
+      folderId: "folder-evidence",
+      createdAt: twoHoursAgo,
       previewBase64: buildThumbnail("Voltaje 220V", "#004064"),
       base64: "",
-      caption: "Lectura de voltaje fase 1",
+      caption: "Medición en bornes principales estable a 220.4V.",
       flagged: false,
-      linkedTaskId: null,
-      size: 1024 * 300
+      linkedTaskId: "task-rev-1",
+      size: 1024 * 280
+    },
+    {
+      id: "evd-3",
+      name: "alarma_chirrido_bomba.wav",
+      mediaType: "audio",
+      mimeType: "audio/wav",
+      folderId: "folder-evidence",
+      createdAt: hourAgo,
+      previewBase64: buildThumbnail("Audio: Chirrido", "#865300", "#ff3b30"),
+      base64: "",
+      caption: "CRÍTICO: Chirrido metálico detectado en el rodamiento de la bomba secundaria. Requiere intervención inmediata.",
+      flagged: true, // ALERTA CRÍTICA
+      linkedTaskId: "task-ip-3",
+      size: 1024 * 850
+    },
+    {
+      id: "evd-4",
+      name: "inspeccion_termografica.mp4",
+      mediaType: "video",
+      mimeType: "video/mp4",
+      folderId: "folder-evidence",
+      createdAt: hourAgo,
+      previewBase64: buildThumbnail("Video: Termografía", "#228b22"),
+      base64: "",
+      caption: "Inspección termográfica del transformador T-45 mostrando calentamiento normal.",
+      flagged: false,
+      linkedTaskId: "task-ip-1",
+      size: 1024 * 1200
+    },
+    {
+      id: "evd-5",
+      name: "plano_rediseño_hvac.png",
+      mediaType: "drawing",
+      mimeType: "image/png",
+      folderId: "folder-drawings",
+      createdAt: hourAgo,
+      previewBase64: buildThumbnail("Plano HVAC", "#5d3fd3"),
+      base64: "",
+      caption: "Desvío de ducto para librar trabe de acero estructural.",
+      flagged: false,
+      linkedTaskId: "task-rev-2",
+      size: 1024 * 600
+    },
+    {
+      id: "evd-6",
+      name: "losa_agrietada_soporte.jpg",
+      mediaType: "image",
+      mimeType: "image/jpeg",
+      folderId: "folder-evidence",
+      createdAt: dayAgo,
+      previewBase64: buildThumbnail("CRÍTICO: Fisura Losa", "#b3261e", "#ff3b30"),
+      base64: "",
+      caption: "CRÍTICO: Grieta transversal de 4mm detectada en la losa de soporte en nivel B2.",
+      flagged: true, // ALERTA CRÍTICA
+      linkedTaskId: "task-ip-3",
+      size: 1024 * 720
+    },
+    {
+      id: "evd-7",
+      name: "reporte_fuga_gas.mp3",
+      mediaType: "audio",
+      mimeType: "audio/mp3",
+      folderId: "folder-evidence",
+      createdAt: hourAgo,
+      previewBase64: buildThumbnail("Audio: Reporte Gas", "#b3261e", "#ff3b30"),
+      base64: "",
+      caption: "CRÍTICO: Olor a gas detectado cerca del tanque estacionario principal en patio de maniobras.",
+      flagged: true, // ALERTA CRÍTICA
+      linkedTaskId: "task-todo-3",
+      size: 1024 * 512
+    },
+    {
+      id: "evd-8",
+      name: "bloqueo_etiquetado.jpg",
+      mediaType: "image",
+      mimeType: "image/jpeg",
+      folderId: "folder-evidence",
+      createdAt: twoHoursAgo,
+      previewBase64: buildThumbnail("LOTO Bloqueo", "#172839"),
+      base64: "",
+      caption: "Candado y etiqueta de seguridad colocados en el interruptor Q-11 para LOTO.",
+      flagged: false,
+      linkedTaskId: "task-ip-1",
+      size: 1024 * 340
     }
   ]
+
+  const notifications: Notification[] = [
+    {
+      id: "notif-1",
+      title: "Alerta de Seguridad Crítica",
+      message: "Se ha reportado una grieta transversal de 4mm en la losa de soporte en el Sector B2.",
+      timestamp: hourAgo,
+      type: "alert",
+      taskId: "task-ip-3",
+      read: false
+    },
+    {
+      id: "notif-2",
+      title: "Asignación de Requerimiento",
+      message: "Marta Gerente te asignó el Requerimiento REQ-001 (Transformador T-45).",
+      timestamp: twoHoursAgo,
+      type: "assignment",
+      taskId: "task-ip-1",
+      userId: "user-2",
+      targetUserId: "user-4",
+      read: false
+    },
+    {
+      id: "notif-3",
+      title: "Nuevo Comentario Técnico",
+      message: "Juan Empleado agregó una nota sobre el chirrido metálico en rodamiento de bomba.",
+      timestamp: hourAgo,
+      type: "message",
+      taskId: "task-ip-3",
+      userId: "user-3",
+      read: true
+    },
+    {
+      id: "notif-4",
+      title: "Progreso de Tarea",
+      message: "Sarah Jenkins movió 'Verificación de planos de ductos HVAC' a En Revisión.",
+      timestamp: hourAgo,
+      type: "movement",
+      taskId: "task-rev-2",
+      userId: "user-4",
+      read: true
+    }
+  ]
+
+  const globalAlert: GlobalAlert | null = null
 
   return {
     users,
@@ -684,7 +1402,7 @@ function createSeedData(): WorkflowSeed {
     requirements,
     evidence,
     folders,
-    assignments: tasks.map(t => ({
+    assignments: tasks.filter(t => t.requirementId).map(t => ({
       id: makeId("assign"),
       requirementId: t.requirementId || "",
       technicianId: t.assigneeIds[0] || "",
@@ -701,12 +1419,14 @@ function createSeedData(): WorkflowSeed {
         folderPath: "Mantenimientos Preventivos",
         createdAt: dayAgo,
         dateLabel: formatDateStamp(new Date(dayAgo)),
-        timeLabel: formatTimeStamp(new Date(dayAgo)),
-        counts: { tasks: 5, requirements: 5, assignments: 5, evidence: 2 }
+        timeLabel: formatClock(new Date(dayAgo)),
+        counts: { tasks: 13, requirements: 11, assignments: 7, evidence: 8 }
       }
     ],
     drawingScene: null,
-    currentUserId: "user-1" 
+    currentUserId: "user-1",
+    notifications,
+    globalAlert,
   }
 }
 
@@ -774,13 +1494,25 @@ function patchItems<T extends { id: string }>(
 }
 
 function translateLegacyWorkflowState(state: Partial<WorkflowStore>) {
-  const nextTasks = (state.tasks || []).map(t => ({
+  const nextUsers = (state.users || []).map(u => ({
+    ...u,
+    areas: u.areas && u.areas.length > 0 ? u.areas : [DEFAULT_AREA]
+  }))
+
+  const nextTasks = (state.tasks || []).map((t: any) => ({
     ...t,
+    area: t.area ?? DEFAULT_AREA,
     statusDurations: t.statusDurations || { todo: 0, inProgress: t.accumulatedSeconds || 0, review: 0, done: 0 }
+  }))
+
+  const nextRequirements = (state.requirements || []).map(r => ({
+    ...r,
+    area: r.area ?? DEFAULT_AREA
   }))
 
   return {
     ...state,
+    users: nextUsers,
     tasks: patchItems(nextTasks, {
       "task-foundation": {
         title: "Inspeccionar el vaciado de cimentación - Sector C",
@@ -843,7 +1575,7 @@ function translateLegacyWorkflowState(state: Partial<WorkflowStore>) {
         location: "Archivo"
       }
     }),
-    requirements: patchItems(state.requirements, {
+    requirements: patchItems(nextRequirements, {
       "req-8492": {
         title: "Calibración del sistema HVAC",
         description:
@@ -933,13 +1665,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       return {
         ...initial,
-        notifications: [],
-        globalAlert: null,
+        notifications: initial.notifications ?? [],
+        globalAlert: initial.globalAlert ?? null,
         hasHydrated: false,
         setHydrated: (value) => {
           set({ hasHydrated: value })
         },
-        addNotification: (notification) => {
+        addNotification: (notification: Omit<Notification, "id" | "timestamp">) => {
           set((state) => ({
             notifications: [
               {
@@ -952,14 +1684,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ].slice(0, 50) // Keep last 50
           }))
         },
-        markNotificationAsRead: (notificationId) => {
+        markNotificationAsRead: (notificationId: string) => {
           set((state) => ({
             notifications: state.notifications.map((n) =>
-              n.id === notificationId ? { ...n, read: true } : n
+               n.id === notificationId ? { ...n, read: true } : n
             )
           }))
         },
-        setGlobalAlert: (alert) => {
+        setGlobalAlert: (alert: GlobalAlert | null) => {
           set({ globalAlert: alert })
         },
         addTask: (input) => {
@@ -968,6 +1700,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const now = new Date().toISOString()
           const status = input.status ?? "todo"
           const assigneeIds = input.assigneeIds ?? []
+          const area = input.area ?? DEFAULT_AREA
+          const currentUser = get().users.find((user) => user.id === get().currentUserId)
+          const resolvedLocation = input.location ?? currentUser?.zone ?? ""
           
           const reqCode = `REQ-${Math.floor(1000 + Math.random() * 9000)}`
           
@@ -976,7 +1711,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
             code: reqCode,
             title: input.title,
             description: input.description,
-            location: input.location ?? "",
+            location: resolvedLocation,
+            area,
             dueLabel: input.dueLabel ?? "",
             priority: input.priority,
             status: assigneeIds.length > 0 ? "assigned" : "unassigned",
@@ -985,7 +1721,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
             estimatedHours: input.estimatedHours ?? 1,
             selectedTechnicianId: assigneeIds[0] ?? null,
             notes: "",
-            assignedAt: assigneeIds.length > 0 ? now : null
+            assignedAt: assigneeIds.length > 0 ? now : null,
+            creatorId: get().currentUserId || "system"
           }
 
           const newTask: Task = {
@@ -999,12 +1736,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
             updatedAt: now,
             timerStartedAt: status === "done" ? null : Date.now(),
             statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
-            location: input.location,
+            location: resolvedLocation || undefined,
+            area,
             dueLabel: input.dueLabel,
             drawingScene: null,
             activities: input.activities ?? [],
             requirementId,
-            creatorId: get().currentUserId || "system"
+            creatorId: get().currentUserId || "system",
+            escalation: null
           }
 
           set((state) => {
@@ -1101,7 +1840,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                       description: patch.description ?? req.description,
                       priority: patch.priority ?? req.priority,
                       location: patch.location ?? req.location,
-                      dueLabel: patch.dueLabel ?? req.dueLabel
+                      dueLabel: patch.dueLabel ?? req.dueLabel,
+                      area: patch.area !== undefined ? patch.area : req.area
                     } 
                   : req
               )
@@ -1130,6 +1870,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
               JSON.stringify(updatedTask.assigneeIds) !== JSON.stringify(previousTask.assigneeIds)
             ) {
               logs.push("Personal asignado actualizado")
+            }
+            if (patch.area && previousTask.area !== updatedTask.area) {
+              logs.push(`Área cambiada de ${previousTask.area || "Sin área"} a ${updatedTask.area}`)
             }
 
             if (logs.length > 0) {
@@ -1227,6 +1970,244 @@ export const useWorkflowStore = create<WorkflowStore>()(
             }
           }
         },
+        escalateTask: (taskId, toArea, targetUserId = null, note) => {
+          const { tasks, users, currentUserId } = get()
+          const task = tasks.find((item) => item.id === taskId)
+          const currentUser = users.find((item) => item.id === currentUserId)
+
+          if (!task || !currentUser) {
+            return
+          }
+
+          if (!task.assigneeIds.includes(currentUser.id)) {
+            get().setGlobalAlert({
+              title: "Escalado no permitido",
+              message: "Solo el asignado puede escalar esta tarea.",
+              type: "warning"
+            })
+            return
+          }
+
+          if (task.area === toArea) {
+            get().setGlobalAlert({
+              title: "Área inválida",
+              message: "Selecciona un área distinta a la actual.",
+              type: "info"
+            })
+            return
+          }
+
+          const now = new Date().toISOString()
+          const fromArea = task.area ?? DEFAULT_AREA
+          const originalAssigneeIds = [...task.assigneeIds]
+          const nextAssigneeIds = targetUserId
+            ? Array.from(new Set([...task.assigneeIds, targetUserId]))
+            : task.assigneeIds
+
+          set((state) => {
+            const nextTasks = state.tasks.map((item) =>
+              item.id === taskId
+                ? {
+                    ...item,
+                    area: toArea,
+                    assigneeIds: nextAssigneeIds,
+                    escalation: {
+                      fromArea,
+                      toArea,
+                      escalatedBy: currentUser.id,
+                      escalatedAt: now,
+                      originalAssigneeIds,
+                      targetUserId: targetUserId ?? null
+                    },
+                    updatedAt: now
+                  }
+                : item
+            )
+
+            const requirementId = task.requirementId
+            const nextRequirements = requirementId
+              ? state.requirements.map((req) =>
+                  req.id === requirementId ? { ...req, area: toArea } : req
+                )
+              : state.requirements
+
+            return {
+              tasks: nextTasks,
+              requirements: nextRequirements
+            }
+          })
+
+          const assignedUser = targetUserId
+            ? users.find((item) => item.id === targetUserId)
+            : null
+          let logMessage = `Tarea escalada de ${fromArea} a ${toArea}.`
+          if (assignedUser) {
+            logMessage += ` Asignada a ${assignedUser.name}.`
+          }
+          if (note && note.trim()) {
+            logMessage += ` Nota: ${note.trim()}`
+          }
+          get().addTaskLog(taskId, logMessage)
+
+          if (assignedUser) {
+            get().addNotification({
+              title: "Asignación por escalado",
+              message: `${currentUser.name} te asignó una tarea escalada desde ${fromArea}.`,
+              type: "assignment",
+              taskId,
+              userId: currentUser.id,
+              targetUserId: assignedUser.id
+            })
+          } else {
+            const areaUsers = users.filter((user) => (user.areas ?? []).includes(toArea))
+            areaUsers.forEach((user) => {
+              get().addNotification({
+                title: "Tarea escalada sin asignar",
+                message: `Nueva tarea llegó desde ${fromArea} para ${toArea} sin asignar.`,
+                type: "movement",
+                taskId,
+                userId: currentUser.id,
+                targetUserId: user.id
+              })
+            })
+          }
+        },
+        claimEscalatedTask: (taskId) => {
+          const { tasks, users, currentUserId } = get()
+          const task = tasks.find((item) => item.id === taskId)
+          const currentUser = users.find((item) => item.id === currentUserId)
+
+          if (!task || !currentUser) {
+            return
+          }
+
+          if (!task.escalation || task.escalation.targetUserId) {
+            get().setGlobalAlert({
+              title: "Asignacion no disponible",
+              message: "Esta tarea ya fue asignada en el area destino.",
+              type: "info"
+            })
+            return
+          }
+
+          const userAreas = currentUser.areas ?? []
+          if (!task.escalation.toArea || !userAreas.includes(task.escalation.toArea)) {
+            get().setGlobalAlert({
+              title: "Asignacion no permitida",
+              message: "No perteneces al area destino de esta tarea.",
+              type: "warning"
+            })
+            return
+          }
+
+          if (task.assigneeIds.includes(currentUser.id)) {
+            get().setGlobalAlert({
+              title: "Asignacion no necesaria",
+              message: "Ya estas asignado a esta tarea.",
+              type: "info"
+            })
+            return
+          }
+
+          const now = new Date().toISOString()
+          set((state) => ({
+            tasks: state.tasks.map((item) =>
+              item.id === taskId
+                ? {
+                    ...item,
+                    assigneeIds: Array.from(new Set([...item.assigneeIds, currentUser.id])),
+                    escalation: item.escalation
+                      ? { ...item.escalation, targetUserId: currentUser.id }
+                      : item.escalation,
+                    updatedAt: now
+                  }
+                : item
+            )
+          }))
+
+          get().addTaskLog(
+            taskId,
+            `Asignado en ${task.escalation.toArea}: ${currentUser.name} tomo la tarea.`
+          )
+        },
+        claimTask: (taskId) => {
+          const { tasks, users, currentUserId } = get()
+          const task = tasks.find((item) => item.id === taskId)
+          const currentUser = users.find((item) => item.id === currentUserId)
+
+          if (!task || !currentUser) {
+            return
+          }
+
+          const userAreas = currentUser.areas ?? []
+
+          if (task.escalation) {
+            if (task.escalation.targetUserId) {
+              get().setGlobalAlert({
+                title: "Asignación no disponible",
+                message: "Esta tarea ya fue auto-tomada o asignada.",
+                type: "info"
+              })
+              return
+            }
+            if (!task.escalation.toArea || !userAreas.includes(task.escalation.toArea)) {
+              get().setGlobalAlert({
+                title: "Asignación no permitida",
+                message: "No perteneces al área destino de esta tarea.",
+                type: "warning"
+              })
+              return
+            }
+          } else {
+            if (task.assigneeIds && task.assigneeIds.length > 0) {
+              get().setGlobalAlert({
+                title: "Asignación no disponible",
+                message: "Esta tarea ya tiene responsables asignados.",
+                type: "info"
+              })
+              return
+            }
+            if (!task.area || !userAreas.includes(task.area)) {
+              get().setGlobalAlert({
+                title: "Asignación no permitida",
+                message: "No perteneces al área de esta tarea.",
+                type: "warning"
+              })
+              return
+            }
+          }
+
+          if (task.assigneeIds.includes(currentUser.id)) {
+            get().setGlobalAlert({
+              title: "Asignación no necesaria",
+              message: "Ya estás asignado a esta tarea.",
+              type: "info"
+            })
+            return
+          }
+
+          const now = new Date().toISOString()
+          set((state) => ({
+            tasks: state.tasks.map((item) =>
+              item.id === taskId
+                ? {
+                    ...item,
+                    assigneeIds: Array.from(new Set([...item.assigneeIds, currentUser.id])),
+                    escalation: item.escalation
+                      ? { ...item.escalation, targetUserId: currentUser.id }
+                      : item.escalation,
+                    updatedAt: now
+                  }
+                : item
+            )
+          }))
+
+          const areaName = task.escalation ? task.escalation.toArea : (task.area ?? "su área")
+          get().addTaskLog(
+            taskId,
+            `Auto-tomada en ${areaName}: ${currentUser.name} tomó la tarea.`
+          )
+        },
         startTaskTimer: (taskId) => {
           const now = Date.now()
           set((state) => ({
@@ -1310,12 +2291,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         addRequirement: (input) => {
           const id = makeId("req")
+          const area = input.area ?? DEFAULT_AREA
           const requirement: Requirement = {
             id,
             code: input.code,
             title: input.title,
             description: input.description,
             location: input.location,
+            area,
             dueLabel: input.dueLabel,
             priority: input.priority,
             status: "unassigned",
@@ -1341,8 +2324,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
               createdAt: now,
               updatedAt: now,
               timerStartedAt: Date.now(),
-              accumulatedSeconds: 0,
+              statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
               location: requirement.location,
+              area,
               drawingScene: null,
               activities: [],
               requirementId: id,
@@ -1375,6 +2359,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                     description: patch.description ?? task.description,
                     priority: patch.priority ?? task.priority,
                     location: patch.location ?? task.location,
+                    area: patch.area ?? task.area,
                     dueLabel: patch.dueLabel ?? task.dueLabel,
                     estimatedHours: patch.estimatedHours ?? task.estimatedHours,
                     updatedAt: new Date().toISOString()
@@ -1427,10 +2412,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
               item.id === requirementId
                 ? ({
                     ...item,
-                    selectedTechnicianId: technicianId,
+                    selectedTechnicianId: userId,
                     notes,
                     status: "assigned",
-                    assignedAt: now
+                    assignedAt: now,
+                    area: item.area ?? DEFAULT_AREA
                   } satisfies Requirement)
                 : item
             )
@@ -1460,6 +2446,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 timerStartedAt: null,
                 statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
                 location: requirement.location,
+                area: requirement.area ?? DEFAULT_AREA,
                 drawingScene: null,
                 activities: [],
                 requirementId: requirement.id,
@@ -1469,7 +2456,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
             } else {
               nextTasks = state.tasks.map(t => 
                 t.requirementId === requirementId 
-                  ? { ...t, assigneeIds: Array.from(new Set([...t.assigneeIds, technicianId])), updatedAt: now }
+                  ? {
+                      ...t,
+                      area: requirement.area ?? t.area ?? DEFAULT_AREA,
+                      assigneeIds: Array.from(new Set([...t.assigneeIds, userId])),
+                      updatedAt: now
+                    }
                   : t
               )
             }
@@ -1717,7 +2709,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
     },
     {
       name: "workflow-pro-storage",
-      version: 8,
+      version: 9,
       storage: createJSONStorage(() => ({
         getItem: (name) => localStorage.getItem(name),
         setItem: (name, value) => {
@@ -1751,11 +2743,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         folders: state.folders,
         assignments: state.assignments,
         saves: state.saves,
-        drawingScene: state.drawingScene,
-        users: state.users
+        drawingScene: state.drawingScene
       }),
       migrate: (persistedState, version) => {
-        if (version && version < 8) {
+        if (version && version < 9) {
           return {
             ...createSeedData(),
             hasHydrated: true
@@ -1815,12 +2806,28 @@ export const workflowSelectors = {
     
     // Si es empleado, solo ve sus tareas asignadas
     if (user.role === "empleado") {
-      return tasks.filter((t) => t.assigneeIds.includes(user.id))
+      const userAreas = user.areas ?? []
+      return tasks.filter((task) => {
+        if (task.assigneeIds.includes(user.id)) return true
+        if (task.creatorId === user.id) return true
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && task.area && userAreas.includes(task.area)) return true
+        if (task.escalation?.targetUserId != null) return false
+        if (!task.escalation?.toArea) return false
+        return userAreas.includes(task.escalation.toArea)
+      })
     }
 
     // Si es gerente (sin visualización global activa)
     if (user.role === "gerente") {
-      return tasks.filter((t) => t.location === user.zone || t.creatorId === user.id)
+      const userAreas = user.areas ?? []
+      return tasks.filter((task) => {
+        if (task.assigneeIds.includes(user.id)) return true
+        if (task.location === user.zone || task.creatorId === user.id) return true
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && task.area && userAreas.includes(task.area)) return true
+        if (task.escalation?.targetUserId != null) return false
+        if (!task.escalation?.toArea) return false
+        return userAreas.includes(task.escalation.toArea)
+      })
     }
 
     return tasks.filter((task) => task.location === user.zone)
@@ -1829,9 +2836,9 @@ export const workflowSelectors = {
     if (!user) return []
     if (user.role === "administrador" || user.showAllZones) return requirements
 
-    // Empleados normalmente no ven Programación, pero por seguridad filtramos
+    // Si es empleado, permitimos ver requerimientos de su misma zona
     if (user.role === "empleado") {
-      return [] // No deberían ver requerimientos sin asignar
+      return requirements.filter((req) => req.location === user.zone)
     }
 
     // Gerentes ven requerimientos de su zona o creados por ellos

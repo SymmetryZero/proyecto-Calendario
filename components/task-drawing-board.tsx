@@ -1512,14 +1512,14 @@ export function TaskDrawingCanvas({
 
         {/* Mobile Toolbar - Bottom bar */}
         <div className="absolute z-20 bottom-6 left-1/2 -translate-x-1/2 flex sm:hidden items-center gap-1 rounded-full border border-outline-variant bg-white/95 p-1.5 shadow-2xl backdrop-blur-md">
-          <ToolButton icon="ads_click" active={tool === "select"} onClick={() => handleToolChange("select")} />
-          <ToolButton icon="draw" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
-          <ToolButton icon="timeline" active={tool === "line"} onClick={() => handleToolChange("line")} />
-          <ToolButton icon="text_fields" active={tool === "text"} onClick={() => handleToolChange("text")} />
-          <ToolButton icon="straighten" active={tool === "number"} onClick={() => handleToolChange("number")} />
-          <ToolButton icon="ink_eraser" active={tool === "eraser"} onClick={() => handleToolChange("eraser")} />
+          <ToolButton icon="ads_click" label="Seleccionar" active={tool === "select"} onClick={() => handleToolChange("select")} />
+          <ToolButton icon="draw" label="Trazo libre" active={tool === "pen"} onClick={() => handleToolChange("pen")} />
+          <ToolButton icon="timeline" label="Línea" active={tool === "line"} onClick={() => handleToolChange("line")} />
+          <ToolButton icon="text_fields" label="Texto / Nota" active={tool === "text"} onClick={() => handleToolChange("text")} />
+          <ToolButton icon="straighten" label="Medición" active={tool === "number"} onClick={() => handleToolChange("number")} />
+          <ToolButton icon="ink_eraser" label="Borrador" active={tool === "eraser"} onClick={() => handleToolChange("eraser")} />
           <div className="w-px h-6 bg-outline-variant mx-1" />
-          <ToolButton icon="undo" onClick={handleUndo} />
+          <ToolButton icon="undo" label="Deshacer" onClick={handleUndo} />
         </div>
 
         {/* Color palette and Stroke Width - desktop: left side, mobile: above toolbar */}

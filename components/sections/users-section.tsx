@@ -19,7 +19,8 @@ export function UsersSection() {
     return users.filter((u) => 
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.zone.toLowerCase().includes(searchQuery.toLowerCase())
+      u.zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.areas ?? []).join(" ").toLowerCase().includes(searchQuery.toLowerCase())
     )
   }, [users, searchQuery])
 
@@ -99,6 +100,7 @@ export function UsersSection() {
                   <th className="p-4 pl-6">Usuario</th>
                   <th className="p-4">Puesto</th>
                   <th className="p-4">Zona</th>
+                  <th className="p-4">Areas</th>
                   <th className="p-4">Rol</th>
                   <th className="p-4 pr-6 text-right">Acciones</th>
                 </tr>
@@ -118,10 +120,19 @@ export function UsersSection() {
                     <td className="p-4 font-body-sm text-body-sm text-on-surface-variant">{user.position}</td>
                     <td className="p-4 font-body-sm text-body-sm text-on-surface-variant">{user.zone}</td>
                     <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {(user.areas ?? []).map((area) => (
+                          <span key={area} className="rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-bold uppercase text-on-surface-variant">
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-4">
                       <RoleBadge role={user.role} />
                     </td>
                     <td className="p-4 pr-6 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         <button onClick={() => handleEdit(user)} className="p-2 text-primary hover:bg-primary-container rounded-lg transition-colors">
                           <MaterialIcon name="edit" className="text-[20px]" />
                         </button>
@@ -156,7 +167,7 @@ export function UsersSection() {
 function UserCard({ user, onEdit, onDelete }: { user: User; onEdit: () => void; onDelete: () => void }) {
   return (
     <article className="group relative bg-surface rounded-3xl border border-outline-variant p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
-      <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-4 right-4 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
         <button onClick={onEdit} className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-full transition-all">
           <MaterialIcon name="edit" className="text-[18px]" />
         </button>
@@ -179,6 +190,13 @@ function UserCard({ user, onEdit, onDelete }: { user: User; onEdit: () => void; 
           <div className="flex items-center justify-center gap-1.5 text-on-surface-variant">
             <MaterialIcon name="location_on" className="text-[14px]" />
             <span className="text-[12px]">{user.zone}</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {(user.areas ?? []).map((area) => (
+              <span key={area} className="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold uppercase text-on-surface-variant">
+                {area}
+              </span>
+            ))}
           </div>
         </div>
 
