@@ -12,6 +12,14 @@ import {
   formatTimeStamp,
   makeId
 } from "@/utils/workflow"
+import { pullFromSupabase, pushToSupabase } from "@/utils/supabase-sync"
+
+// Limpiar explícitamente cualquier caché residual de localStorage para evitar interferencias locales
+if (typeof window !== "undefined") {
+  localStorage.removeItem("workflow-pro-storage")
+}
+
+
 
 const statusLabels: Record<string, string> = {
   todo: "Por Hacer",
@@ -1658,6 +1666,18 @@ function accumulateTaskTime(task: Task, now = Date.now()) {
   return (task.statusDurations?.[task.status] || 0) + runningSeconds
 }
 
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: any
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }
+}
+
+const debouncedPush = debounce(async (state: any) => {
+  await pushToSupabase(state)
+}, 1000)
+
 export const useWorkflowStore = create<WorkflowStore>()(
   persist(
     (set, get) => {
@@ -2710,41 +2730,52 @@ export const useWorkflowStore = create<WorkflowStore>()(
     {
       name: "workflow-pro-storage",
       version: 9,
-      storage: createJSONStorage(() => ({
-        getItem: (name) => localStorage.getItem(name),
-        setItem: (name, value) => {
+      storage: {
+        getItem: async (name) => {
           try {
-            localStorage.setItem(name, value)
+            console.log("Iniciando carga de datos desde Supabase...")
+            const remoteState = await pullFromSupabase()
+            if (!remoteState) {
+              console.log("Base de datos de Supabase vacía. Sembrando datos por defecto...")
+              const seeds = createSeedData()
+              await pushToSupabase(seeds)
+              return { state: seeds, version: 9 }
+            }
+            console.log("Carga de Supabase exitosa.")
+            return { state: remoteState as any, version: 9 }
           } catch (e) {
-            console.error("Storage quota exceeded, state not saved to localStorage", e)
+            console.error("Fallo al cargar desde Supabase, inicializando semilla", e)
+            return { state: createSeedData(), version: 9 }
           }
         },
-        removeItem: (name) => localStorage.removeItem(name)
-      })),
-      partialize: (state) => ({
-        // Limit persistent tasks to prevent quota issues
-        tasks: state.tasks.map(t => ({
-          ...t,
-          // Prune large activity content in persistence
-          activities: t.activities.map(a => ({
-            ...a,
-            content: (typeof a.content === 'string' && a.content.length > 50000) 
-              ? "" // Don't persist large base64 in activities
-              : a.content
-          }))
-        })),
-        requirements: state.requirements,
-        users: state.users,
-        // Prune large base64 in evidence
-        evidence: state.evidence.map(e => ({
-          ...e,
-          base64: (e.base64 && e.base64.length > 50000) ? "" : e.base64
-        })),
-        folders: state.folders,
-        assignments: state.assignments,
-        saves: state.saves,
-        drawingScene: state.drawingScene
-      }),
+        setItem: async (name, value: any) => {
+          try {
+            // Limit task/evidence base64 to avoid performance issues
+            const prunedState = {
+              ...value.state,
+              tasks: value.state.tasks.map((t: any) => ({
+                ...t,
+                activities: t.activities.map((a: any) => ({
+                  ...a,
+                  content: (typeof a.content === 'string' && a.content.length > 50000) 
+                    ? "" 
+                    : a.content
+                }))
+              })),
+              evidence: value.state.evidence.map((e: any) => ({
+                ...e,
+                base64: (e.base64 && e.base64.length > 50000) ? "" : e.base64
+              }))
+            }
+            debouncedPush(prunedState)
+          } catch (e) {
+            console.error("Error al procesar/sincronizar cambio a Supabase", e)
+          }
+        },
+        removeItem: async (name) => {
+          console.log("Removiendo estado")
+        }
+      },
       migrate: (persistedState, version) => {
         if (version && version < 9) {
           return {
@@ -2752,7 +2783,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             hasHydrated: true
           }
         }
-        return translateLegacyWorkflowState(persistedState as Partial<WorkflowStore>)
+        return persistedState as any
       },
       onRehydrateStorage: () => (state, error) => {
         if (!error && state) {

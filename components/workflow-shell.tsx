@@ -7,6 +7,7 @@ import { AREA_OPTIONS, type SectionKey, useWorkflowStore, workflowSelectors } fr
 import { HelpModal } from "@/components/modals/help-modal"
 import { NotificationPopout } from "@/components/notification-popout"
 import { GlobalAlertModal } from "@/components/modals/global-alert-modal"
+import { UserButton } from "@clerk/nextjs"
 
 type WorkflowShellProps = {
   section: SectionKey
@@ -67,9 +68,9 @@ export function WorkflowShell({
   const evidence = useWorkflowStore((state) => state.evidence)
   const folders = useWorkflowStore((state) => state.folders)
 
-  const currentUser = useMemo(() => 
-    workflowSelectors.getCurrentUser(users, currentUserId), 
-  [users, currentUserId])
+  const currentUser = useMemo(() =>
+    workflowSelectors.getCurrentUser(users, currentUserId),
+    [users, currentUserId])
 
   const currentUserInitials = useMemo(() => {
     if (!currentUser?.name) return "US"
@@ -100,8 +101,8 @@ export function WorkflowShell({
       return sidebarItems
     }
     // Empleado: Solamente Tablero y Tareas
-    return sidebarItems.filter(item => 
-      item.key === "dashboard" || 
+    return sidebarItems.filter(item =>
+      item.key === "dashboard" ||
       item.key === "assignments"
     )
   }, [currentUser])
@@ -171,24 +172,22 @@ export function WorkflowShell({
       >
         <div className="px-6 mb-8 hidden md:flex flex-col gap-4">
           <div className="flex items-center gap-4">
-             <img 
-               src={currentUser?.avatar} 
-               alt="User profile" 
-               className="w-12 h-12 rounded-full object-cover border-2 border-outline-variant flex-shrink-0" 
-             />
-             <div className="flex flex-col min-w-0">
-               <span className="font-title-sm text-title-sm font-bold text-primary truncate">
-                 {currentUser?.name || "Usuario"}
-               </span>
-               <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
-                 {currentUser?.position || "Visitante"}
-               </span>
-               {currentUser?.zone && (
-                 <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
-                   Site Alfa - {currentUser.zone}
-                 </span>
-               )}
-             </div>
+            <div className="flex-shrink-0">
+              <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "w-12 h-12 border-2 border-outline-variant rounded-full" } }} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-title-sm text-title-sm font-bold text-primary truncate">
+                {currentUser?.name || "Usuario"}
+              </span>
+              <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                {currentUser?.position || "Visitante"}
+              </span>
+              {currentUser?.zone && (
+                <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                  Site Alfa - {currentUser.zone}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -248,11 +247,11 @@ export function WorkflowShell({
               >
                 <MaterialIcon name="menu" />
               </button>
-              
+
               <h1 className="font-headline-md text-headline-md font-bold text-primary tracking-tight shrink-0">
                 Workflow Pro
               </h1>
-              
+
               <div className="relative hidden md:block w-80">
                 <MaterialIcon
                   name="search"
@@ -283,9 +282,9 @@ export function WorkflowShell({
                 <span className="text-sm font-medium text-on-surface hidden lg:inline">
                   {currentUser?.name || "Usuario"}
                 </span>
-                
-                <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-bold text-primary border border-outline-variant/40">
-                  {currentUserInitials}
+
+                <div className="flex-shrink-0">
+                  <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "w-8 h-8 border border-outline-variant/40 rounded-full" } }} />
                 </div>
 
                 <div className="relative">
@@ -304,9 +303,9 @@ export function WorkflowShell({
                       </span>
                     )}
                   </button>
-                  <NotificationPopout 
-                    open={notificationsOpen} 
-                    onClose={() => setNotificationsOpen(false)} 
+                  <NotificationPopout
+                    open={notificationsOpen}
+                    onClose={() => setNotificationsOpen(false)}
                   />
                 </div>
 
@@ -455,9 +454,9 @@ export function WorkflowShell({
               </button>
             )
           })}
-          
+
           <div className="flex-1 flex justify-center -translate-y-6">
-            <button 
+            <button
               onClick={onOpenTaskModal}
               className="flex flex-col items-center justify-center"
             >

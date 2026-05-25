@@ -3,12 +3,13 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { Avatar } from "@/components/ui/avatar"
-import { cn, fileToDataUrl, formatDateTime, formatShortDate, formatBytes } from "@/utils/workflow"
+import { cn, fileToDataUrl, formatDateTime, formatShortDate, formatBytes, makeId } from "@/utils/workflow"
 import {
   createEvidencePreview,
   type EvidenceFile,
   useWorkflowStore
 } from "@/store/workflow-store"
+import { supabase } from "@/utils/supabase"
 
 type EvidenceSectionProps = {
   onCreateTask: () => void
@@ -67,18 +68,44 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
       const items = Array.from(files)
 
       for (const file of items) {
-        const base64 = await fileToDataUrl(file)
         const mediaType = file.type.startsWith("video/") ? "video" : "image"
+        let fileUrl = ""
+
+        try {
+          // Clean file name to avoid spaces or special characters causing 400 errors in Supabase Storage
+          const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, "_")
+          const filePath = `${makeId("evidence")}-${cleanName}`
+
+          const { error: uploadError } = await supabase.storage
+            .from("servimeci-evidence")
+            .upload(filePath, file)
+
+          if (uploadError) {
+            throw uploadError
+          }
+
+          const { data: urlData } = supabase.storage
+            .from("servimeci-evidence")
+            .getPublicUrl(filePath)
+
+          fileUrl = urlData.publicUrl
+        } catch (uploadError: any) {
+          console.error("Storage upload failed, falling back to local base64:", uploadError)
+          // Show alert in development so they can see the exact Supabase error (e.g. permission or RLS issues)
+          alert(`Alerta de Supabase Storage:\n${uploadError?.message || "Error de red/conexión"}\n\nSe usará el respaldo local Base64.`)
+          fileUrl = await fileToDataUrl(file)
+        }
+
         const previewBase64 =
           mediaType === "video"
             ? createEvidencePreview(file.name, "#004064")
-            : base64
+            : fileUrl
 
         addEvidence({
           mediaType,
           mimeType: file.type || (mediaType === "video" ? "video/mp4" : "image/png"),
           name: file.name,
-          base64,
+          base64: fileUrl,
           previewBase64,
           caption: "",
           folderId: activeFolder?.id ?? null,
@@ -167,7 +194,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
       </div>
 
       <div className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
-        Consejo: las fotos y videos subidos se guardan como Base64 en localStorage, así que procura que los archivos no sean muy grandes.
+        Consejo: las fotos y videos subidos se guardan de forma segura en Supabase Storage, permitiendo que todos los técnicos las visualicen y optimizando el rendimiento.
       </div>
     </main>
   )

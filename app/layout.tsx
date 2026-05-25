@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import type { ReactNode } from "react"
 import "./globals.css"
+import { ClerkProvider } from "@clerk/nextjs"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,42 +32,44 @@ export default function RootLayout({
   children: ReactNode
 }>) {
   return (
-    <html
-      lang="es-MX"
-      className={`${inter.variable} ${jetBrainsMono.variable}`}
-      suppressHydrationWarning
-    >
-      <head />
-      <body className="bg-background text-on-background antialiased">
-        {process.env.NODE_ENV !== "production" ? (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-              try {
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    registrations.forEach(function(registration) {
-                      registration.unregister();
+    <ClerkProvider>
+      <html
+        lang="es-MX"
+        className={`${inter.variable} ${jetBrainsMono.variable}`}
+        suppressHydrationWarning
+      >
+        <head />
+        <body className="bg-background text-on-background antialiased">
+          {process.env.NODE_ENV !== "production" ? (
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                try {
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                      registrations.forEach(function(registration) {
+                        registration.unregister();
+                      });
                     });
-                  });
-                }
+                  }
 
-                if ('caches' in window) {
-                  caches.keys().then(function(keys) {
-                    keys.forEach(function(key) {
-                      caches.delete(key);
+                  if ('caches' in window) {
+                    caches.keys().then(function(keys) {
+                      keys.forEach(function(key) {
+                        caches.delete(key);
+                      });
                     });
-                  });
+                  }
+                } catch (error) {
+                  console.warn('No se pudo limpiar la caché PWA en desarrollo.', error);
                 }
-              } catch (error) {
-                console.warn('No se pudo limpiar la caché PWA en desarrollo.', error);
-              }
-            `
-            }}
-          />
-        ) : null}
-        {children}
-      </body>
-    </html>
+              `
+              }}
+            />
+          ) : null}
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
