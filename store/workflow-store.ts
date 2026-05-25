@@ -352,6 +352,22 @@ function buildThumbnail(label: string, accent = "#172839", fill = "#fea520") {
     </svg>
   `)
 }
+function createEmptyState(): WorkflowSeed {
+  return {
+    users: [],
+    tasks: [],
+    requirements: [],
+    evidence: [],
+    folders: [],
+    assignments: [],
+    saves: [],
+    drawingScene: null,
+    currentUserId: null,
+    notifications: [],
+    globalAlert: null
+  }
+}
+
 function createSeedData(): WorkflowSeed {
   const now = Date.now()
   const createdAt = new Date(now).toISOString()
@@ -1681,7 +1697,7 @@ const debouncedPush = debounce(async (state: any) => {
 export const useWorkflowStore = create<WorkflowStore>()(
   persist(
     (set, get) => {
-      const initial = createSeedData()
+      const initial = createEmptyState()
 
       return {
         ...initial,
@@ -2721,7 +2737,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         resetDemoData: () => {
           set({
-            ...createSeedData(),
+            ...createEmptyState(),
             hasHydrated: true
           })
         }
@@ -2736,16 +2752,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
             console.log("Iniciando carga de datos desde Supabase...")
             const remoteState = await pullFromSupabase()
             if (!remoteState) {
-              console.log("Base de datos de Supabase vacía. Sembrando datos por defecto...")
-              const seeds = createSeedData()
-              await pushToSupabase(seeds)
-              return { state: seeds, version: 9 }
+              console.log("Base de datos de Supabase vacía. Iniciando vacía...")
+              return { state: createEmptyState(), version: 9 }
             }
             console.log("Carga de Supabase exitosa.")
             return { state: remoteState as any, version: 9 }
           } catch (e) {
-            console.error("Fallo al cargar desde Supabase, inicializando semilla", e)
-            return { state: createSeedData(), version: 9 }
+            console.error("Fallo al cargar desde Supabase, inicializando vacía", e)
+            return { state: createEmptyState(), version: 9 }
           }
         },
         setItem: async (name, value: any) => {

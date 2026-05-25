@@ -39,10 +39,9 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       return null
     }
 
-    // If there is no user data or folder data, we consider the DB is unseeded
+    // If there is no user data, it is a clean database state, which is supported perfectly!
     if (!dbUsers || dbUsers.length === 0) {
-      console.log("Supabase database seems empty, seeding with default mock data...")
-      return null
+      console.log("La base de datos de Supabase está limpia y lista para operar.")
     }
 
     // 2. Map and reconstruct Zustand structures
