@@ -218,10 +218,10 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
               <button
                 type="button"
                 onClick={handleExport}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary px-4 py-3 font-title-sm text-title-sm text-primary hover:bg-surface-container-low transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#107c41] text-white px-4 py-3 font-title-sm text-title-sm hover:bg-[#0c5f31] transition-colors shadow-sm cursor-pointer select-none active:scale-[0.98] border-none"
               >
-                <MaterialIcon name="download" />
-                Exportar a Excel (CSV)
+                <MaterialIcon name="table_view" className="text-[16px] text-white" />
+                <span>Exportar a Excel (CSV)</span>
               </button>
               <button
                 type="button"

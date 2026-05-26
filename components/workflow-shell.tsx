@@ -539,21 +539,16 @@ export function WorkflowShell({
               })}
             </nav>
 
-            {/* Right: Export & Guardar progress buttons */}
+            {/* Right: Export progress button */}
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleExport}
-                className="px-4 h-9 flex items-center gap-2 bg-primary text-on-primary rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
+                className="px-4 h-9 flex items-center gap-2 bg-[#107c41] text-white rounded-lg text-xs font-bold hover:bg-[#0c5f31] transition-colors shadow-sm cursor-pointer select-none active:scale-[0.98]"
+                title="Exportar a Excel (CSV)"
               >
-                Exportar
-              </button>
-              <button
-                type="button"
-                onClick={onOpenSaveModal}
-                className="px-4 h-9 flex items-center gap-2 bg-secondary-container text-on-secondary-container rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
-              >
-                Guardar
+                <MaterialIcon name="table_view" className="text-[16px] text-white" />
+                <span>Exportar Excel</span>
               </button>
             </div>
           </div>
