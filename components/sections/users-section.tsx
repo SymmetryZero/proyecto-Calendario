@@ -8,6 +8,7 @@ import { cn, formatNumericDate } from "@/utils/workflow"
 
 export function UsersSection() {
   const users = useWorkflowStore((state) => state.users)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const deleteUser = useWorkflowStore((state) => state.deleteUser)
   
   const [searchQuery, setSearchQuery] = useState("")
@@ -15,14 +16,20 @@ export function UsersSection() {
   const [userToEdit, setUserToEdit] = useState<User | null>(null)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
+  const currentUser = useMemo(() => users.find((u) => u.id === currentUserId), [users, currentUserId])
+
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => 
+    const usersToFilter = currentUser?.role === "empleado"
+      ? users.filter((u) => u.id === currentUserId)
+      : users
+
+    return usersToFilter.filter((u) => 
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.areas ?? []).join(" ").toLowerCase().includes(searchQuery.toLowerCase())
     )
-  }, [users, searchQuery])
+  }, [users, searchQuery, currentUser, currentUserId])
 
   function handleEdit(user: User) {
     setUserToEdit(user)
@@ -39,18 +46,24 @@ export function UsersSection() {
       <div className="flex flex-col gap-8 max-w-7xl mx-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="font-display-lg text-display-lg text-primary">Gestión de Usuarios</h2>
+            <h2 className="font-display-lg text-display-lg text-primary">
+              {currentUser?.role === "empleado" ? "Mi Perfil" : "Gestión de Usuarios"}
+            </h2>
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-              Administra el personal, roles y zonas de trabajo del sistema.
+              {currentUser?.role === "empleado" 
+                ? "Consulta y edita los datos de tu cuenta personal." 
+                : "Administra el personal, roles y zonas de trabajo del sistema."}
             </p>
           </div>
-          <button
-            onClick={handleAdd}
-            className="h-[56px] px-8 bg-secondary text-on-secondary rounded-xl font-title-md text-title-md flex items-center gap-3 shadow-lg hover:shadow-xl transition-all active:scale-95"
-          >
-            <MaterialIcon name="person_add" filled />
-            Registrar Usuario
-          </button>
+          {currentUser?.role !== "empleado" && (
+            <button
+              onClick={handleAdd}
+              className="h-[56px] px-8 bg-secondary text-on-secondary rounded-xl font-title-md text-title-md flex items-center gap-3 shadow-lg hover:shadow-xl transition-all active:scale-95"
+            >
+              <MaterialIcon name="person_add" filled />
+              Registrar Usuario
+            </button>
+          )}
         </header>
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-surface p-4 rounded-2xl border border-outline-variant shadow-sm">
@@ -89,7 +102,13 @@ export function UsersSection() {
         {viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredUsers.map((user) => (
-              <UserCard key={user.id} user={user} onEdit={() => handleEdit(user)} onDelete={() => deleteUser(user.id)} />
+              <UserCard 
+                key={user.id} 
+                user={user} 
+                onEdit={() => handleEdit(user)} 
+                onDelete={() => deleteUser(user.id)} 
+                isEmployee={currentUser?.role === "empleado"}
+              />
             ))}
           </div>
         ) : (
@@ -136,9 +155,11 @@ export function UsersSection() {
                         <button onClick={() => handleEdit(user)} className="p-2 text-primary hover:bg-primary-container rounded-lg transition-colors">
                           <MaterialIcon name="edit" className="text-[20px]" />
                         </button>
-                        <button onClick={() => deleteUser(user.id)} className="p-2 text-error hover:bg-error-container rounded-lg transition-colors">
-                          <MaterialIcon name="delete" className="text-[20px]" />
-                        </button>
+                        {currentUser?.role !== "empleado" && (
+                          <button onClick={() => deleteUser(user.id)} className="p-2 text-error hover:bg-error-container rounded-lg transition-colors">
+                            <MaterialIcon name="delete" className="text-[20px]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -164,16 +185,18 @@ export function UsersSection() {
   )
 }
 
-function UserCard({ user, onEdit, onDelete }: { user: User; onEdit: () => void; onDelete: () => void }) {
+function UserCard({ user, onEdit, onDelete, isEmployee }: { user: User; onEdit: () => void; onDelete: () => void; isEmployee?: boolean }) {
   return (
     <article className="group relative bg-surface rounded-3xl border border-outline-variant p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
       <div className="absolute top-4 right-4 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
         <button onClick={onEdit} className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-full transition-all">
           <MaterialIcon name="edit" className="text-[18px]" />
         </button>
-        <button onClick={onDelete} className="p-2 text-on-surface-variant hover:text-error hover:bg-error-container rounded-full transition-all">
-          <MaterialIcon name="delete" className="text-[18px]" />
-        </button>
+        {!isEmployee && (
+          <button onClick={onDelete} className="p-2 text-on-surface-variant hover:text-error hover:bg-error-container rounded-full transition-all">
+            <MaterialIcon name="delete" className="text-[18px]" />
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col items-center text-center gap-4">

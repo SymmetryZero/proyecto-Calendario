@@ -19,8 +19,12 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
 
 export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
   const users = useWorkflowStore((state) => state.users)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const addUser = useWorkflowStore((state) => state.addUser)
   const updateUser = useWorkflowStore((state) => state.updateUser)
+
+  const currentUser = useMemo(() => users.find(u => u.id === currentUserId), [users, currentUserId])
+  const isSelfEmployee = currentUser?.role === "empleado"
 
   const [name, setName] = useState("")
   const [birthDate, setBirthDate] = useState("")
@@ -185,7 +189,8 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
-                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                disabled={isSelfEmployee}
+                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-surface-container-low"
               >
                 {roleOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -204,7 +209,8 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
               <input
                 value={position}
                 onChange={(e) => setPosition(e.target.value)}
-                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                disabled={isSelfEmployee}
+                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-surface-container-low"
                 placeholder="Ej: Supervisor de Obra"
               />
             </div>
@@ -216,7 +222,8 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
                 value={zone}
                 onChange={(e) => setZone(e.target.value)}
                 list="zones-list"
-                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                disabled={isSelfEmployee}
+                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-surface-container-low"
                 placeholder="Ej: Zona Norte"
               />
               <datalist id="zones-list">
@@ -238,6 +245,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
                   <button
                     key={area}
                     type="button"
+                    disabled={isSelfEmployee}
                     onClick={() => {
                       setAreas((current) =>
                         current.includes(area)
@@ -249,7 +257,8 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
                       "px-3 py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors",
                       isActive
                         ? "bg-secondary-container text-on-secondary-container border-secondary-fixed"
-                        : "bg-surface border-outline-variant text-on-surface-variant hover:bg-surface-container"
+                        : "bg-surface border-outline-variant text-on-surface-variant hover:bg-surface-container",
+                      isSelfEmployee && "opacity-60 cursor-not-allowed"
                     )}
                     aria-pressed={isActive}
                   >
