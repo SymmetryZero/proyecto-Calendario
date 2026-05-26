@@ -51,13 +51,33 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
   const [previewItem, setPreviewItem] = useState<EvidenceFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const handleDownload = (item: EvidenceFile) => {
+  const handleDownload = async (item: EvidenceFile) => {
     const content = item.base64
     if (!content) return
 
     const fileName = item.name || `EVIDENCIA_${item.id.slice(-4)}`
     
-    if (content.startsWith("data:") || content.startsWith("http://") || content.startsWith("https://")) {
+    if (content.startsWith("http://") || content.startsWith("https://")) {
+      try {
+        const response = await fetch(content)
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error("Error downloading file directly:", error)
+        const link = document.createElement("a")
+        link.href = content
+        link.target = "_blank"
+        link.rel = "noopener noreferrer"
+        link.click()
+      }
+    } else if (content.startsWith("data:")) {
       const link = document.createElement("a")
       link.href = content
       link.download = fileName

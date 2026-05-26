@@ -65,13 +65,33 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
   const [now, setNow] = useState(Date.now())
 
-  const handleDownload = (item: any) => {
+  const handleDownload = async (item: any) => {
     const content = item.content || item.base64
     if (!content) return
 
     const fileName = item.metadata?.fileName || item.name || `${item.type.toUpperCase()}_file`
     
-    if (content.startsWith("data:") || content.startsWith("http://") || content.startsWith("https://")) {
+    if (content.startsWith("http://") || content.startsWith("https://")) {
+      try {
+        const response = await fetch(content)
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error("Error downloading file directly:", error)
+        const link = document.createElement("a")
+        link.href = content
+        link.target = "_blank"
+        link.rel = "noopener noreferrer"
+        link.click()
+      }
+    } else if (content.startsWith("data:")) {
       const link = document.createElement("a")
       link.href = content
       link.download = fileName
