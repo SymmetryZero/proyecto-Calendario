@@ -1710,10 +1710,7 @@ export function TaskDrawingCanvas({
           </div>
         </div>
 
-        {/* Helper text - hidden on mobile */}
-        <div className="hidden sm:block absolute bottom-4 left-4 z-20 max-w-[90%] rounded-full border border-outline-variant bg-surface/95 px-4 py-2 text-sm text-on-surface-variant shadow-sm backdrop-blur-sm">
-          {helperMessage}
-        </div>
+
 
         {/* Internal Prompt Modal */}
         {internalPrompt && (

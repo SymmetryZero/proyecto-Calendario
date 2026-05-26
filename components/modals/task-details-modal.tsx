@@ -65,6 +65,30 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
   const [now, setNow] = useState(Date.now())
 
+  const handleDownload = (item: any) => {
+    const content = item.content || item.base64
+    if (!content) return
+
+    const fileName = item.metadata?.fileName || item.name || `${item.type.toUpperCase()}_file`
+    
+    if (content.startsWith("data:") || content.startsWith("http://") || content.startsWith("https://")) {
+      const link = document.createElement("a")
+      link.href = content
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } else {
+      const mime = item.metadata?.mimeType || item.mimeType || "application/octet-stream"
+      const link = document.createElement("a")
+      link.href = `data:${mime};base64,${content}`
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
   useEffect(() => {
     if (!open || !task || task.timerStartedAt === null) return
     
@@ -1185,9 +1209,19 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
          {/* Media Preview Lightbox */}
          {previewItem && (
             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 sm:p-10 animate-in fade-in duration-300">
-               <button onClick={() => setPreviewItem(null)} className="absolute top-6 right-6 h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20">
-                  <MaterialIcon name="close" className="text-[24px]" />
-               </button>
+               <div className="absolute top-6 right-6 flex items-center gap-3">
+                  <button 
+                    onClick={() => handleDownload(previewItem)}
+                    className="h-12 px-5 flex items-center gap-2 rounded-full bg-secondary text-white hover:bg-secondary-fixed-dim transition-all border border-secondary shadow-lg font-bold text-sm cursor-pointer border-none"
+                    title="Descargar archivo"
+                  >
+                     <MaterialIcon name="download" className="text-[20px]" />
+                     <span>Descargar</span>
+                  </button>
+                  <button onClick={() => setPreviewItem(null)} className="h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20 cursor-pointer">
+                     <MaterialIcon name="close" className="text-[24px]" />
+                  </button>
+                </div>
                <div className="w-full max-w-5xl h-full flex flex-col items-center justify-center gap-6">
                   {previewItem.type === "image" && (
                     <img src={previewItem.content} alt="Preview" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/20" />

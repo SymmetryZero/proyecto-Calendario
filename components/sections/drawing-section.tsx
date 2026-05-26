@@ -23,19 +23,7 @@ export function DrawingSection() {
           setDrawingScene(draft)
           setScene({ ...draft, updatedAt: new Date().toISOString() })
         }}
-        extraActions={
-          <button
-            type="button"
-            onClick={() => {
-              resetDemoData()
-              setScene(null)
-            }}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline-variant bg-surface px-4 font-title-sm text-title-sm text-on-surface-variant hover:bg-surface-container transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-            Restaurar demo
-          </button>
-        }
+
       />
     </main>
   )

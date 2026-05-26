@@ -48,7 +48,32 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
 
   const [filter, setFilter] = useState<(typeof filterOptions)[number]["key"]>("all")
   const [uploading, setUploading] = useState(false)
+  const [previewItem, setPreviewItem] = useState<EvidenceFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleDownload = (item: EvidenceFile) => {
+    const content = item.base64
+    if (!content) return
+
+    const fileName = item.name || `EVIDENCIA_${item.id.slice(-4)}`
+    
+    if (content.startsWith("data:") || content.startsWith("http://") || content.startsWith("https://")) {
+      const link = document.createElement("a")
+      link.href = content
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } else {
+      const mime = item.mimeType || "application/octet-stream"
+      const link = document.createElement("a")
+      link.href = `data:${mime};base64,${content}`
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
 
   const activeFolder = folders.find((folder) => folder.id === "folder-evidence") ?? folders[0] ?? null
   const visibleEvidence = useMemo(
@@ -170,7 +195,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
         })}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
         {visibleEvidence.map((item) => (
           <EvidenceCard
             key={item.id}
@@ -178,6 +203,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
             onCaptionChange={(nextCaption) => updateEvidence(item.id, { caption: nextCaption })}
             onDelete={() => deleteEvidence(item.id)}
             onToggleFlag={() => toggleEvidenceFlag(item.id)}
+            onPreview={() => setPreviewItem(item)}
           />
         ))}
       </div>
@@ -186,16 +212,56 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
         <button
           type="button"
           onClick={() => setFilter("all")}
-          className="h-touch-target-min px-6 border border-outline-variant text-on-surface-variant rounded-lg font-title-sm text-title-sm hover:bg-surface-container transition-colors flex items-center gap-2"
+          className="h-touch-target-min px-6 border border-outline-variant text-on-surface-variant rounded-lg font-title-sm text-title-sm hover:bg-surface-container transition-colors flex items-center gap-2 cursor-pointer border-none"
         >
           <MaterialIcon name="expand_more" />
           Cargar más evidencias
         </button>
       </div>
 
-      <div className="mt-6 rounded-xl border border-outline-variant bg-surface p-4 text-sm text-on-surface-variant">
-        Consejo: las fotos y videos subidos se guardan de forma segura en Supabase Storage, permitiendo que todos los técnicos las visualicen y optimizando el rendimiento.
-      </div>
+      {previewItem && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 sm:p-10 animate-in fade-in duration-300">
+          <div className="absolute top-6 right-6 flex items-center gap-3">
+            <button 
+              onClick={() => handleDownload(previewItem)}
+              className="h-12 px-5 flex items-center gap-2 rounded-full bg-secondary text-white hover:bg-secondary-fixed-dim transition-all border border-secondary shadow-lg font-bold text-sm cursor-pointer border-none"
+              title="Descargar archivo"
+            >
+               <MaterialIcon name="download" className="text-[20px]" />
+               <span>Descargar</span>
+            </button>
+            <button onClick={() => setPreviewItem(null)} className="h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20 cursor-pointer">
+               <MaterialIcon name="close" className="text-[24px]" />
+            </button>
+          </div>
+          <div className="w-full max-w-5xl h-full flex flex-col items-center justify-center gap-6">
+            {previewItem.mediaType === "image" && (
+              <img src={previewItem.base64} alt="Preview" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/20" />
+            )}
+            {previewItem.mediaType === "video" && (
+              <div className="w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden shadow-2xl flex items-center justify-center border border-white/10">
+                 <video 
+                    src={previewItem.base64} 
+                    controls 
+                    autoPlay 
+                    className="w-full h-full object-contain"
+                 />
+              </div>
+            )}
+            <div className="text-center max-w-2xl px-6 bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
+               <p className="text-white font-headline-md text-xl mb-2">{previewItem.name || "Archivo de evidencia"}</p>
+               {previewItem.caption && (
+                 <p className="text-white/80 text-sm mb-4 leading-relaxed italic border-l-2 border-secondary pl-4 py-1">"{previewItem.caption}"</p>
+               )}
+               <div className="flex items-center justify-center gap-3 text-white/40 text-[10px] font-data-mono uppercase tracking-[0.2em]">
+                  <span>{formatDateTime(previewItem.createdAt)}</span>
+                  <span>•</span>
+                  <span>REF: {previewItem.id.toUpperCase()}</span>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -205,9 +271,10 @@ type EvidenceCardProps = {
   onCaptionChange: (caption: string) => void
   onDelete: () => void
   onToggleFlag: () => void
+  onPreview: () => void
 }
 
-function EvidenceCard({ item, onCaptionChange, onDelete, onToggleFlag }: EvidenceCardProps) {
+function EvidenceCard({ item, onCaptionChange, onDelete, onToggleFlag, onPreview }: EvidenceCardProps) {
   const isVideo = item.mediaType === "video"
   const badgeClass = item.flagged
     ? "text-error bg-error-container border-error/30"
@@ -217,18 +284,27 @@ function EvidenceCard({ item, onCaptionChange, onDelete, onToggleFlag }: Evidenc
 
   return (
     <article className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col group shadow-sm">
-      <div className="relative aspect-video bg-surface-container-highest border-b border-outline-variant">
+      <div 
+        onClick={onPreview}
+        className="relative aspect-video bg-surface-container-highest border-b border-outline-variant cursor-pointer group/card overflow-hidden"
+      >
         <img
           alt={item.name}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500"
           src={item.previewBase64 ?? item.base64}
         />
 
         {isVideo ? (
-          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors cursor-pointer">
+          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center group-hover/card:bg-primary/30 transition-colors">
             <MaterialIcon name="play_circle" className="text-[48px] text-on-primary drop-shadow-md" />
           </div>
-        ) : null}
+        ) : (
+          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+            <div className="w-12 h-12 rounded-full bg-white/20 border border-white/30 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover/card:scale-100 transition-all duration-300">
+              <MaterialIcon name="visibility" className="text-xl" />
+            </div>
+          </div>
+        )}
 
         <div
           className={cn(
@@ -240,19 +316,25 @@ function EvidenceCard({ item, onCaptionChange, onDelete, onToggleFlag }: Evidenc
           {item.flagged ? "MARCADA" : isVideo ? "MP4" : "JPG"}
         </div>
 
-        <div className="absolute top-3 right-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex gap-2">
+        <div className="absolute top-3 right-3 opacity-100 lg:opacity-0 lg:group-hover/card:opacity-100 transition-opacity flex gap-2 z-10">
           <button
             type="button"
-            onClick={onToggleFlag}
-            className="w-8 h-8 bg-surface text-on-surface rounded-full flex items-center justify-center shadow-sm hover:text-error transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFlag()
+            }}
+            className="w-8 h-8 bg-surface text-on-surface rounded-full flex items-center justify-center shadow-sm hover:text-error transition-colors border-none cursor-pointer"
             title="Marcar o desmarcar"
           >
             <MaterialIcon name={item.flagged ? "flag" : "outlined_flag"} className="text-[18px]" />
           </button>
           <button
             type="button"
-            onClick={onDelete}
-            className="w-8 h-8 bg-surface text-on-surface rounded-full flex items-center justify-center shadow-sm hover:text-error transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
+            className="w-8 h-8 bg-surface text-on-surface rounded-full flex items-center justify-center shadow-sm hover:text-error transition-colors border-none cursor-pointer"
             title="Eliminar"
           >
             <MaterialIcon name="delete" className="text-[18px]" />
