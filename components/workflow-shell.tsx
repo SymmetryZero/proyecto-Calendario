@@ -234,7 +234,7 @@ export function WorkflowShell({
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-        <div className="px-6 mb-8 hidden md:flex flex-col gap-4">
+        <div className="px-6 mb-8 flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <div className="flex-shrink-0">
               <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "w-12 h-12 border-2 border-outline-variant rounded-full" } }} />
