@@ -580,18 +580,12 @@ function TaskCard({
   const duration = workflowSelectors.getTaskDuration(task, now)
   const canEscalate = !!currentUser?.id && task.assigneeIds.includes(currentUser.id)
   const currentUserAreas = currentUser?.areas ?? []
-  const canClaimEscalation =
-    !!task.escalation &&
-    task.escalation.targetUserId == null &&
+  const taskArea = task.escalation?.toArea ?? task.area
+  const canClaimTask =
+    !!taskArea &&
     !!currentUser?.id &&
     !task.assigneeIds.includes(currentUser.id) &&
-    currentUserAreas.includes(task.escalation.toArea)
-  const isUnassigned = !task.assigneeIds || task.assigneeIds.length === 0
-  const canClaimTask =
-    isUnassigned &&
-    !!task.area &&
-    !!currentUser?.id &&
-    (currentUserAreas.includes(task.area) || currentUser.role === "administrador")
+    (currentUserAreas.includes(taskArea) || currentUser.role === "administrador")
   const isCreatedByCurrentUser = !!currentUser?.id && task.creatorId === currentUser.id
   
   const statusLabel =
@@ -707,7 +701,7 @@ function TaskCard({
               <MaterialIcon name="forward_to_inbox" className="text-[16px]" />
             </button>
           ) : null}
-          {(canClaimEscalation || canClaimTask) ? (
+          {canClaimTask ? (
             <button
               type="button"
               onClick={(e) => {

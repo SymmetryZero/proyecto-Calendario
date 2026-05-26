@@ -209,6 +209,15 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     !!currentUserId &&
     task.assigneeIds.includes(currentUserId)
 
+  const currentUserAreas = currentUser?.areas ?? []
+  const claimArea = task?.escalation?.toArea ?? task?.area
+  const canClaimTask =
+    !!task &&
+    !!currentUser?.id &&
+    !!claimArea &&
+    !task.assigneeIds.includes(currentUser.id) &&
+    (currentUserAreas.includes(claimArea) || currentUser.role === "administrador")
+
   if (!open || !task) return null
 
   const priorityMeta: Record<Priority, { label: string; className: string }> = {
@@ -568,41 +577,42 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             {assignees.length === 0 ? (
                               <div className="flex flex-col gap-3 bg-surface-container-lowest p-4 rounded-xl border border-dashed border-outline-variant/60 text-center">
                                  <p className="text-xs text-on-surface-variant italic">Sin responsables asignados</p>
-                                 {(() => {
-                                   const currentUserAreas = currentUser?.areas ?? []
-                                   const taskArea = task.escalation ? task.escalation.toArea : task.area
-                                   const canClaim =
-                                     !!taskArea &&
-                                     !!currentUser &&
-                                     (currentUserAreas.includes(taskArea) || currentUser.role === "administrador")
-                                   
-                                   if (!canClaim) return null
-                                   
-                                   return (
-                                     <button
-                                       type="button"
-                                       onClick={() => claimTask(task.id)}
-                                       className="w-full h-9 bg-secondary text-white font-bold text-[11px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-secondary-container hover:text-on-secondary-container active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                                     >
-                                        <MaterialIcon name="assignment_ind" className="text-[14px]" />
-                                        Tomar Tarea
-                                     </button>
-                                   )
-                                 })()}
+                                 {canClaimTask ? (
+                                   <button
+                                     type="button"
+                                     onClick={() => claimTask(task.id)}
+                                     className="w-full h-9 bg-secondary text-white font-bold text-[11px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-secondary-container hover:text-on-secondary-container active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                                   >
+                                      <MaterialIcon name="assignment_ind" className="text-[14px]" />
+                                      Tomar Tarea
+                                   </button>
+                                 ) : null}
                               </div>
                             ) : (
-                              assignees.map(tech => (
-                                <div key={tech.id} className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/50 mb-2 last:mb-0 group hover:border-secondary transition-colors">
-                                   <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
-                                   <div className="min-w-0 flex-1">
-                                      <p className="font-title-sm text-sm font-bold text-on-surface">{tech.name}</p>
-                                      <p className="text-[11px] text-on-surface-variant">{tech.role}</p>
-                                   </div>
-                                   <button className="h-8 w-8 rounded-full flex items-center justify-center text-secondary hover:bg-secondary/10 opacity-0 group-hover:opacity-100 transition-all">
-                                      <MaterialIcon name="mail" className="text-[18px]" />
-                                   </button>
-                                </div>
-                              ))
+                              <div className="space-y-2">
+                                {assignees.map(tech => (
+                                  <div key={tech.id} className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/50 group hover:border-secondary transition-colors">
+                                     <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
+                                     <div className="min-w-0 flex-1">
+                                        <p className="font-title-sm text-sm font-bold text-on-surface">{tech.name}</p>
+                                        <p className="text-[11px] text-on-surface-variant">{tech.role}</p>
+                                     </div>
+                                     <button className="h-8 w-8 rounded-full flex items-center justify-center text-secondary hover:bg-secondary/10 opacity-0 group-hover:opacity-100 transition-all">
+                                        <MaterialIcon name="mail" className="text-[18px]" />
+                                     </button>
+                                  </div>
+                                ))}
+                                {canClaimTask ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => claimTask(task.id)}
+                                    className="w-full h-9 bg-secondary text-white font-bold text-[11px] uppercase tracking-wider rounded-lg shadow-sm hover:bg-secondary-container hover:text-on-secondary-container active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                                  >
+                                     <MaterialIcon name="assignment_ind" className="text-[14px]" />
+                                     Tomar Tarea
+                                  </button>
+                                ) : null}
+                              </div>
                             )}
                       </div>
                    </section>

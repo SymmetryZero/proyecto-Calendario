@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
-import { useWorkflowStore, type User } from "@/store/workflow-store"
+import { useWorkflowStore, type User, workflowSelectors } from "@/store/workflow-store"
 import { UserModal } from "@/components/modals/user-modal"
 import { cn, formatNumericDate } from "@/utils/workflow"
 
@@ -26,7 +26,7 @@ export function UsersSection() {
     return usersToFilter.filter((u) => 
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.position.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      workflowSelectors.getUserZones(u).join(" ").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.areas ?? []).join(" ").toLowerCase().includes(searchQuery.toLowerCase())
     )
   }, [users, searchQuery, currentUser, currentUserId])
@@ -101,15 +101,19 @@ export function UsersSection() {
 
         {viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredUsers.map((user) => (
-              <UserCard 
-                key={user.id} 
-                user={user} 
-                onEdit={() => handleEdit(user)} 
-                onDelete={() => deleteUser(user.id)} 
-                isEmployee={currentUser?.role === "empleado"}
-              />
-            ))}
+            {filteredUsers.map((user) => {
+              const userZones = workflowSelectors.getUserZones(user)
+              return (
+                <UserCard 
+                  key={user.id} 
+                  user={user} 
+                  zones={userZones}
+                  onEdit={() => handleEdit(user)} 
+                  onDelete={() => deleteUser(user.id)} 
+                  isEmployee={currentUser?.role === "empleado"}
+                />
+              )
+            })}
           </div>
         ) : (
           <div className="bg-surface rounded-2xl border border-outline-variant overflow-hidden shadow-sm overflow-x-auto">
@@ -118,14 +122,16 @@ export function UsersSection() {
                 <tr className="bg-surface-container text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
                   <th className="p-4 pl-6">Usuario</th>
                   <th className="p-4">Puesto</th>
-                  <th className="p-4">Zona</th>
+                  <th className="p-4">Zonas</th>
                   <th className="p-4">Areas</th>
                   <th className="p-4">Rol</th>
                   <th className="p-4 pr-6 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant">
-                {filteredUsers.map((user) => (
+                {filteredUsers.map((user) => {
+                  const userZones = workflowSelectors.getUserZones(user)
+                  return (
                   <tr key={user.id} className="hover:bg-surface-container-low transition-colors group">
                     <td className="p-4 pl-6">
                       <div className="flex items-center gap-4">
@@ -137,7 +143,19 @@ export function UsersSection() {
                       </div>
                     </td>
                     <td className="p-4 font-body-sm text-body-sm text-on-surface-variant">{user.position}</td>
-                    <td className="p-4 font-body-sm text-body-sm text-on-surface-variant">{user.zone}</td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {userZones.length > 0 ? (
+                          userZones.map((zone) => (
+                            <span key={zone} className="rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-bold uppercase text-on-surface-variant">
+                              {zone}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[11px] text-on-surface-variant">Sin zona</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1">
                         {(user.areas ?? []).map((area) => (
@@ -163,7 +181,7 @@ export function UsersSection() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -185,21 +203,27 @@ export function UsersSection() {
   )
 }
 
-function UserCard({ user, onEdit, onDelete, isEmployee }: { user: User; onEdit: () => void; onDelete: () => void; isEmployee?: boolean }) {
+function UserCard({ user, zones, onEdit, onDelete, isEmployee }: { user: User; zones: string[]; onEdit: () => void; onDelete: () => void; isEmployee?: boolean }) {
+  const primaryZone = zones[0] || "Sin zona"
+  const extraZones = zones.length > 1 ? zones.length - 1 : 0
+  const zoneLabel = extraZones > 0 ? `${primaryZone} +${extraZones}` : primaryZone
+
   return (
-    <article className="group relative bg-surface rounded-3xl border border-outline-variant p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
-      <div className="absolute top-4 right-4 flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-        <button onClick={onEdit} className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-full transition-all">
-          <MaterialIcon name="edit" className="text-[18px]" />
-        </button>
-        {!isEmployee && (
-          <button onClick={onDelete} className="p-2 text-on-surface-variant hover:text-error hover:bg-error-container rounded-full transition-all">
-            <MaterialIcon name="delete" className="text-[18px]" />
+    <article className="group bg-surface rounded-3xl border border-outline-variant p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
+      <div className="w-full flex justify-end pb-2">
+        <div className="flex items-center gap-1 rounded-full bg-surface/90 border border-outline-variant p-1 shadow-sm opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-full transition-all">
+            <MaterialIcon name="edit" className="text-[18px]" />
           </button>
-        )}
+          {!isEmployee && (
+            <button onClick={onDelete} className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-error-container rounded-full transition-all">
+              <MaterialIcon name="delete" className="text-[18px]" />
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex flex-col items-center text-center gap-4">
+      <div className="flex flex-col items-center text-center gap-4 mt-2">
         <div className="relative">
           <img src={user.avatar} alt={user.name} className="w-24 h-24 rounded-full border-2 border-surface-container shadow-inner" />
           <div className="absolute -bottom-1 -right-1">
@@ -212,7 +236,7 @@ function UserCard({ user, onEdit, onDelete, isEmployee }: { user: User; onEdit: 
           <p className="font-body-sm text-body-sm text-primary font-medium">{user.position}</p>
           <div className="flex items-center justify-center gap-1.5 text-on-surface-variant">
             <MaterialIcon name="location_on" className="text-[14px]" />
-            <span className="text-[12px]">{user.zone}</span>
+            <span className="text-[12px]">{zoneLabel}</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-1.5">
             {(user.areas ?? []).map((area) => (

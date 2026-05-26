@@ -77,6 +77,12 @@ export function WorkflowShell({
     workflowSelectors.getCurrentUser(users, currentUserId),
     [users, currentUserId])
 
+  const currentUserZones = useMemo(() => workflowSelectors.getUserZones(currentUser), [currentUser])
+  const primaryZoneLabel = currentUserZones[0] ?? currentUser?.zone ?? ""
+  const zoneSummary = primaryZoneLabel
+    ? `${primaryZoneLabel}${currentUserZones.length > 1 ? ` +${currentUserZones.length - 1}` : ""}`
+    : ""
+
   const currentUserInitials = useMemo(() => {
     if (!currentUser?.name) return "US"
     const parts = currentUser.name.split(" ")
@@ -123,7 +129,9 @@ export function WorkflowShell({
     const zones = new Set<string>()
     tasks.forEach((task) => task.location && zones.add(task.location))
     requirements.forEach((req) => req.location && zones.add(req.location))
-    users.forEach((user) => user.zone && zones.add(user.zone))
+    users.forEach((user) => {
+      workflowSelectors.getUserZones(user).forEach((zone) => zones.add(zone))
+    })
     return Array.from(zones).sort()
   }, [tasks, requirements, users])
 
@@ -289,9 +297,9 @@ export function WorkflowShell({
               <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
                 {currentUser?.position || "Visitante"}
               </span>
-              {currentUser?.zone && (
+              {zoneSummary && (
                 <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
-                  Site Alfa - {currentUser.zone}
+                  Site Alfa - {zoneSummary}
                 </span>
               )}
             </div>
@@ -512,7 +520,7 @@ export function WorkflowShell({
               ) : (
                 <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/70 flex items-center gap-1.5">
                   <MaterialIcon name="verified_user" className="text-sm text-secondary" />
-                  Región {currentUser?.zone || "Alfa"}
+                  Región {zoneSummary || "Alfa"}
                 </div>
               )}
             </div>

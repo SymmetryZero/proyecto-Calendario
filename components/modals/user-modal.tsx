@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, type FormEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn, createAvatarDataUri, fileToDataUrl } from "@/utils/workflow"
-import { AREA_OPTIONS, type UserRole, useWorkflowStore, type User, type Area } from "@/store/workflow-store"
+import { AREA_OPTIONS, type UserRole, useWorkflowStore, type User, type Area, workflowSelectors } from "@/store/workflow-store"
 
 type UserModalProps = {
   open: boolean
@@ -29,13 +29,18 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
   const [name, setName] = useState("")
   const [birthDate, setBirthDate] = useState("")
   const [position, setPosition] = useState("")
-  const [zone, setZone] = useState("")
+  const [zones, setZones] = useState<string[]>([])
+  const [zoneInput, setZoneInput] = useState("")
   const [areas, setAreas] = useState<Area[]>([])
   const [role, setRole] = useState<UserRole>("empleado")
   const [avatar, setAvatar] = useState("")
 
   const existingZones = useMemo(() => {
-    return Array.from(new Set(users.map((u) => u.zone).filter(Boolean)))
+    const zoneSet = new Set<string>()
+    users.forEach((u) => {
+      workflowSelectors.getUserZones(u).forEach((zone) => zoneSet.add(zone))
+    })
+    return Array.from(zoneSet)
   }, [users])
 
   useEffect(() => {
@@ -45,7 +50,8 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       setName(userToEdit.name)
       setBirthDate(userToEdit.birthDate)
       setPosition(userToEdit.position)
-      setZone(userToEdit.zone)
+      setZones(workflowSelectors.getUserZones(userToEdit))
+      setZoneInput("")
       setAreas(userToEdit.areas ?? [])
       setRole(userToEdit.role)
       setAvatar(userToEdit.avatar)
@@ -53,7 +59,8 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       setName("")
       setBirthDate("")
       setPosition("")
-      setZone("")
+      setZones([])
+      setZoneInput("")
       setAreas([])
       setRole("empleado")
       setAvatar("")
@@ -74,17 +81,34 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
     }
   }
 
+  function handleAddZone() {
+    if (isSelfEmployee) return
+    const nextZone = zoneInput.trim()
+    if (!nextZone) return
+    setZones((current) => (current.includes(nextZone) ? current : [...current, nextZone]))
+    setZoneInput("")
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!name.trim()) return
+
+    const trimmedZones = zones.map((zone) => zone.trim()).filter(Boolean)
+    const pendingZone = zoneInput.trim()
+    if (pendingZone && !trimmedZones.includes(pendingZone)) {
+      trimmedZones.push(pendingZone)
+    }
+    const finalZones = trimmedZones.length > 0 ? trimmedZones : ["General"]
+    const primaryZone = finalZones[0]
 
     const userData = {
       name: name.trim(),
       avatar: avatar || createAvatarDataUri(name.trim()),
       birthDate,
       position: position.trim() || "Colaborador",
-      zone: zone.trim() || "General",
+      zone: primaryZone,
+      zones: finalZones,
       areas: areas.length > 0 ? areas : (["Operacion"] as Area[]),
       role
     }
@@ -216,16 +240,54 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
             </div>
             <div className="grid gap-2">
               <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
-                Lugar o Zona
+                Zonas de trabajo
               </label>
-              <input
-                value={zone}
-                onChange={(e) => setZone(e.target.value)}
-                list="zones-list"
-                disabled={isSelfEmployee}
-                className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                placeholder="Ej: Zona Norte"
-              />
+              <div className="flex gap-2">
+                <input
+                  value={zoneInput}
+                  onChange={(e) => setZoneInput(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      handleAddZone()
+                    }
+                  }}
+                  list="zones-list"
+                  disabled={isSelfEmployee}
+                  className="h-12 flex-1 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-surface-container-low"
+                  placeholder="Ej: Zona Norte"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddZone}
+                  disabled={isSelfEmployee}
+                  className="h-12 px-4 rounded-lg bg-primary text-on-primary text-xs font-bold uppercase tracking-wider disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Agregar
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {zones.length > 0 ? (
+                  zones.map((zone) => (
+                    <span key={zone} className="inline-flex items-center gap-1 rounded-full bg-surface-container-low px-3 py-1 text-[10px] font-bold uppercase text-on-surface-variant">
+                      {zone}
+                      {!isSelfEmployee && (
+                        <button
+                          type="button"
+                          onClick={() => setZones((current) => current.filter((item) => item !== zone))}
+                          className="ml-1 text-on-surface-variant hover:text-primary"
+                          aria-label={`Quitar ${zone}`}
+                        >
+                          <MaterialIcon name="close" className="text-[12px]" />
+                        </button>
+                      )}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-on-surface-variant">Sin zonas asignadas.</span>
+                )}
+              </div>
+              <p className="text-[11px] text-on-surface-variant">La primera zona es la principal.</p>
               <datalist id="zones-list">
                 {existingZones.map((z) => (
                   <option key={z} value={z} />

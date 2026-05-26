@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { formatLongDateTime, formatBytes, cn } from "@/utils/workflow"
-import { useWorkflowStore } from "@/store/workflow-store"
+import { useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { PWAInstallModal, usePWAInstall } from "@/components/pwa-install"
 
 type SettingsSectionProps = {
@@ -35,6 +35,12 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
   const currentUser = useMemo(() => 
     users.find(u => u.id === currentUserId) ?? null,
   [users, currentUserId])
+
+  const currentUserZones = useMemo(() => workflowSelectors.getUserZones(currentUser), [currentUser])
+  const primaryZoneLabel = currentUserZones[0] ?? currentUser?.zone ?? ""
+  const zoneSummary = primaryZoneLabel
+    ? `${primaryZoneLabel}${currentUserZones.length > 1 ? ` +${currentUserZones.length - 1}` : ""}`
+    : ""
 
   const snapshot = useMemo(
     () => ({
@@ -286,7 +292,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
                       <span className="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase">{currentUser?.role}</span>
                       <div className="flex items-center gap-1 text-[10px] text-on-surface-variant bg-surface px-2 py-0.5 rounded border border-outline-variant">
                          <MaterialIcon name="location_on" className="text-[12px]" />
-                         {currentUser?.zone}
+                         {zoneSummary || "Sin zona"}
                       </div>
                    </div>
                 </div>

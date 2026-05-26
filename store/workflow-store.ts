@@ -68,6 +68,24 @@ export const AREA_OPTIONS: Area[] = [
 ]
 
 const DEFAULT_AREA: Area = "Operacion"
+const ZONE_SEPARATOR = "|"
+
+function parseZones(value?: string | null) {
+  if (!value) return []
+  return value
+    .split(ZONE_SEPARATOR)
+    .map((zone) => zone.trim())
+    .filter(Boolean)
+}
+
+function normalizeZones(zones?: string[] | null, fallback?: string | null) {
+  const normalized = (zones ?? [])
+    .map((zone) => zone.trim())
+    .filter(Boolean)
+  if (normalized.length > 0) return normalized
+  return parseZones(fallback)
+}
+
 
 export interface User {
   id: string
@@ -76,6 +94,7 @@ export interface User {
   birthDate: string
   position: string
   zone: string
+  zones?: string[]
   role: UserRole
   createdAt: string
   showAllZones?: boolean
@@ -91,6 +110,16 @@ export interface User {
 // Technician interface kept as a subset of User for compatibility if needed, 
 // but we will primarily use User.
 export type Technician = User
+
+function resolveUserZones(user?: User | null) {
+  return normalizeZones(user?.zones ?? null, user?.zone ?? null)
+}
+
+function isInUserZones(location: string | undefined | null, zones: string[]) {
+  if (zones.length === 0) return true
+  if (!location) return false
+  return zones.includes(location)
+}
 
 export type TaskActivityType = "note" | "drawing" | "image" | "video" | "audio" | "log"
 
@@ -386,6 +415,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1985-05-15",
       position: "Administrador de Sistemas",
       zone: "Oficina Central",
+      zones: ["Oficina Central"],
       role: "administrador",
       createdAt: threeDaysAgo,
       showAllZones: true,
@@ -400,6 +430,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1990-10-20",
       position: "Gerente de Operaciones",
       zone: "Zona Norte",
+      zones: ["Zona Norte"],
       role: "gerente",
       createdAt: threeDaysAgo,
       showAllZones: false,
@@ -414,6 +445,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1995-03-12",
       position: "Técnico Especialista",
       zone: "Zona Sur",
+      zones: ["Zona Sur"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -431,6 +463,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1992-07-22",
       position: "Líder HVAC",
       zone: "Zona Norte",
+      zones: ["Zona Norte"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -448,6 +481,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1988-11-05",
       position: "Técnico Electricista",
       zone: "Zona Sur",
+      zones: ["Zona Sur"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -465,6 +499,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1994-02-28",
       position: "Inspectora de Seguridad",
       zone: "Zona Norte",
+      zones: ["Zona Norte"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -482,6 +517,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1991-09-15",
       position: "Especialista en Bombas",
       zone: "Zona Sur",
+      zones: ["Zona Sur"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -499,6 +535,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1993-06-10",
       position: "Técnico General",
       zone: "Zona Norte",
+      zones: ["Zona Norte"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -516,6 +553,7 @@ function createSeedData(): WorkflowSeed {
       birthDate: "1987-12-01",
       position: "Especialista HVAC",
       zone: "Oficina Central",
+      zones: ["Oficina Central"],
       role: "empleado",
       createdAt: twoDaysAgo,
       showAllZones: false,
@@ -1518,10 +1556,15 @@ function patchItems<T extends { id: string }>(
 }
 
 function translateLegacyWorkflowState(state: Partial<WorkflowStore>) {
-  const nextUsers = (state.users || []).map(u => ({
-    ...u,
-    areas: u.areas && u.areas.length > 0 ? u.areas : [DEFAULT_AREA]
-  }))
+  const nextUsers = (state.users || []).map((u: any) => {
+    const zones = normalizeZones(Array.isArray(u.zones) ? u.zones : null, u.zone)
+    return {
+      ...u,
+      zone: zones[0] ?? u.zone ?? "",
+      zones,
+      areas: u.areas && u.areas.length > 0 ? u.areas : [DEFAULT_AREA]
+    }
+  })
 
   const nextTasks = (state.tasks || []).map((t: any) => ({
     ...t,
@@ -2117,10 +2160,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
             return
           }
 
-          if (!task.escalation || task.escalation.targetUserId) {
+          if (!task.escalation) {
             get().setGlobalAlert({
               title: "Asignacion no disponible",
-              message: "Esta tarea ya fue asignada en el area destino.",
+              message: "Esta tarea no tiene una escalacion activa.",
               type: "info"
             })
             return
@@ -2153,7 +2196,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                     ...item,
                     assigneeIds: Array.from(new Set([...item.assigneeIds, currentUser.id])),
                     escalation: item.escalation
-                      ? { ...item.escalation, targetUserId: currentUser.id }
+                      ? { ...item.escalation, targetUserId: item.escalation.targetUserId ?? currentUser.id }
                       : item.escalation,
                     updatedAt: now
                   }
@@ -2178,14 +2221,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const userAreas = currentUser.areas ?? []
 
           if (task.escalation) {
-            if (task.escalation.targetUserId) {
-              get().setGlobalAlert({
-                title: "Asignación no disponible",
-                message: "Esta tarea ya fue auto-tomada o asignada.",
-                type: "info"
-              })
-              return
-            }
             if (!task.escalation.toArea || !userAreas.includes(task.escalation.toArea)) {
               get().setGlobalAlert({
                 title: "Asignación no permitida",
@@ -2195,14 +2230,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
               return
             }
           } else {
-            if (task.assigneeIds && task.assigneeIds.length > 0) {
-              get().setGlobalAlert({
-                title: "Asignación no disponible",
-                message: "Esta tarea ya tiene responsables asignados.",
-                type: "info"
-              })
-              return
-            }
             if (!task.area || !userAreas.includes(task.area)) {
               get().setGlobalAlert({
                 title: "Asignación no permitida",
@@ -2230,7 +2257,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                     ...item,
                     assigneeIds: Array.from(new Set([...item.assigneeIds, currentUser.id])),
                     escalation: item.escalation
-                      ? { ...item.escalation, targetUserId: currentUser.id }
+                      ? { ...item.escalation, targetUserId: item.escalation.targetUserId ?? currentUser.id }
                       : item.escalation,
                     updatedAt: now
                   }
@@ -2524,9 +2551,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
         addUser: (input) => {
           const id = makeId("user")
           const now = new Date().toISOString()
+          const normalizedZones = normalizeZones(input.zones, input.zone)
+          const primaryZone = normalizedZones[0] ?? input.zone ?? "General"
           const newUser: User = {
             id,
             ...input,
+            zone: primaryZone,
+            zones: normalizedZones,
             createdAt: now
           }
 
@@ -2543,7 +2574,17 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         updateUser: (userId, patch) => {
           set((state) => ({
-            users: state.users.map((u) => (u.id === userId ? { ...u, ...patch } : u))
+            users: state.users.map((u) => {
+              if (u.id !== userId) return u
+              const nextUser = { ...u, ...patch }
+              const normalizedZones = normalizeZones(nextUser.zones, nextUser.zone)
+              const primaryZone = normalizedZones[0] ?? nextUser.zone ?? "General"
+              return {
+                ...nextUser,
+                zone: primaryZone,
+                zones: normalizedZones
+              }
+            })
           }))
         },
         createFolder: (input) => {
@@ -2845,18 +2886,22 @@ export const workflowSelectors = {
   getCurrentUser(users: User[], currentUserId: string | null) {
     return currentUserId ? users.find(u => u.id === currentUserId) ?? null : null
   },
+  getUserZones(user: User | null) {
+    return resolveUserZones(user)
+  },
   filterTasksByZone(tasks: Task[], user: User | null) {
     if (!user) return []
     if (user.role === "administrador" || user.showAllZones) return tasks
     
-    // Si es empleado, solo ve sus tareas asignadas
+    // Si es empleado, ve lo asignado y lo disponible en sus areas
     if (user.role === "empleado") {
       const userAreas = user.areas ?? []
+      const userZones = resolveUserZones(user)
       return tasks.filter((task) => {
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && task.area && userAreas.includes(task.area)) return true
-        if (task.escalation?.targetUserId != null) return false
+        const taskArea = task.area ?? DEFAULT_AREA
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && userAreas.includes(taskArea) && isInUserZones(task.location, userZones)) return true
         if (!task.escalation?.toArea) return false
         return userAreas.includes(task.escalation.toArea)
       })
@@ -2865,13 +2910,14 @@ export const workflowSelectors = {
     // Si es gerente (sin visualización global activa)
     if (user.role === "gerente") {
       const userAreas = user.areas ?? []
+      const userZones = resolveUserZones(user)
       return tasks.filter((task) => {
         if (task.assigneeIds.includes(user.id)) return true
-        if (task.location === user.zone || task.creatorId === user.id) return true
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && task.area && userAreas.includes(task.area)) return true
-        if (task.escalation?.targetUserId != null) return false
-        if (!task.escalation?.toArea) return false
-        return userAreas.includes(task.escalation.toArea)
+        if (task.creatorId === user.id) return true
+        if (isInUserZones(task.location, userZones)) return true
+        if (task.escalation?.targetUserId === user.id) return true
+        if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) return true
+        return false
       })
     }
 
@@ -2881,14 +2927,22 @@ export const workflowSelectors = {
     if (!user) return []
     if (user.role === "administrador" || user.showAllZones) return requirements
 
-    // Si es empleado, permitimos ver requerimientos de su misma zona
+    // Si es empleado, permitimos ver requerimientos de su zona y areas
     if (user.role === "empleado") {
-      return requirements.filter((req) => req.location === user.zone)
+      const userAreas = user.areas ?? []
+      const userZones = resolveUserZones(user)
+      return requirements.filter((req) => {
+        if (!isInUserZones(req.location, userZones)) return false
+        const reqArea = req.area ?? DEFAULT_AREA
+        if (userAreas.length > 0 && !userAreas.includes(reqArea)) return false
+        return true
+      })
     }
 
-    // Gerentes ven requerimientos de su zona o creados por ellos
+    // Gerentes ven requerimientos de su zona
     if (user.role === "gerente") {
-      return requirements.filter((req) => req.location === user.zone || req.creatorId === user.id)
+      const userZones = resolveUserZones(user)
+      return requirements.filter((req) => req.creatorId === user.id || isInUserZones(req.location, userZones))
     }
 
     return requirements.filter((req) => req.location === user.zone)

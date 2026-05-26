@@ -11,6 +11,23 @@ import type {
   WorkflowSeed
 } from "@/store/workflow-store"
 
+const ZONE_SEPARATOR = "|"
+
+function parseZones(value?: string | null) {
+  if (!value) return []
+  return value
+    .split(ZONE_SEPARATOR)
+    .map((zone) => zone.trim())
+    .filter(Boolean)
+}
+
+function serializeZones(zones: string[]) {
+  return zones
+    .map((zone) => zone.trim())
+    .filter(Boolean)
+    .join(` ${ZONE_SEPARATOR} `)
+}
+
 export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
   try {
     // 1. Fetch from all 8 tables in parallel
@@ -70,13 +87,21 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       activitiesByTaskId[dbAct.task_id].push(act)
     })
 
-    const users: User[] = dbUsers.map((u) => ({
+    const users: User[] = dbUsers.map((u) => {
+      const zones = parseZones(u.zone)
+      const primaryZone = zones[0] ?? u.zone ?? ""
+      const fallbackAreas = u.role === "administrador" || u.role === "gerente"
+        ? ["Direccion", "Contabilidad", "Compras", "Proyectos", "RH", "Operacion"]
+        : ["Operacion"]
+      const resolvedAreas = Array.isArray(u.areas) && u.areas.length > 0 ? u.areas : fallbackAreas
+      return {
       id: u.id,
       name: u.name,
       avatar: u.avatar || "",
       birthDate: u.birth_date || "",
       position: u.position || "",
-      zone: u.zone || "",
+      zone: primaryZone,
+      zones,
       role: u.role,
       skills: u.skills || [],
       clearances: u.clearances || [],
@@ -85,8 +110,9 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       code: u.code || undefined,
       createdAt: u.created_at || new Date().toISOString(),
       showAllZones: u.role === "administrador",
-      areas: u.role === "administrador" || u.role === "gerente" ? ["Direccion", "Contabilidad", "Compras", "Proyectos", "RH", "Operacion"] : ["Operacion"]
-    }))
+        areas: resolvedAreas
+      }
+    })
 
     const folders: Folder[] = dbFolders.map((f) => ({
       id: f.id,
@@ -194,13 +220,16 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
 export async function pushToSupabase(state: any) {
   try {
     // 1. Prepare data structures for DB
-    const dbUsers = state.users.map((u: any) => ({
+    const dbUsers = state.users.map((u: any) => {
+      const zones = Array.isArray(u.zones) && u.zones.length > 0 ? u.zones : (u.zone ? [u.zone] : [])
+      return {
       id: u.id,
       name: u.name,
       avatar: u.avatar || null,
       birth_date: u.birthDate || null,
       position: u.position || null,
-      zone: u.zone || null,
+      zone: serializeZones(zones) || null,
+        areas: u.areas || [],
       role: u.role,
       skills: u.skills || [],
       clearances: u.clearances || [],
@@ -208,7 +237,8 @@ export async function pushToSupabase(state: any) {
       availability_label: u.availabilityLabel || "Disponible",
       code: u.code || null,
       created_at: u.createdAt || new Date().toISOString()
-    }))
+      }
+    })
 
     const dbFolders = state.folders.map((f: any) => ({
       id: f.id,

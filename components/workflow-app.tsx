@@ -15,11 +15,11 @@ import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
 import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
-import { useUser, SignInButton, useSignIn } from "@clerk/nextjs"
+import { useUser, SignIn } from "@clerk/nextjs"
 
 export function WorkflowApp() {
   const { isLoaded: isUserLoaded, isSignedIn, user } = useUser()
-  const { isLoaded: isSignInLoaded, signIn, setActive } = useSignIn()
+
   const hasHydrated = useWorkflowStore((state) => state.hasHydrated)
   const users = useWorkflowStore((state) => state.users)
   const currentUserId = useWorkflowStore((state) => state.currentUserId)
@@ -35,43 +35,7 @@ export function WorkflowApp() {
   const [zoneFilter, setZoneFilter] = useState("todas")
   const [areaFilter, setAreaFilter] = useState("todas")
 
-  // Estados locales para simulación visual del login industrial
-  const [emailInput, setEmailInput] = useState("")
-  const [passwordInput, setPasswordInput] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [loginError, setLoginError] = useState<string | null>(null)
-  const [loginLoading, setLoginLoading] = useState(false)
 
-  const handleCustomSignIn = async (e: any) => {
-    e.preventDefault()
-    if (!isSignInLoaded || !signIn || !setActive) return
-
-    if (!emailInput.trim() || !passwordInput) {
-      setLoginError("Por favor ingrese su correo y contraseña.")
-      return
-    }
-
-    setLoginLoading(true)
-    setLoginError(null)
-
-    try {
-      const result = await signIn.create({
-        identifier: emailInput.trim(),
-        password: passwordInput,
-      })
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId })
-      } else {
-        setLoginError("Inicio de sesión incompleto. Se requiere verificación adicional.")
-      }
-    } catch (err: any) {
-      console.error("Clerk Sign-In Error:", err)
-      setLoginError(err.errors?.[0]?.message || "Error al iniciar sesión. Verifique sus credenciales.")
-    } finally {
-      setLoginLoading(false)
-    }
-  }
 
   // Sincronizar el usuario autenticado de Clerk con el almacén local de Zustand
   useEffect(() => {
@@ -91,14 +55,14 @@ export function WorkflowApp() {
 
     if (localUser) {
       // Si el código, avatar o nombre cambiaron en Clerk, los actualizamos dinámicamente
-      const isOutdated = 
-        localUser.code !== user.id || 
-        localUser.avatar !== avatar || 
+      const isOutdated =
+        localUser.code !== user.id ||
+        localUser.avatar !== avatar ||
         localUser.name !== name
 
       if (isOutdated) {
-        useWorkflowStore.getState().updateUser(localUser.id, { 
-          code: user.id, 
+        useWorkflowStore.getState().updateUser(localUser.id, {
+          code: user.id,
           avatar: avatar,
           name: name
         })
@@ -115,6 +79,7 @@ export function WorkflowApp() {
         birthDate: "1990-01-01",
         position: "Personal Técnico (Sincronizado)",
         zone: "Oficina Central",
+        zones: ["Oficina Central"],
         role: "empleado",
         showAllZones: false,
         areas: ["Operacion"],
@@ -123,7 +88,7 @@ export function WorkflowApp() {
         availability: "available",
         availabilityLabel: "Disponible"
       })
-      
+
       // Asociar su ID de Clerk para inicios de sesión futuros
       useWorkflowStore.getState().updateUser(newId, { code: user.id })
       setCurrentUser(newId)
@@ -142,7 +107,9 @@ export function WorkflowApp() {
       setAreaFilter("todas")
       return
     }
-    setZoneFilter(currentUser.zone || "todas")
+    const userZones = workflowSelectors.getUserZones(currentUser)
+    const defaultZone = userZones.length > 1 ? "todas" : (userZones[0] || currentUser.zone || "todas")
+    setZoneFilter(defaultZone)
     setAreaFilter("todas")
   }, [currentUserId, currentUser])
 
@@ -174,203 +141,27 @@ export function WorkflowApp() {
             <MaterialIcon name="dashboard" filled />
           </div>
           <h1 className="font-headline-md text-headline-md text-primary">Servimeci</h1>
-          <p className="mt-2 text-on-surface-variant font-body-sm">Cargando los datos seguros de tu cuenta...</p>
+          <p className="mt-2 text-on-surface-variant font-body-sm">Cargando...</p>
         </div>
       </div>
     )
   }
 
-  // 2. Si no ha iniciado sesión, mostramos la pantalla de bienvenida industrial premium
+  // 2. Si no ha iniciado sesión, mostramos Clerk directamente
   if (!isSignedIn) {
     return (
       <>
         <PWARegistration />
-        <main className="min-h-screen flex bg-surface font-body-md text-on-surface antialiased overflow-hidden select-none w-full">
-          {/* Panel Izquierdo: Branding Visual (Solo Desktop) */}
-          <section className="hidden lg:flex lg:w-7/12 relative overflow-hidden bg-primary items-center justify-center h-screen">
-            <div className="absolute inset-0 z-0">
-              <img
-                alt="Instalación Industrial"
-                className="w-full h-full object-cover opacity-40 mix-blend-luminosity"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9TVbPDnkc3fp6u9FqkxYei2Rh4Z-a-vzd3sYLavwU482nfskI3T8Jsp_Gs82gFSQUA3oh5nwEtQupXejfD-jWUoGlheZmrFeXztN9o5F4IDaw1pXcG0zt9RBxSSYvyX-tY2Hdc7zbrS4uzesxtBEYxHTofZLkDSF1omJEvSGik3qYsBJo4N8umwHOgnT5-IAB3Jiif7k-Y0gfkiXWAR6e4yZSnE89_qv6UMJalpf607sRFEKmNR_DKXUrvHKKU8T41ppGCmsMByPu"
-              />
-            </div>
-            {/* Superposición Atmosférica Sutil */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary via-transparent to-primary-container opacity-60 z-10"></div>
-            
-            {/* Contenido de Branding */}
-            <div className="relative z-20 px-margin-edge text-left max-w-2xl">
-              <div className="flex items-center gap-stack-sm mb-stack-lg">
-                <span className="material-symbols-outlined text-secondary-container text-[48px]">factory</span>
-                <h1 className="text-white font-display-lg text-display-lg tracking-tight uppercase">FLOW OPS</h1>
+        <main className="min-h-screen flex items-center justify-center bg-background px-6">
+          <div className="flex flex-col items-center gap-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-on-primary shadow-lg">
+                <MaterialIcon name="factory" filled />
               </div>
-              <h2 className="text-white font-headline-md text-headline-md mb-stack-md">Servimeci App</h2>
-              <p className="text-on-primary-container font-body-md text-body-md leading-relaxed mb-stack-lg">
-                Sistemas de Flujo Industrial — Excelencia en la Operación. Optimice sus flujos de trabajo técnicos con nuestra robusta suite de gestión empresarial corporativa.
-              </p>
-              
-              {/* Indicadores de Estado */}
-              <div className="flex gap-stack-md mt-stack-lg">
-                <div className="flex items-center gap-stack-sm bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-white font-label-caps text-label-caps">Sistema Seguro</span>
-                </div>
-                <div className="flex items-center gap-stack-sm bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
-                  <span className="material-symbols-outlined text-white/60 text-[18px]">shield</span>
-                  <span className="text-white font-label-caps text-label-caps">Cifrado Extremo a Extremo</span>
-                </div>
-              </div>
+              <h1 className="font-headline-md text-headline-md text-primary font-bold">Servimeci App</h1>
             </div>
-            
-            {/* Elemento Decorativo */}
-            <div className="absolute bottom-margin-edge left-margin-edge z-20">
-              <p className="text-white/30 font-data-mono text-data-mono">NODE_TX_001.492 // VER 4.2.0</p>
-            </div>
-          </section>
-
-          {/* Panel Derecho: Formulario de Login */}
-          <section className="w-full lg:w-5/12 bg-surface-container-lowest flex items-center justify-center px-gutter py-stack-lg h-screen">
-            <div className="w-full max-w-[440px]">
-              {/* Encabezado */}
-              <div className="mb-stack-lg">
-                <div className="lg:hidden flex items-center gap-stack-sm mb-stack-md">
-                  <span className="material-symbols-outlined text-primary text-[32px]">factory</span>
-                  <span className="font-display-lg text-headline-md text-primary tracking-tight">FLOW OPS</span>
-                </div>
-                <h3 className="font-headline-md text-headline-md text-primary mb-2">Acceso Seguro</h3>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">Por favor, identifíquese para acceder al panel operativo de Servimeci.</p>
-              </div>
-
-              {/* Formulario */}
-              <form className="space-y-stack-md" onSubmit={handleCustomSignIn}>
-                {/* ID / Email */}
-                <div className="space-y-2">
-                  <label className="block font-label-caps text-label-caps text-on-surface-variant" htmlFor="employee-id">
-                    Correo Electrónico o ID de Empleado
-                  </label>
-                  <div className="relative group">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-                      person
-                    </span>
-                    <input
-                      className="w-full h-touch-target-min pl-12 pr-4 bg-white border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-all text-body-md placeholder:text-outline-variant outline-none"
-                      id="employee-id"
-                      name="employee-id"
-                      placeholder="ej. jperez@servimeci.com o TECH-001"
-                      type="text"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Contraseña */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="block font-label-caps text-label-caps text-on-surface-variant" htmlFor="password">
-                      Contraseña
-                    </label>
-                    <span className="text-label-caps font-label-caps text-primary hover:underline transition-all cursor-pointer opacity-70">
-                      ¿Olvidó su contraseña?
-                    </span>
-                  </div>
-                  <div className="relative group">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-                      lock
-                    </span>
-                    <input
-                      className="w-full h-touch-target-min pl-12 pr-12 bg-white border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary transition-all text-body-md outline-none"
-                      id="password"
-                      name="password"
-                      placeholder="••••••••"
-                      type={showPassword ? "text" : "password"}
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                    />
-                    <button
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-primary"
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      <span className="material-symbols-outlined">
-                        {showPassword ? "visibility_off" : "visibility"}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Recordarme */}
-                <div className="flex items-center gap-3 py-2">
-                  <div className="relative flex items-center">
-                    <input
-                      className="w-5 h-5 rounded-sm border-outline-variant text-primary focus:ring-primary cursor-pointer"
-                      id="remember"
-                      name="remember"
-                      type="checkbox"
-                    />
-                  </div>
-                  <label className="font-body-sm text-body-sm text-on-surface-variant select-none cursor-pointer" htmlFor="remember">
-                    Recordar este dispositivo por 30 días
-                  </label>
-                </div>
-
-                {/* Mensaje de Error de Login */}
-                {loginError && (
-                  <div className="rounded-lg bg-error/10 border border-error/20 p-3 text-xs text-error font-medium flex items-center gap-2">
-                    <MaterialIcon name="warning" className="text-sm" />
-                    <span>{loginError}</span>
-                  </div>
-                )}
-
-                {/* Botón de Submit Directo */}
-                <button 
-                  type="submit"
-                  disabled={loginLoading}
-                  className="w-full h-touch-target-min bg-primary hover:bg-primary-container disabled:opacity-60 active:scale-[0.98] text-white font-label-caps text-label-caps tracking-widest rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 mt-stack-md cursor-pointer font-bold border-none"
-                >
-                  {loginLoading ? (
-                    <span>INICIANDO SESIÓN...</span>
-                  ) : (
-                    <>
-                      <span>INICIAR SESIÓN</span>
-                      <span className="material-symbols-outlined text-[18px]">login</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Botón de respaldo/Clerk Modal para Social logins */}
-                <div className="text-center mt-4">
-                  <SignInButton mode="modal">
-                    <button 
-                      type="button" 
-                      className="text-xs text-primary font-bold hover:underline bg-transparent border-none cursor-pointer"
-                    >
-                      O iniciar sesión con Google / Microsoft
-                    </button>
-                  </SignInButton>
-                </div>
-              </form>
-
-              {/* Sección de Ayuda / Info */}
-              <div className="mt-stack-lg pt-stack-lg border-t border-outline-variant">
-                <div className="bg-surface-container-low p-4 rounded-lg flex items-start gap-4">
-                  <span className="material-symbols-outlined text-secondary text-[20px] mt-0.5">info</span>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    ¿Es un nuevo contratista? Por favor póngase en contacto con su <span className="font-bold text-primary">Supervisor de Sitio</span> para aprovisionar sus credenciales digitales corporativas.
-                  </p>
-                </div>
-              </div>
-
-              {/* Footer de enlaces de seguridad */}
-              <footer className="mt-stack-lg flex flex-wrap justify-center gap-x-stack-md gap-y-2">
-                <span className="font-label-caps text-[10px] text-outline cursor-pointer hover:text-primary transition-colors">PROTOCOLO DE SEGURIDAD</span>
-                <span className="text-outline-variant text-[10px]">•</span>
-                <span className="font-label-caps text-[10px] text-outline cursor-pointer hover:text-primary transition-colors">POLÍTICA DE PRIVACIDAD</span>
-                <span className="text-outline-variant text-[10px]">•</span>
-                <span className="font-label-caps text-[10px] text-outline cursor-pointer hover:text-primary transition-colors">SOPORTE DEL SISTEMA</span>
-              </footer>
-            </div>
-          </section>
+            <SignIn routing="hash" />
+          </div>
         </main>
       </>
     )
@@ -404,8 +195,8 @@ export function WorkflowApp() {
           />
         ) : null}
         {section === "assignments" ? (
-          <AssignmentSection 
-            onCreateTask={() => setTaskModalOpen(true)} 
+          <AssignmentSection
+            onCreateTask={() => setTaskModalOpen(true)}
             onOpenTaskDetails={(taskId) => setTaskDetailsTaskId(taskId)}
             searchQuery={searchQuery}
             zoneFilter={zoneFilter}
