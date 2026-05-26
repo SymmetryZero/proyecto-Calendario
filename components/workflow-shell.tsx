@@ -8,6 +8,7 @@ import { HelpModal } from "@/components/modals/help-modal"
 import { NotificationPopout } from "@/components/notification-popout"
 import { GlobalAlertModal } from "@/components/modals/global-alert-modal"
 import { UserButton } from "@clerk/nextjs"
+import { PWAInstallModal, usePWAInstall } from "@/components/pwa-install"
 
 type WorkflowShellProps = {
   section: SectionKey
@@ -57,6 +58,8 @@ export function WorkflowShell({
 }: WorkflowShellProps) {
   const [helpOpen, setHelpOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [pwaModalOpen, setPwaModalOpen] = useState(false)
+  const { isStandalone, deviceType } = usePWAInstall()
 
   const tasks = useWorkflowStore((state) => state.tasks)
   const requirements = useWorkflowStore((state) => state.requirements)
@@ -158,6 +161,16 @@ export function WorkflowShell({
           <h1 className="font-title-sm text-title-sm font-bold text-primary tracking-tight">Demo</h1>
         </div>
         <div className="flex items-center gap-2">
+          {!isStandalone && (
+            <button
+              onClick={() => setPwaModalOpen(true)}
+              className="p-1 px-2.5 mr-1 bg-secondary/15 hover:bg-secondary/20 text-secondary border border-secondary/20 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 animate-pulse"
+              title="Instalar App"
+            >
+              <MaterialIcon name="install_mobile" className="text-xs" />
+              <span>Instalar</span>
+            </button>
+          )}
           <button className="p-2 text-on-surface-variant"><MaterialIcon name="search" /></button>
           <button className="p-2 text-on-surface-variant"><MaterialIcon name="notifications" /></button>
         </div>
@@ -192,7 +205,47 @@ export function WorkflowShell({
         </div>
 
         <div className="flex-1 overflow-y-auto flex flex-col gap-2 scrollbar-thin">
-          {filteredSidebarItems.map((item) => {
+          {filteredSidebarItems.filter(item => item.key !== "settings").map((item) => {
+            const isActive = section === item.key
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onSectionChange(item.key)}
+                className={cn(
+                  "flex items-center gap-4 p-4 mx-2 rounded-xl transition-all duration-200 text-left",
+                  isActive
+                    ? "bg-secondary-container text-on-secondary-container opacity-90 shadow-sm"
+                    : "text-on-surface-variant hover:bg-surface-container-high"
+                )}
+              >
+                <MaterialIcon name={item.icon} filled={isActive} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+
+          {!isStandalone && (
+            <button
+              type="button"
+              onClick={() => setPwaModalOpen(true)}
+              className="flex items-center gap-4 p-4 mx-2 rounded-xl text-secondary hover:bg-secondary/5 transition-all duration-200 text-left mt-auto mb-2 border border-dashed border-secondary/30"
+            >
+              <MaterialIcon 
+                name={deviceType === "mobile" ? "phone_android" : deviceType === "tablet" ? "tablet_mac" : "laptop"} 
+                className="text-secondary animate-pulse" 
+              />
+              <span className="font-semibold text-secondary">
+                {deviceType === "mobile" 
+                  ? "Instalar en Celular" 
+                  : deviceType === "tablet" 
+                    ? "Instalar en Tablet" 
+                    : "Instalar en PC"}
+              </span>
+            </button>
+          )}
+
+          {filteredSidebarItems.filter(item => item.key === "settings").map((item) => {
             const isActive = section === item.key
             return (
               <button
@@ -204,7 +257,7 @@ export function WorkflowShell({
                   isActive
                     ? "bg-secondary-container text-on-secondary-container opacity-90 shadow-sm"
                     : "text-on-surface-variant hover:bg-surface-container-high",
-                  item.key === "settings" && "mt-auto mb-4"
+                  !isStandalone ? "mb-4" : "mt-auto mb-4"
                 )}
               >
                 <MaterialIcon name={item.icon} filled={isActive} />
@@ -491,6 +544,7 @@ export function WorkflowShell({
       </div>
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <GlobalAlertModal />
+      <PWAInstallModal isOpen={pwaModalOpen} onClose={() => setPwaModalOpen(false)} />
     </div>
   )
 }

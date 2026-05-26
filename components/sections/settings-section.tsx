@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { formatLongDateTime, formatBytes, cn } from "@/utils/workflow"
 import { useWorkflowStore } from "@/store/workflow-store"
+import { PWAInstallModal, usePWAInstall } from "@/components/pwa-install"
 
 type SettingsSectionProps = {
   onSwitchUser?: () => void
@@ -22,6 +23,14 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
   const updateUser = useWorkflowStore((state) => state.updateUser)
   const resetDemoData = useWorkflowStore((state) => state.resetDemoData)
   const [switchNotice, setSwitchNotice] = useState<string | null>(null)
+  const [pwaModalOpen, setPwaModalOpen] = useState(false)
+  const { isStandalone, deviceType } = usePWAInstall()
+
+  const deviceLabel = deviceType === "mobile" 
+    ? "Celular" 
+    : deviceType === "tablet" 
+      ? "Tablet" 
+      : "PC"
 
   const currentUser = useMemo(() => 
     users.find(u => u.id === currentUserId) ?? null,
@@ -143,6 +152,16 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
               <MaterialIcon name="settings" className="text-on-surface-variant" />
             </div>
             <div className="flex flex-col gap-3">
+              {!isStandalone && (
+                <button
+                  type="button"
+                  onClick={() => setPwaModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-secondary-container px-4 py-3 font-title-sm text-title-sm text-on-secondary-container hover:opacity-90 transition-opacity border border-secondary/20"
+                >
+                  <MaterialIcon name="install_mobile" className="animate-pulse text-secondary" />
+                  Instalar en tu {deviceLabel}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleExport}
@@ -293,6 +312,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
           </div>
         </section>
       </div>
+      <PWAInstallModal isOpen={pwaModalOpen} onClose={() => setPwaModalOpen(false)} />
     </main>
   )
 }

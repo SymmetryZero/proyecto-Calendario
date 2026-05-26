@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { Avatar } from "@/components/ui/avatar"
-import { cn, fileToDataUrl, formatBytes, formatDateTime } from "@/utils/workflow"
+import { cn, fileToDataUrl, formatBytes, formatDateTime, makeId } from "@/utils/workflow"
 import { EscalateTaskModal } from "@/components/modals/escalate-task-modal"
+import { supabase } from "@/utils/supabase"
 import {
   type DrawingScene,
   type EvidenceFile,
@@ -195,7 +196,31 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     try {
       if (!task) return
       const file = files[0]
-      const base64 = await fileToDataUrl(file)
+      
+      let fileUrl = ""
+      try {
+        // Clean file name to avoid spaces or special characters causing 400 errors in Supabase Storage
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.]/g, "_")
+        const filePath = `${makeId("evidence")}-${cleanName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from("servimeci-evidence")
+          .upload(filePath, file)
+
+        if (uploadError) {
+          throw uploadError
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("servimeci-evidence")
+          .getPublicUrl(filePath)
+
+        fileUrl = urlData.publicUrl
+      } catch (uploadError: any) {
+        console.error("Storage upload failed, falling back to local base64:", uploadError)
+        fileUrl = await fileToDataUrl(file)
+      }
+
       let type: "image" | "video" | "audio" = "image"
       if (file.type.startsWith("video/")) type = "video"
       else if (file.type.startsWith("audio/")) type = "audio"
@@ -205,7 +230,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
         title: "Descripción de Evidencia",
         value: "",
         data: {
-          base64,
+          base64: fileUrl, // Contains public URL or fallback base64
           type,
           fileName: file.name,
           mimeType: file.type

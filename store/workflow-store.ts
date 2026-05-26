@@ -2764,21 +2764,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         setItem: async (name, value: any) => {
           try {
-            // Limit task/evidence base64 to avoid performance issues
+            // Limit task/evidence base64 to avoid performance issues (raised to 10MB of base64 chars for photos)
             const prunedState = {
               ...value.state,
               tasks: value.state.tasks.map((t: any) => ({
                 ...t,
                 activities: t.activities.map((a: any) => ({
                   ...a,
-                  content: (typeof a.content === 'string' && a.content.length > 50000) 
+                  content: (typeof a.content === 'string' && a.content.length > 10000000) 
                     ? "" 
                     : a.content
                 }))
               })),
               evidence: value.state.evidence.map((e: any) => ({
                 ...e,
-                base64: (e.base64 && e.base64.length > 50000) ? "" : e.base64
+                base64: (e.base64 && e.base64.length > 10000000) ? "" : e.base64
               }))
             }
             debouncedPush(prunedState)
