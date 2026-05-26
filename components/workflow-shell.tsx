@@ -59,7 +59,9 @@ export function WorkflowShell({
   const [helpOpen, setHelpOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [pwaModalOpen, setPwaModalOpen] = useState(false)
-  const { isStandalone, deviceType } = usePWAInstall()
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const { isStandalone, isInstallable, platform, deviceType } = usePWAInstall()
+  const showInstallButton = !isStandalone && (isInstallable || platform === "ios")
 
   const tasks = useWorkflowStore((state) => state.tasks)
   const requirements = useWorkflowStore((state) => state.requirements)
@@ -154,27 +156,76 @@ export function WorkflowShell({
 
   return (
     <div className="h-screen flex bg-background text-on-background overflow-hidden flex-col md:flex-row">
-      {/* Mobile Header */}
-      <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center justify-between px-4 z-40 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-xs">GP</div>
-          <h1 className="font-title-sm text-title-sm font-bold text-primary tracking-tight">Demo</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {!isStandalone && (
-            <button
-              onClick={() => setPwaModalOpen(true)}
-              className="p-1 px-2.5 mr-1 bg-secondary/15 hover:bg-secondary/20 text-secondary border border-secondary/20 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 animate-pulse"
-              title="Instalar App"
+      {/* Mobile Header - Search or Profile Mode */}
+      {mobileSearchOpen ? (
+        <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center gap-3 px-4 z-40 shrink-0 animate-in fade-in duration-200">
+          <button 
+            onClick={() => {
+              setMobileSearchOpen(false)
+              onSearchChange("")
+            }}
+            className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+            aria-label="Cerrar búsqueda"
+          >
+            <MaterialIcon name="arrow_back" />
+          </button>
+          <input
+            className="flex-1 h-10 px-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm outline-none focus:border-primary transition-all font-body-md"
+            placeholder="Buscar tareas, planos..."
+            type="text"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            autoFocus
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => onSearchChange("")}
+              className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+              aria-label="Limpiar búsqueda"
             >
-              <MaterialIcon name="install_mobile" className="text-xs" />
-              <span>Instalar</span>
+              <MaterialIcon name="close" className="text-sm" />
             </button>
           )}
-          <button className="p-2 text-on-surface-variant"><MaterialIcon name="search" /></button>
-          <button className="p-2 text-on-surface-variant"><MaterialIcon name="notifications" /></button>
-        </div>
-      </header>
+        </header>
+      ) : (
+        <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center justify-between px-4 z-40 shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onToggleSidebar}
+              className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-sm active:scale-95 transition-all cursor-pointer shadow-sm border-none"
+              aria-label="Abrir menú"
+            >
+              {currentUserInitials}
+            </button>
+            <span 
+              onClick={onToggleSidebar}
+              className="font-title-sm text-title-sm font-bold text-primary tracking-tight cursor-pointer active:opacity-80 transition-all select-none"
+            >
+              Workflow Pro
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {showInstallButton && (
+              <button
+                onClick={() => setPwaModalOpen(true)}
+                className="p-1 px-2.5 bg-secondary/15 hover:bg-secondary/20 text-secondary border border-secondary/20 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 animate-pulse"
+                title="Instalar App"
+              >
+                <MaterialIcon name="install_mobile" className="text-xs" />
+                <span>Instalar</span>
+              </button>
+            )}
+            <button 
+              onClick={() => setMobileSearchOpen(true)}
+              className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+              aria-label="Buscar"
+            >
+              <MaterialIcon name="search" />
+            </button>
+            <button className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full"><MaterialIcon name="notifications" /></button>
+          </div>
+        </header>
+      )}
 
       <aside
         className={cn(
@@ -225,7 +276,7 @@ export function WorkflowShell({
             )
           })}
 
-          {!isStandalone && (
+          {showInstallButton && (
             <button
               type="button"
               onClick={() => setPwaModalOpen(true)}

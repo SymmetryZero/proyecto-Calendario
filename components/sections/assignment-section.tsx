@@ -310,7 +310,7 @@ export function AssignmentSection({
         </div>
       </section>
 
-      <section className="w-full lg:w-2/3 flex flex-col h-[calc(100vh-8rem)] min-h-0 gap-6">
+      <section className="w-full lg:w-2/3 flex flex-col h-auto lg:h-[calc(100vh-8rem)] min-h-0 gap-6">
         <div className="bg-surface rounded-xl border border-outline-variant p-6 shadow-sm flex-shrink-0">
           <div className="flex justify-between items-start mb-6 gap-4">
             <div>

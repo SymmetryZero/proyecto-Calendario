@@ -1195,7 +1195,7 @@ export function TaskDrawingCanvas({
     <div
       className={cn("flex flex-col h-full bg-surface-container-lowest select-none overflow-hidden", className)}
     >
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 gap-4 border-b border-outline-variant bg-white/80 backdrop-blur-md sticky top-0 z-30">
+      <div className="hidden sm:flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 gap-4 border-b border-outline-variant bg-white/80 backdrop-blur-md sticky top-0 z-30">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-secondary-container flex items-center justify-center text-on-secondary-container shadow-sm">
              <MaterialIcon name="architecture" className="text-[28px]" />
@@ -1217,7 +1217,7 @@ export function TaskDrawingCanvas({
           <button
             type="button"
             onClick={handleReset}
-            className="h-11 px-5 rounded-full border border-outline text-primary font-bold text-sm hover:bg-surface-container transition-all flex items-center gap-2 active:scale-95"
+            className="h-11 px-5 rounded-full border border-outline text-primary font-bold text-sm hover:bg-surface-container transition-all flex items-center gap-2 active:scale-95 cursor-pointer border-none bg-transparent"
           >
             <MaterialIcon name="restart_alt" />
             <span className="hidden sm:inline">{resetLabel}</span>
@@ -1226,7 +1226,7 @@ export function TaskDrawingCanvas({
             type="button"
             onClick={handleSave}
             disabled={!hasChanges}
-            className="h-11 px-6 rounded-full bg-primary text-white font-bold text-sm shadow-lg hover:opacity-90 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100"
+            className="h-11 px-6 rounded-full bg-primary text-white font-bold text-sm shadow-lg hover:opacity-90 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-30 disabled:grayscale disabled:scale-100 cursor-pointer border-none"
           >
             <MaterialIcon name="check_circle" filled />
             <span className="hidden sm:inline">{saveLabel}</span>
@@ -1652,19 +1652,61 @@ export function TaskDrawingCanvas({
           </button>
         </div>
 
-        {/* Info pill - compact on mobile */}
+        {/* Floating Actions on Mobile (Top Right) */}
+        <div className="absolute z-20 top-3 right-3 flex sm:hidden items-center gap-1.5 bg-white/95 p-1 rounded-full border border-outline-variant shadow-lg backdrop-blur-md">
+          {/* Style indicator / toggle */}
+          <button
+            type="button"
+            onClick={() => setShowStyleMenu(!showStyleMenu)}
+            className="h-9 px-3 rounded-full flex items-center gap-1 text-[11px] font-bold text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all cursor-pointer border-none bg-transparent"
+          >
+            <div className="h-3.5 w-3.5 rounded-full border border-outline flex-shrink-0" style={{ backgroundColor: strokeColor }} />
+            <span className="font-data-mono text-on-surface-variant">{strokeWidth}px</span>
+          </button>
+          
+          <div className="w-px h-5 bg-outline-variant/60" />
+
+          {/* Reset button */}
+          <button
+            type="button"
+            onClick={handleReset}
+            className="h-9 w-9 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all cursor-pointer border-none bg-transparent"
+            title={resetLabel}
+          >
+            <MaterialIcon name="restart_alt" className="text-[20px]" />
+          </button>
+
+          {/* Save button */}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!hasChanges}
+            className={cn(
+              "h-9 px-4 rounded-full font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 border-none cursor-pointer",
+              hasChanges 
+                ? "bg-secondary text-white shadow-md animate-pulse" 
+                : "bg-surface-container text-on-surface-variant/40 cursor-not-allowed"
+            )}
+            title={saveLabel}
+          >
+            <MaterialIcon name="check_circle" className="text-[16px]" filled={hasChanges} />
+            <span>Listo</span>
+          </button>
+        </div>
+
+        {/* Info pill - compact on Desktop only */}
         <div 
           onClick={() => setShowStyleMenu(!showStyleMenu)}
-          className="absolute right-2 top-2 sm:right-4 sm:top-4 z-20 flex items-center gap-2 sm:gap-3 rounded-full border border-outline-variant bg-surface/95 px-2.5 py-1.5 sm:px-4 sm:py-2 shadow-sm backdrop-blur-sm cursor-pointer hover:bg-surface-container transition-colors"
+          className="absolute hidden sm:flex right-4 top-4 z-20 items-center gap-3 rounded-full border border-outline-variant bg-surface/95 px-4 py-2 shadow-sm backdrop-blur-sm cursor-pointer hover:bg-surface-container transition-colors"
         >
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
             <div className="h-4 w-4 rounded-full border border-outline" style={{ backgroundColor: strokeColor }} />
-            <span className="hidden sm:inline font-data-mono text-data-mono text-on-surface-variant">Trazo: {strokeWidth}px</span>
+            <span className="font-data-mono text-data-mono text-on-surface-variant">Trazo: {strokeWidth}px</span>
           </div>
-          <div className="hidden sm:block h-4 w-px bg-outline-variant" />
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <MaterialIcon name="layers" className="text-[16px] sm:text-[18px] text-on-surface-variant" />
-            <span className="font-data-mono text-data-mono text-on-surface-variant text-[11px] sm:text-[12px]">{shapes.length} elem.</span>
+          <div className="h-4 w-px bg-outline-variant" />
+          <div className="flex items-center gap-2">
+            <MaterialIcon name="layers" className="text-[18px] text-on-surface-variant" />
+            <span className="font-data-mono text-data-mono text-on-surface-variant text-[12px]">{shapes.length} elem.</span>
           </div>
         </div>
 

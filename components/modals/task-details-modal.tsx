@@ -328,60 +328,61 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/80 backdrop-blur-md sm:px-6 sm:py-4">
       <div className={cn(
-        "relative w-full h-full sm:h-[90vh] flex flex-col sm:rounded-3xl bg-surface shadow-2xl overflow-hidden border-white/20 animate-in fade-in zoom-in duration-300 transition-all duration-500",
-        activeView === "drawing" ? "max-w-full" : "max-w-7xl"
+        "relative w-full h-full flex flex-col bg-surface shadow-2xl overflow-hidden border-white/20 animate-in fade-in zoom-in duration-300 transition-all duration-500",
+        activeView === "drawing" ? "max-w-full h-screen sm:h-screen sm:rounded-none" : "sm:h-[90vh] sm:rounded-3xl max-w-7xl"
       )}>
         
-        {/* Header Section */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 border-b border-outline-variant bg-surface/95 backdrop-blur-sm px-4 sm:px-6 py-4 sm:py-5 shrink-0">
-           <div className="flex flex-col">
-              <nav className="flex items-center gap-2 text-on-surface-variant mb-1 font-body-sm text-[12px]">
-                <button onClick={onClose} className="hover:text-primary flex items-center gap-1 transition-colors">
-                  <MaterialIcon name="arrow_back" className="text-[14px]" />
-                  <span>Regresar</span>
-                </button>
-                <MaterialIcon name="chevron_right" className="text-[14px]" />
-                <span className="hover:text-primary cursor-pointer hidden sm:inline">Tareas</span>
-                <MaterialIcon name="chevron_right" className="text-[14px] hidden sm:inline" />
-                <span className="text-primary font-semibold truncate max-w-[200px]">{task.title}</span>
-              </nav>
-              <div className="flex flex-wrap items-center gap-3">
-                 <h2 className="font-display-lg text-xl sm:text-display-lg text-primary leading-tight truncate max-w-[280px] sm:max-w-none">{task.title}</h2>
-                 
-                 <span className={cn("px-2 py-0.5 font-label-caps text-label-caps rounded-DEFAULT flex-shrink-0", priorityMeta[task.priority].className)}>
-                    {priorityMeta[task.priority].label}
-                 </span>
+        {activeView !== "drawing" && (
+          <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 border-b border-outline-variant bg-surface/95 backdrop-blur-sm px-4 sm:px-6 py-4 sm:py-5 shrink-0 animate-in fade-in duration-200">
+             <div className="flex flex-col">
+                <nav className="flex items-center gap-2 text-on-surface-variant mb-1 font-body-sm text-[12px]">
+                  <button onClick={onClose} className="hover:text-primary flex items-center gap-1 transition-colors border-none bg-transparent cursor-pointer">
+                    <MaterialIcon name="arrow_back" className="text-[14px]" />
+                    <span>Regresar</span>
+                  </button>
+                  <MaterialIcon name="chevron_right" className="text-[14px]" />
+                  <span className="hover:text-primary cursor-pointer hidden sm:inline">Tareas</span>
+                  <MaterialIcon name="chevron_right" className="text-[14px] hidden sm:inline" />
+                  <span className="text-primary font-semibold truncate max-w-[200px]">{task.title}</span>
+                </nav>
+                <div className="flex flex-wrap items-center gap-3">
+                   <h2 className="font-display-lg text-xl sm:text-display-lg text-primary leading-tight truncate max-w-[280px] sm:max-w-none">{task.title}</h2>
+                   
+                   <span className={cn("px-2 py-0.5 font-label-caps text-label-caps rounded-DEFAULT flex-shrink-0", priorityMeta[task.priority].className)}>
+                      {priorityMeta[task.priority].label}
+                   </span>
 
-                 {/* Status Selector */}
-                 <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-full border border-outline-variant">
-                    {(["todo", "inProgress", "review", "done"] as const).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => updateTask(task.id, { status: s })}
-                        className={cn(
-                          "px-3 py-1 rounded-full font-label-caps text-[9px] uppercase tracking-wider transition-all",
-                          task.status === s 
-                            ? s === "todo" ? "bg-surface-container-high text-on-surface shadow-sm" :
-                              s === "inProgress" ? "bg-secondary-container text-on-secondary-container shadow-sm" :
-                              s === "review" ? "bg-tertiary-container text-on-tertiary-container shadow-sm" :
-                              "bg-primary text-white shadow-sm"
-                            : "text-on-surface-variant hover:bg-surface-container-high"
-                        )}
-                      >
-                        {s === "todo" ? "Por Hacer" : s === "inProgress" ? "En Progreso" : s === "review" ? "Revisión" : "Hecho"}
-                      </button>
-                    ))}
-                 </div>
-              </div>
-              <p className="font-data-mono text-[11px] text-on-surface-variant mt-1.5">REF: {task.id.toUpperCase()}</p>
-           </div>
-           
-           <div className="flex items-center gap-3 self-end sm:self-center">
-              <button onClick={onClose} className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors shadow-sm">
-                <MaterialIcon name="close" />
-              </button>
-           </div>
-        </header>
+                   {/* Status Selector */}
+                   <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-full border border-outline-variant">
+                      {(["todo", "inProgress", "review", "done"] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => updateTask(task.id, { status: s })}
+                          className={cn(
+                            "px-3 py-1 rounded-full font-label-caps text-[9px] uppercase tracking-wider transition-all border-none cursor-pointer",
+                            task.status === s 
+                              ? s === "todo" ? "bg-surface-container-high text-on-surface shadow-sm" :
+                                s === "inProgress" ? "bg-secondary-container text-on-secondary-container shadow-sm" :
+                                s === "review" ? "bg-tertiary-container text-on-tertiary-container shadow-sm" :
+                                "bg-primary text-white shadow-sm"
+                              : "text-on-surface-variant hover:bg-surface-container-high"
+                          )}
+                        >
+                          {s === "todo" ? "Por Hacer" : s === "inProgress" ? "En Progreso" : s === "review" ? "Revisión" : "Hecho"}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+                <p className="font-data-mono text-[11px] text-on-surface-variant mt-1.5">REF: {task.id.toUpperCase()}</p>
+             </div>
+             
+             <div className="flex items-center gap-3 self-end sm:self-center">
+                <button onClick={onClose} className="h-10 w-10 flex items-center justify-center rounded-full bg-surface-container hover:bg-surface-container-high transition-colors shadow-sm border-none cursor-pointer">
+                  <MaterialIcon name="close" />
+                </button>
+             </div>
+          </header>
+        )}
 
         {/* Workspace Layout */}
         <div className={cn("flex-1 min-h-0", activeView === "bento" ? "overflow-y-auto" : "overflow-hidden")}>
@@ -901,15 +902,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                  }}
                />
                 <button 
-                  onClick={() => {
-                    setActiveView("bento")
-                    setEditingActivityId(null)
-                    setDrawingScene(task.drawingScene ?? null) 
-                  }}
-                  className="absolute top-4 left-4 z-[100] h-10 w-10 flex items-center justify-center rounded-xl bg-white/90 backdrop-blur-sm border border-outline-variant shadow-lg text-on-surface-variant hover:text-primary transition-all"
-                >
-                   <MaterialIcon name="arrow_back" />
-                </button>
+                   onClick={() => {
+                     setActiveView("bento")
+                     setEditingActivityId(null)
+                     setDrawingScene(task.drawingScene ?? null) 
+                   }}
+                   className="absolute top-4 left-4 z-[100] h-12 w-12 flex items-center justify-center rounded-xl bg-white/95 border border-outline-variant shadow-lg text-on-surface-variant hover:text-primary active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                   aria-label="Regresar a detalles"
+                 >
+                    <MaterialIcon name="arrow_back" className="text-xl" />
+                 </button>
              </div>
            )}
         </div>
