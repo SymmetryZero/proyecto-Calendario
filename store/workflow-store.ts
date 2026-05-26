@@ -348,7 +348,7 @@ function buildThumbnail(label: string, accent = "#172839", fill = "#fea520") {
       <circle cx="500" cy="176" r="54" fill="#f7faf9" opacity="0.14" />
       <path d="M476 176h48M500 152v48" stroke="#f7faf9" stroke-width="10" stroke-linecap="round" />
       <text x="80" y="246" fill="#f7faf9" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">${safe}</text>
-      <text x="80" y="282" fill="#f7faf9" font-family="Inter, Arial, sans-serif" font-size="16" opacity=".8">Vista previa de evidencias de Workflow Pro</text>
+      <text x="80" y="282" fill="#f7faf9" font-family="Inter, Arial, sans-serif" font-size="16" opacity=".8">Vista previa de evidencias de Servimeci App</text>
     </svg>
   `)
 }

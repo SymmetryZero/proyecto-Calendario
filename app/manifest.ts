@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Demo",
-    short_name: "Demo",
-    description: "PWA de gestión de flujos de trabajo con almacenamiento local.",
+    name: "Servimeci App",
+    short_name: "Servimeci App",
+    description: "Servimeci App",
     start_url: "/",
     scope: "/",
     display: "standalone",

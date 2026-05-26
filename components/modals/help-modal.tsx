@@ -21,7 +21,7 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
               <MaterialIcon name="help" filled />
             </div>
             <div>
-              <h2 className="font-display-md text-display-md text-primary">Tutorial de Demo</h2>
+              <h2 className="font-display-md text-display-md text-primary">Tutorial de Servimeci App</h2>
               <p className="text-on-surface-variant font-body-md">Guía rápida de uso y reglas del sistema</p>
             </div>
           </div>

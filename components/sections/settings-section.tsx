@@ -65,13 +65,66 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
   }
 
   function handleExport() {
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
-      type: "application/json"
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return ""
+      let str = String(val)
+      str = str.replace(/"/g, '""')
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str}"`
+      }
+      return str
+    }
+
+    const headers = [
+      "ID Tarea",
+      "Título",
+      "Descripción",
+      "Prioridad",
+      "Estado",
+      "Ubicación",
+      "Área",
+      "Creado Por",
+      "Técnicos Asignados",
+      "Horas Estimadas",
+      "Fecha Creación",
+      "Fecha Vencimiento",
+      "Evidencias Adjuntas"
+    ]
+
+    const rows = [headers.map(escapeCSV).join(",")]
+
+    tasks.forEach((task) => {
+      const creator = users.find(u => u.id === task.creatorId)?.name || task.creatorId || ""
+      const assignees = (task.assigneeIds || [])
+        .map((id: string) => users.find((u: any) => u.id === id)?.name || id)
+        .join(", ")
+      const taskEvidenceCount = (evidence || []).filter((e: any) => e.taskId === task.id).length
+
+      const row = [
+        task.id,
+        task.title,
+        task.description,
+        task.priority,
+        task.status,
+        task.location || "",
+        task.area || "",
+        creator,
+        assignees,
+        task.estimatedHours !== undefined ? task.estimatedHours : "",
+        task.createdAt ? new Date(task.createdAt).toLocaleString("es-MX") : "",
+        task.dueLabel || "",
+        taskEvidenceCount
+      ]
+
+      rows.push(row.map(escapeCSV).join(","))
     })
+
+    const csvContent = "\uFEFF" + rows.join("\r\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `flujo-pro-export-${new Date().toISOString().slice(0, 10)}.json`
+    link.download = `tareas-export-${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -168,7 +221,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary px-4 py-3 font-title-sm text-title-sm text-primary hover:bg-surface-container-low transition-colors"
               >
                 <MaterialIcon name="download" />
-                Exportar JSON
+                Exportar a Excel (CSV)
               </button>
               <button
                 type="button"

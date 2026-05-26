@@ -131,23 +131,66 @@ export function WorkflowShell({
   const zoneLocked = currentUser?.role !== "administrador"
 
   function handleExport() {
-    const snapshot = {
-      tasks,
-      requirements,
-      evidence,
-      folders,
-      assignments,
-      saves,
-      exportedAt: new Date().toISOString()
+    const escapeCSV = (val: any) => {
+      if (val === null || val === undefined) return ""
+      let str = String(val)
+      str = str.replace(/"/g, '""')
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str}"`
+      }
+      return str
     }
 
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
-      type: "application/json"
+    const headers = [
+      "ID Tarea",
+      "Título",
+      "Descripción",
+      "Prioridad",
+      "Estado",
+      "Ubicación",
+      "Área",
+      "Creado Por",
+      "Técnicos Asignados",
+      "Horas Estimadas",
+      "Fecha Creación",
+      "Fecha Vencimiento",
+      "Evidencias Adjuntas"
+    ]
+
+    const rows = [headers.map(escapeCSV).join(",")]
+
+    tasks.forEach((task) => {
+      const creator = users.find(u => u.id === task.creatorId)?.name || task.creatorId || ""
+      const assignees = (task.assigneeIds || [])
+        .map((id: string) => users.find((u: any) => u.id === id)?.name || id)
+        .join(", ")
+      const taskEvidenceCount = (evidence || []).filter((e: any) => e.taskId === task.id).length
+
+      const row = [
+        task.id,
+        task.title,
+        task.description,
+        task.priority,
+        task.status,
+        task.location || "",
+        task.area || "",
+        creator,
+        assignees,
+        task.estimatedHours !== undefined ? task.estimatedHours : "",
+        task.createdAt ? new Date(task.createdAt).toLocaleString("es-MX") : "",
+        task.dueLabel || "",
+        taskEvidenceCount
+      ]
+
+      rows.push(row.map(escapeCSV).join(","))
     })
+
+    const csvContent = "\uFEFF" + rows.join("\r\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `flujo-pro-export-${new Date().toISOString().slice(0, 10)}.json`
+    link.download = `tareas-export-${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -201,7 +244,7 @@ export function WorkflowShell({
               onClick={onToggleSidebar}
               className="font-title-sm text-title-sm font-bold text-primary tracking-tight cursor-pointer active:opacity-80 transition-all select-none"
             >
-              Workflow Pro
+              Servimeci App
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -353,7 +396,7 @@ export function WorkflowShell({
               </button>
 
               <h1 className="font-headline-md text-headline-md font-bold text-primary tracking-tight shrink-0">
-                Workflow Pro
+                Tareas
               </h1>
 
               <div className="relative hidden md:block w-80">

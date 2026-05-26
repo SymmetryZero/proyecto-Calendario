@@ -192,7 +192,7 @@ export function PWAInstallModal({ isOpen, onClose }: PWAInstallModalProps) {
             </div>
             <h3 className="font-display-lg text-lg font-bold text-primary mb-2">Ya estás usando la App</h3>
             <p className="font-body-md text-sm text-on-surface-variant leading-relaxed mb-6">
-              ¡Excelente! Ya tienes instalada la versión completa de **Workflow Pro** en tu {deviceLabel}.
+              ¡Excelente! Ya tienes instalada la versión completa de **Servimeci App** en tu {deviceLabel}.
             </p>
             <button
               onClick={onClose}

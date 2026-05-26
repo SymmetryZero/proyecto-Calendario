@@ -170,7 +170,7 @@ export function WorkflowApp() {
                 <span className="material-symbols-outlined text-secondary-container text-[48px]">factory</span>
                 <h1 className="text-white font-display-lg text-display-lg tracking-tight uppercase">FLOW OPS</h1>
               </div>
-              <h2 className="text-white font-headline-md text-headline-md mb-stack-md">Workflow Pro</h2>
+              <h2 className="text-white font-headline-md text-headline-md mb-stack-md">Servimeci App</h2>
               <p className="text-on-primary-container font-body-md text-body-md leading-relaxed mb-stack-lg">
                 Sistemas de Flujo Industrial — Excelencia en la Operación. Optimice sus flujos de trabajo técnicos con nuestra robusta suite de gestión empresarial corporativa.
               </p>

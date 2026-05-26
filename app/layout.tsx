@@ -15,8 +15,8 @@ const jetBrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Demo",
-  description: "PWA para gestionar flujos de trabajo con persistencia local."
+  title: "Servimeci App",
+  description: "Servimeci App"
 }
 
 export const viewport: Viewport = {
