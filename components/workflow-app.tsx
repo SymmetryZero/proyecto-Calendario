@@ -15,10 +15,11 @@ import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
 import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
-import { useUser, SignInButton } from "@clerk/nextjs"
+import { useUser, SignInButton, useSignIn } from "@clerk/nextjs"
 
 export function WorkflowApp() {
-  const { isLoaded, isSignedIn, user } = useUser()
+  const { isLoaded: isUserLoaded, isSignedIn, user } = useUser()
+  const { isLoaded: isSignInLoaded, signIn, setActive } = useSignIn()
   const hasHydrated = useWorkflowStore((state) => state.hasHydrated)
   const users = useWorkflowStore((state) => state.users)
   const currentUserId = useWorkflowStore((state) => state.currentUserId)
@@ -38,10 +39,43 @@ export function WorkflowApp() {
   const [emailInput, setEmailInput] = useState("")
   const [passwordInput, setPasswordInput] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
+
+  const handleCustomSignIn = async (e: any) => {
+    e.preventDefault()
+    if (!isSignInLoaded || !signIn || !setActive) return
+
+    if (!emailInput.trim() || !passwordInput) {
+      setLoginError("Por favor ingrese su correo y contraseña.")
+      return
+    }
+
+    setLoginLoading(true)
+    setLoginError(null)
+
+    try {
+      const result = await signIn.create({
+        identifier: emailInput.trim(),
+        password: passwordInput,
+      })
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId })
+      } else {
+        setLoginError("Inicio de sesión incompleto. Se requiere verificación adicional.")
+      }
+    } catch (err: any) {
+      console.error("Clerk Sign-In Error:", err)
+      setLoginError(err.errors?.[0]?.message || "Error al iniciar sesión. Verifique sus credenciales.")
+    } finally {
+      setLoginLoading(false)
+    }
+  }
 
   // Sincronizar el usuario autenticado de Clerk con el almacén local de Zustand
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return
+    if (!isUserLoaded || !isSignedIn || !user) return
 
     const email = user.primaryEmailAddress?.emailAddress || ""
     const name = user.fullName || user.username || email.split("@")[0] || "Usuario"
@@ -94,7 +128,7 @@ export function WorkflowApp() {
       useWorkflowStore.getState().updateUser(newId, { code: user.id })
       setCurrentUser(newId)
     }
-  }, [isLoaded, isSignedIn, user, users, currentUserId, setCurrentUser, addUser])
+  }, [isUserLoaded, isSignedIn, user, users, currentUserId, setCurrentUser, addUser])
 
   const currentUser = useMemo(
     () => workflowSelectors.getCurrentUser(users, currentUserId),
@@ -132,7 +166,7 @@ export function WorkflowApp() {
   }
 
   // 1. Cargando Zustand o datos de sesión de Clerk
-  if (!hasHydrated || !isLoaded) {
+  if (!hasHydrated || !isUserLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="max-w-md w-full rounded-xl border border-outline-variant bg-surface p-8 text-center shadow-sm">
@@ -208,7 +242,7 @@ export function WorkflowApp() {
               </div>
 
               {/* Formulario */}
-              <form className="space-y-stack-md" onSubmit={(e) => e.preventDefault()}>
+              <form className="space-y-stack-md" onSubmit={handleCustomSignIn}>
                 {/* ID / Email */}
                 <div className="space-y-2">
                   <label className="block font-label-caps text-label-caps text-on-surface-variant" htmlFor="employee-id">
@@ -280,13 +314,41 @@ export function WorkflowApp() {
                   </label>
                 </div>
 
-                {/* Botón de Submit envuelto en Clerk SignInButton */}
-                <SignInButton mode="modal">
-                  <button className="w-full h-touch-target-min bg-primary-container hover:bg-primary active:scale-[0.98] text-white font-label-caps text-label-caps tracking-widest rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 mt-stack-md cursor-pointer font-bold">
-                    INICIAR SESIÓN CON CLERK
-                    <span className="material-symbols-outlined text-[18px]">login</span>
-                  </button>
-                </SignInButton>
+                {/* Mensaje de Error de Login */}
+                {loginError && (
+                  <div className="rounded-lg bg-error/10 border border-error/20 p-3 text-xs text-error font-medium flex items-center gap-2">
+                    <MaterialIcon name="warning" className="text-sm" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                {/* Botón de Submit Directo */}
+                <button 
+                  type="submit"
+                  disabled={loginLoading}
+                  className="w-full h-touch-target-min bg-primary hover:bg-primary-container disabled:opacity-60 active:scale-[0.98] text-white font-label-caps text-label-caps tracking-widest rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 mt-stack-md cursor-pointer font-bold border-none"
+                >
+                  {loginLoading ? (
+                    <span>INICIANDO SESIÓN...</span>
+                  ) : (
+                    <>
+                      <span>INICIAR SESIÓN</span>
+                      <span className="material-symbols-outlined text-[18px]">login</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Botón de respaldo/Clerk Modal para Social logins */}
+                <div className="text-center mt-4">
+                  <SignInButton mode="modal">
+                    <button 
+                      type="button" 
+                      className="text-xs text-primary font-bold hover:underline bg-transparent border-none cursor-pointer"
+                    >
+                      O iniciar sesión con Google / Microsoft
+                    </button>
+                  </SignInButton>
+                </div>
               </form>
 
               {/* Sección de Ayuda / Info */}
