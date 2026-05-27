@@ -1,4 +1,5 @@
 import { supabase } from "./supabase"
+import { isAdminRole, isManagerRole, normalizeUserRole } from "@/utils/roles"
 import type {
   User,
   Folder,
@@ -107,7 +108,8 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
     const users: User[] = dbUsers.map((u) => {
       const zones = parseZones(u.zone)
       const primaryZone = zones[0] ?? u.zone ?? ""
-      const fallbackAreas = u.role === "administrador" || u.role === "gerente"
+      const normalizedRole = normalizeUserRole(u.role)
+      const fallbackAreas = isAdminRole(normalizedRole) || isManagerRole(normalizedRole)
         ? ["Direccion", "Contabilidad", "Compras", "Proyectos", "RH", "Operacion"]
         : ["Operacion"]
       const resolvedAreas = Array.isArray(u.areas) && u.areas.length > 0 ? u.areas : fallbackAreas
@@ -119,14 +121,14 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       position: u.position || "",
       zone: primaryZone,
       zones,
-      role: u.role,
+      role: normalizedRole,
       skills: u.skills || [],
       clearances: u.clearances || [],
       availability: u.availability || "available",
       availabilityLabel: u.availability_label || "Disponible",
       code: u.code || undefined,
       createdAt: u.created_at || new Date().toISOString(),
-      showAllZones: u.role === "administrador",
+      showAllZones: isAdminRole(normalizedRole),
         areas: resolvedAreas
       }
     })
@@ -256,7 +258,7 @@ export async function pushToSupabase(state: any) {
       position: u.position || null,
       zone: serializeZones(zones) || null,
         areas: u.areas || [],
-      role: u.role,
+      role: normalizeUserRole(u.role),
       skills: u.skills || [],
       clearances: u.clearances || [],
       availability: u.availability || "available",

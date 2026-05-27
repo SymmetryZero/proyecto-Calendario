@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { AREA_OPTIONS, type Area, type Priority, type TaskStatus, useWorkflowStore } from "@/store/workflow-store"
+import { normalizeUserRole } from "@/utils/roles"
 
 type TaskModalProps = {
   open: boolean
@@ -25,7 +26,10 @@ const statusOptions: Array<{ value: TaskStatus; label: string }> = [
 
 export function TaskModal({ open, onClose }: TaskModalProps) {
   const users = useWorkflowStore((state) => state.users)
-  const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
+  const technicians = useMemo(() => users.filter(u => {
+    const role = normalizeUserRole(u.role)
+    return role === "empleado" || role === "gerente"
+  }), [users])
   const addTask = useWorkflowStore((state) => state.addTask)
 
   const [title, setTitle] = useState("")

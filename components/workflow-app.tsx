@@ -16,6 +16,7 @@ import { TaskDetailsModal } from "@/components/modals/task-details-modal"
 import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { useUser, SignIn } from "@clerk/nextjs"
+import { normalizeUserRole } from "@/utils/roles"
 
 export function WorkflowApp() {
   const { isLoaded: isUserLoaded, isSignedIn, user } = useUser()
@@ -92,10 +93,11 @@ export function WorkflowApp() {
     () => workflowSelectors.getCurrentUser(users, currentUserId),
     [users, currentUserId]
   )
+  const currentRole = normalizeUserRole(currentUser?.role)
 
   useEffect(() => {
     if (!currentUser) return
-    if (currentUser.role === "administrador") {
+    if (currentRole === "administrador") {
       setZoneFilter("todas")
       setAreaFilter("todas")
       return
@@ -104,7 +106,7 @@ export function WorkflowApp() {
     const defaultZone = userZones.length > 1 ? "todas" : (userZones[0] || currentUser.zone || "todas")
     setZoneFilter(defaultZone)
     setAreaFilter("todas")
-  }, [currentUserId, currentUser])
+  }, [currentUserId, currentUser, currentRole])
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -112,13 +114,13 @@ export function WorkflowApp() {
   }, [section])
 
   useEffect(() => {
-    if (currentUser?.role === "empleado" && section !== "dashboard" && section !== "assignments") {
+    if (currentRole === "empleado" && section !== "dashboard" && section !== "assignments") {
       setSection("dashboard")
     }
-  }, [currentUser, section])
+  }, [currentRole, section])
 
   function handleSectionChange(nextSection: SectionKey) {
-    if (currentUser?.role === "empleado" && nextSection !== "dashboard" && nextSection !== "assignments") {
+    if (currentRole === "empleado" && nextSection !== "dashboard" && nextSection !== "assignments") {
       return
     }
     setSection(nextSection)

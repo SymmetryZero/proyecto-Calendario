@@ -4,11 +4,15 @@ import { useMemo } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { cn, formatDuration } from "@/utils/workflow"
+import { normalizeUserRole } from "@/utils/roles"
 
 export function StatisticsSection() {
   const tasks = useWorkflowStore((state) => state.tasks)
   const users = useWorkflowStore((state) => state.users)
-  const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
+  const technicians = useMemo(() => users.filter((u) => {
+    const role = normalizeUserRole(u.role)
+    return role === "empleado" || role === "gerente"
+  }), [users])
 
   const stats = useMemo(() => {
     // Tasks by status

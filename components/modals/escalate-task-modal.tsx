@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { AREA_OPTIONS, type Area, type Task, useWorkflowStore } from "@/store/workflow-store"
+import { normalizeUserRole } from "@/utils/roles"
 
 type EscalateTaskModalProps = {
   open: boolean
@@ -46,7 +47,10 @@ export function EscalateTaskModal({ open, onClose, taskId }: EscalateTaskModalPr
     return users.filter(
       (user) =>
         (user.areas ?? []).includes(selectedArea as Area) &&
-        (user.role === "empleado" || user.role === "gerente")
+        (() => {
+          const role = normalizeUserRole(user.role)
+          return role === "empleado" || role === "gerente"
+        })()
     )
   }, [users, selectedArea])
 

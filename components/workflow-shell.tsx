@@ -9,6 +9,7 @@ import { NotificationPopout } from "@/components/notification-popout"
 import { GlobalAlertModal } from "@/components/modals/global-alert-modal"
 import { UserButton } from "@clerk/nextjs"
 import { PWAInstallModal, usePWAInstall } from "@/components/pwa-install"
+import { normalizeUserRole } from "@/utils/roles"
 
 type WorkflowShellProps = {
   section: SectionKey
@@ -76,6 +77,7 @@ export function WorkflowShell({
   const currentUser = useMemo(() =>
     workflowSelectors.getCurrentUser(users, currentUserId),
     [users, currentUserId])
+  const currentRole = normalizeUserRole(currentUser?.role)
 
   const currentUserZones = useMemo(() => workflowSelectors.getUserZones(currentUser), [currentUser])
   const primaryZoneLabel = currentUserZones[0] ?? currentUser?.zone ?? ""
@@ -96,19 +98,19 @@ export function WorkflowShell({
     if (!currentUser) return 0
     return notifications.filter(n => {
       if (!n.read) {
-        if (currentUser.role === "administrador") return true
-        if (currentUser.role === "gerente") return true
-        if (currentUser.role === "empleado") {
+        if (currentRole === "administrador") return true
+        if (currentRole === "gerente") return true
+        if (currentRole === "empleado") {
           return n.targetUserId === currentUser.id || n.userId === currentUser.id
         }
       }
       return false
     }).length
-  }, [notifications, currentUser])
+  }, [notifications, currentUser, currentRole])
 
   const filteredSidebarItems = useMemo(() => {
     if (!currentUser) return sidebarItems
-    if (currentUser.role === "administrador" || currentUser.role === "gerente") {
+    if (currentRole === "administrador" || currentRole === "gerente") {
       return sidebarItems
     }
     // Empleado: Solamente Tablero y Tareas
@@ -116,14 +118,14 @@ export function WorkflowShell({
       item.key === "dashboard" ||
       item.key === "assignments"
     )
-  }, [currentUser])
+  }, [currentRole, currentUser])
 
   const filteredTopTabs = useMemo(() => {
     if (!currentUser) return topTabs
-    if (currentUser.role === "administrador" || currentUser.role === "gerente") return topTabs
+    if (currentRole === "administrador" || currentRole === "gerente") return topTabs
     // Empleado: Ve Resumen y Programación
     return topTabs
-  }, [currentUser])
+  }, [currentRole, currentUser])
 
   const zoneOptions = useMemo(() => {
     const zones = new Set<string>()
@@ -135,8 +137,8 @@ export function WorkflowShell({
     return Array.from(zones).sort()
   }, [tasks, requirements, users])
 
-  const showFilters = currentUser?.role === "administrador" || currentUser?.role === "gerente"
-  const zoneLocked = currentUser?.role !== "administrador"
+  const showFilters = currentRole === "administrador" || currentRole === "gerente"
+  const zoneLocked = currentRole !== "administrador"
 
   function handleExport() {
     const escapeCSV = (val: any) => {

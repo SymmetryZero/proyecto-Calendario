@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Avatar } from "@/components/ui/avatar"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn, formatDateTime } from "@/utils/workflow"
+import { normalizeUserRole } from "@/utils/roles"
 import {
   type Requirement,
   type Technician,
@@ -86,7 +87,10 @@ export function AssignmentSection({
 }: AssignmentSectionProps) {
   const requirements = useWorkflowStore((state) => state.requirements)
   const users = useWorkflowStore((state) => state.users)
-  const technicians = useMemo(() => users.filter(u => u.role === "empleado" || u.role === "gerente"), [users])
+  const technicians = useMemo(() => users.filter((u) => {
+    const role = normalizeUserRole(u.role)
+    return role === "empleado" || role === "gerente"
+  }), [users])
   const tasks = useWorkflowStore((state) => state.tasks)
   const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const assignments = useWorkflowStore((state) => state.assignments)

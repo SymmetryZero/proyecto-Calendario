@@ -12,6 +12,7 @@ import {
   formatTimeStamp,
   makeId
 } from "@/utils/workflow"
+import { isAdminRole, isEmployeeRole, isManagerRole, normalizeUserRole } from "@/utils/roles"
 import { pullFromSupabase, pushToSupabase } from "@/utils/supabase-sync"
 
 
@@ -178,14 +179,14 @@ function isTaskAssignee(user: User | null | undefined, task: Task | null | undef
 
 function canUserManageTask(user: User | null | undefined, task: Task | null | undefined) {
   if (!user || !task) return false
-  if (user.role === "administrador" || user.role === "gerente") return true
+  if (isAdminRole(user.role) || isManagerRole(user.role)) return true
   return isTaskCreator(user, task) || isTaskAssignee(user, task)
 }
 
 function canUserClaimTask(user: User | null | undefined, task: Task | null | undefined) {
   if (!user || !task) return false
   if (isTaskAssignee(user, task)) return false
-  if (user.role === "administrador" || user.role === "gerente") return true
+  if (isAdminRole(user.role) || isManagerRole(user.role)) return true
   if (isTaskCreator(user, task)) return true
   if (task.escalation?.targetUserId === user.id) return true
 
@@ -2561,6 +2562,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const newUser: User = {
             id,
             ...input,
+            role: normalizeUserRole(input.role) as UserRole,
             zone: primaryZone,
             zones: normalizedZones,
             createdAt: now
@@ -2582,7 +2584,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
           set((state) => ({
             users: state.users.map((u) => {
               if (u.id !== userId) return u
-              const nextUser = { ...u, ...patch }
+              const nextRole = Object.prototype.hasOwnProperty.call(patch, "role")
+                ? normalizeUserRole((patch as Partial<User>).role)
+                : u.role
+              const nextUser = { ...u, ...patch, role: nextRole }
               const normalizedZones = normalizeZones(nextUser.zones, nextUser.zone)
               const primaryZone = normalizedZones[0] ?? nextUser.zone ?? "General"
               return {
@@ -2903,10 +2908,10 @@ export const workflowSelectors = {
   },
   filterTasksByZone(tasks: Task[], user: User | null) {
     if (!user) return []
-    if (user.role === "administrador" || user.showAllZones) return tasks
+    if (isAdminRole(user.role) || user.showAllZones) return tasks
     
     // Si es empleado, ve lo asignado y lo disponible en sus areas
-    if (user.role === "empleado") {
+    if (isEmployeeRole(user.role)) {
       const userAreas = user.areas ?? []
       return tasks.filter((task) => {
         if (task.assigneeIds.includes(user.id)) return true
@@ -2920,7 +2925,7 @@ export const workflowSelectors = {
     }
 
     // Si es gerente (sin visualización global activa)
-    if (user.role === "gerente") {
+    if (isManagerRole(user.role)) {
       const userAreas = user.areas ?? []
       const userZones = resolveUserZones(user)
       return tasks.filter((task) => {
@@ -2939,10 +2944,10 @@ export const workflowSelectors = {
   },
   filterRequirementsByZone(requirements: Requirement[], user: User | null) {
     if (!user) return []
-    if (user.role === "administrador" || user.showAllZones) return requirements
+    if (isAdminRole(user.role) || user.showAllZones) return requirements
 
     // Si es empleado, permitimos ver requerimientos de su zona y areas
-    if (user.role === "empleado") {
+    if (isEmployeeRole(user.role)) {
       const userAreas = user.areas ?? []
       const userZones = resolveUserZones(user)
       return requirements.filter((req) => {
@@ -2955,7 +2960,7 @@ export const workflowSelectors = {
     }
 
     // Gerentes ven requerimientos de su zona
-    if (user.role === "gerente") {
+    if (isManagerRole(user.role)) {
       const userZones = resolveUserZones(user)
       return requirements.filter((req) =>
         req.creatorId === user.id ||

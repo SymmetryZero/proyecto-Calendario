@@ -8,6 +8,7 @@ import {
   formatDuration,
   cn
 } from "@/utils/workflow"
+import { normalizeUserRole } from "@/utils/roles"
 import {
   type EvidenceFile,
   type Priority,
@@ -135,13 +136,14 @@ export function DashboardSection({
   const currentUser = useMemo(() => 
     workflowSelectors.getCurrentUser(users, currentUserId), 
   [users, currentUserId])
+  const currentRole = normalizeUserRole(currentUser?.role)
 
   const zoneTasks = useMemo(() => 
     workflowSelectors.filterTasksByZone(tasks, currentUser),
   [tasks, currentUser])
 
   const scopedTasks = useMemo(() => {
-    if (currentUser?.role === "empleado") {
+    if (currentRole === "empleado") {
       return zoneTasks
     }
 
@@ -153,7 +155,7 @@ export function DashboardSection({
       if (normalizedArea && task.area !== normalizedArea) return false
       return true
     })
-  }, [zoneTasks, zoneFilter, areaFilter, currentUser?.role, currentUser?.id])
+  }, [zoneTasks, zoneFilter, areaFilter, currentRole, currentUser?.id])
   
   const [pendingAction, setPendingAction] = useState<{
     type: "move" | "delete"
@@ -200,7 +202,7 @@ export function DashboardSection({
     const hasFullControl = workflowSelectors.canManageTask(task, currentUser)
 
     // Role-based restrictions for employees without ownership over the task
-    if (currentUser?.role === "empleado" && !hasFullControl) {
+    if (currentRole === "empleado" && !hasFullControl) {
       if (task.status === "done") {
         setGlobalAlert({
           title: "Acción no disponible",
@@ -259,7 +261,7 @@ export function DashboardSection({
       
       // Permission check for dragging
       const hasFullControl = workflowSelectors.canManageTask(task, currentUser)
-      if (currentUser?.role === "empleado" && !hasFullControl) {
+      if (currentRole === "empleado" && !hasFullControl) {
         const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
         const currentIndex = statusOrder.indexOf(task.status)
         const nextIndex = statusOrder.indexOf(nextStatus)
@@ -714,7 +716,7 @@ function TaskCard({
             </button>
           ) : null}
           {(() => {
-            const isEmployee = currentUser?.role === "empleado"
+            const isEmployee = normalizeUserRole(currentUser?.role) === "empleado"
             const isDone = task.status === "done"
             const canMove = canManageTask || !isEmployee || (!isDone && statusOrder.indexOf(nextStatus) >= statusOrder.indexOf(task.status))
             

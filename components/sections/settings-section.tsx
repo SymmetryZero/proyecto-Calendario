@@ -5,6 +5,7 @@ import { MaterialIcon } from "@/components/ui/material-icon"
 import { formatLongDateTime, formatBytes, cn } from "@/utils/workflow"
 import { useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { PWAInstallModal, usePWAInstall } from "@/components/pwa-install"
+import { formatUserRole, normalizeUserRole } from "@/utils/roles"
 
 type SettingsSectionProps = {
   onSwitchUser?: () => void
@@ -35,6 +36,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
   const currentUser = useMemo(() => 
     users.find(u => u.id === currentUserId) ?? null,
   [users, currentUserId])
+  const currentRole = normalizeUserRole(currentUser?.role)
 
   const currentUserZones = useMemo(() => workflowSelectors.getUserZones(currentUser), [currentUser])
   const primaryZoneLabel = currentUserZones[0] ?? currentUser?.zone ?? ""
@@ -289,7 +291,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
                    <h4 className="font-display-lg text-lg font-bold text-primary truncate">{currentUser?.name}</h4>
                    <p className="text-sm font-medium text-on-surface-variant uppercase tracking-wide">{currentUser?.position}</p>
                    <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase">{currentUser?.role}</span>
+                      <span className="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase">{formatUserRole(currentUser?.role)}</span>
                       <div className="flex items-center gap-1 text-[10px] text-on-surface-variant bg-surface px-2 py-0.5 rounded border border-outline-variant">
                          <MaterialIcon name="location_on" className="text-[12px]" />
                          {zoneSummary || "Sin zona"}
@@ -300,7 +302,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
 
              {/* Permissions Toggle */}
              <div className="flex flex-col justify-center gap-4">
-                {currentUser?.role === "gerente" && (
+                {currentRole === "gerente" && (
                    <div className="flex items-center justify-between p-4 bg-surface rounded-xl border border-outline-variant">
                       <div className="flex items-center gap-4">
                          <div className={cn(
@@ -328,7 +330,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
                       </button>
                    </div>
                 )}
-                {currentUser?.role === "administrador" && (
+                {currentRole === "administrador" && (
                    <div className="flex items-center gap-4 p-4 bg-primary/5 rounded-xl border border-primary/20">
                       <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                          <MaterialIcon name="verified_user" filled />
@@ -363,7 +365,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
                       <img src={user.avatar} alt="" className="w-8 h-8 rounded-full" />
                       <div className="text-left">
                          <p className={cn("text-xs font-bold", currentUserId === user.id ? "text-primary" : "text-on-surface")}>{user.name}</p>
-                         <p className="text-[10px] text-on-surface-variant uppercase">{user.role}</p>
+                         <p className="text-[10px] text-on-surface-variant uppercase">{formatUserRole(user.role)}</p>
                       </div>
                    </button>
                 ))}

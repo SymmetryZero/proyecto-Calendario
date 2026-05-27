@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, type FormEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn, createAvatarDataUri, fileToDataUrl } from "@/utils/workflow"
 import { AREA_OPTIONS, type UserRole, useWorkflowStore, type User, type Area, workflowSelectors } from "@/store/workflow-store"
+import { normalizeUserRole } from "@/utils/roles"
 
 type UserModalProps = {
   open: boolean
@@ -24,7 +25,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
   const updateUser = useWorkflowStore((state) => state.updateUser)
 
   const currentUser = useMemo(() => users.find(u => u.id === currentUserId), [users, currentUserId])
-  const isSelfEmployee = currentUser?.role === "empleado"
+  const isSelfEmployee = normalizeUserRole(currentUser?.role) === "empleado"
 
   const [name, setName] = useState("")
   const [birthDate, setBirthDate] = useState("")
@@ -53,7 +54,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
       setZones(workflowSelectors.getUserZones(userToEdit))
       setZoneInput("")
       setAreas(userToEdit.areas ?? [])
-      setRole(userToEdit.role)
+      setRole(normalizeUserRole(userToEdit.role))
       setAvatar(userToEdit.avatar)
     } else {
       setName("")

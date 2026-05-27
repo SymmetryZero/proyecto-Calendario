@@ -5,6 +5,7 @@ import { MaterialIcon } from "@/components/ui/material-icon"
 import { useWorkflowStore, type User, workflowSelectors } from "@/store/workflow-store"
 import { UserModal } from "@/components/modals/user-modal"
 import { cn, formatNumericDate } from "@/utils/workflow"
+import { normalizeUserRole } from "@/utils/roles"
 
 export function UsersSection() {
   const users = useWorkflowStore((state) => state.users)
@@ -17,9 +18,10 @@ export function UsersSection() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
   const currentUser = useMemo(() => users.find((u) => u.id === currentUserId), [users, currentUserId])
+  const currentRole = normalizeUserRole(currentUser?.role)
 
   const filteredUsers = useMemo(() => {
-    const usersToFilter = currentUser?.role === "empleado"
+    const usersToFilter = currentRole === "empleado"
       ? users.filter((u) => u.id === currentUserId)
       : users
 
@@ -29,7 +31,7 @@ export function UsersSection() {
       workflowSelectors.getUserZones(u).join(" ").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.areas ?? []).join(" ").toLowerCase().includes(searchQuery.toLowerCase())
     )
-  }, [users, searchQuery, currentUser, currentUserId])
+  }, [users, searchQuery, currentRole, currentUserId])
 
   function handleEdit(user: User) {
     setUserToEdit(user)
@@ -47,15 +49,15 @@ export function UsersSection() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="font-display-lg text-display-lg text-primary">
-              {currentUser?.role === "empleado" ? "Mi Perfil" : "Gestión de Usuarios"}
+              {currentRole === "empleado" ? "Mi Perfil" : "Gestión de Usuarios"}
             </h2>
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-              {currentUser?.role === "empleado" 
+              {currentRole === "empleado" 
                 ? "Consulta y edita los datos de tu cuenta personal." 
                 : "Administra el personal, roles y zonas de trabajo del sistema."}
             </p>
           </div>
-          {currentUser?.role !== "empleado" && (
+          {currentRole !== "empleado" && (
             <button
               onClick={handleAdd}
               className="h-[56px] px-8 bg-secondary text-on-secondary rounded-xl font-title-md text-title-md flex items-center gap-3 shadow-lg hover:shadow-xl transition-all active:scale-95"
@@ -110,7 +112,7 @@ export function UsersSection() {
                   zones={userZones}
                   onEdit={() => handleEdit(user)} 
                   onDelete={() => deleteUser(user.id)} 
-                  isEmployee={currentUser?.role === "empleado"}
+                  isEmployee={currentRole === "empleado"}
                 />
               )
             })}
@@ -173,7 +175,7 @@ export function UsersSection() {
                         <button onClick={() => handleEdit(user)} className="p-2 text-primary hover:bg-primary-container rounded-lg transition-colors">
                           <MaterialIcon name="edit" className="text-[20px]" />
                         </button>
-                        {currentUser?.role !== "empleado" && (
+                        {currentRole !== "empleado" && (
                           <button onClick={() => deleteUser(user.id)} className="p-2 text-error hover:bg-error-container rounded-lg transition-colors">
                             <MaterialIcon name="delete" className="text-[20px]" />
                           </button>
@@ -260,11 +262,12 @@ function UserCard({ user, zones, onEdit, onDelete, isEmployee }: { user: User; z
 }
 
 function RoleBadge({ role, iconOnly = false }: { role: User["role"]; iconOnly?: boolean }) {
+  const normalizedRole = normalizeUserRole(role)
   const config = {
     administrador: {
       color: "bg-primary-container text-on-primary-container border-primary/20",
       icon: "admin_panel_settings",
-      label: "Admin"
+      label: "Administrador"
     },
     gerente: {
       color: "bg-tertiary-container text-on-tertiary-container border-tertiary/20",
@@ -278,7 +281,7 @@ function RoleBadge({ role, iconOnly = false }: { role: User["role"]; iconOnly?: 
     }
   }
 
-  const { color, icon, label } = config[role]
+  const { color, icon, label } = config[normalizedRole] ?? config.empleado
 
   if (iconOnly) {
     return (
