@@ -370,7 +370,6 @@ export async function pushToSupabase(state: any) {
 
     // 2. RECONCILIACIÓN DE ELIMINACIONES
     const [
-      { data: exUsers },
       { data: exFolders },
       { data: exRequirements },
       { data: exTasks },
@@ -379,7 +378,6 @@ export async function pushToSupabase(state: any) {
       { data: exEvidence },
       { data: exNotifications }
     ] = await Promise.all([
-      supabase.from("flow_servimeci_users").select("id"),
       supabase.from("flow_servimeci_folders").select("id"),
       supabase.from("flow_servimeci_requirements").select("id"),
       supabase.from("flow_servimeci_tasks").select("id"),
@@ -390,7 +388,6 @@ export async function pushToSupabase(state: any) {
     ])
 
     // Find orphans to delete
-    const orphansUsers = (exUsers || []).map(x => x.id).filter(id => !state.users.some((x: any) => x.id === id))
     const orphansFolders = (exFolders || []).map(x => x.id).filter(id => !state.folders.some((x: any) => x.id === id))
     const orphansRequirements = (exRequirements || []).map(x => x.id).filter(id => !state.requirements.some((x: any) => x.id === id))
     const orphansTasks = (exTasks || []).map(x => x.id).filter(id => !state.tasks.some((x: any) => x.id === id))
@@ -413,7 +410,6 @@ export async function pushToSupabase(state: any) {
     ])
 
     await Promise.all([
-      orphansUsers.length ? supabase.from("flow_servimeci_users").delete().in("id", orphansUsers) : Promise.resolve(),
       orphansFolders.length ? supabase.from("flow_servimeci_folders").delete().in("id", orphansFolders) : Promise.resolve()
     ])
 

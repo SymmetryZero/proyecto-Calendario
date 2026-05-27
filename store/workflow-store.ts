@@ -13,6 +13,7 @@ import {
   makeId
 } from "@/utils/workflow"
 import { pullFromSupabase, pushToSupabase } from "@/utils/supabase-sync"
+import { supabase } from "@/utils/supabase"
 
 
 
@@ -2574,8 +2575,19 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         deleteUser: (userId) => {
           set((state) => ({
-            users: state.users.filter((u) => u.id !== userId)
+            users: state.users.filter((u) => u.id !== userId),
+            currentUserId: state.currentUserId === userId ? state.users.find((u) => u.id !== userId)?.id ?? null : state.currentUserId
           }))
+
+          void supabase
+            .from("flow_servimeci_users")
+            .delete()
+            .eq("id", userId)
+            .then(({ error }) => {
+              if (error) {
+                console.error("No se pudo borrar el usuario en Supabase:", error)
+              }
+            })
         },
         updateUser: (userId, patch) => {
           set((state) => ({
