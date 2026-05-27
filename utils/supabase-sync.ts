@@ -32,11 +32,14 @@ function serializeZones(zones: string[]) {
 }
 
 function isMissingRelationError(error: any) {
+  const message = String(error?.message || "")
   return Boolean(
     error &&
       (error.code === "42P01" ||
-        /relation .* does not exist/i.test(error.message || "") ||
-        /does not exist/i.test(error.message || ""))
+        error.code === "PGRST205" ||
+        /relation .* does not exist/i.test(message) ||
+        /could not find the table .* in the schema cache/i.test(message) ||
+        /does not exist/i.test(message))
   )
 }
 
@@ -434,7 +437,13 @@ export async function pushToSupabase(state: any) {
     if (dbActivities.length) await supabase.from("flow_servimeci_activities").upsert(dbActivities, { onConflict: "id" })
     if (dbEvidence.length) await supabase.from("flow_servimeci_evidence").upsert(dbEvidence, { onConflict: "id" })
     if (dbNotifications.length) await supabase.from("flow_servimeci_notifications").upsert(dbNotifications, { onConflict: "id" })
-    await supabase.from("flow_servimeci_workspace_state").upsert(dbWorkspaceState, { onConflict: "id" })
+    const workspaceStateResult = await supabase
+      .from("flow_servimeci_workspace_state")
+      .upsert(dbWorkspaceState, { onConflict: "id" })
+
+    if (workspaceStateResult.error && !isMissingRelationError(workspaceStateResult.error)) {
+      throw workspaceStateResult.error
+    }
 
     console.log("Supabase relational sync successful!")
   } catch (error) {
