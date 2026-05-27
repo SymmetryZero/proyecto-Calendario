@@ -48,6 +48,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
 
   const [filter, setFilter] = useState<(typeof filterOptions)[number]["key"]>("all")
   const [uploading, setUploading] = useState(false)
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null)
   const [previewItem, setPreviewItem] = useState<EvidenceFile | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -113,6 +114,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
       const items = Array.from(files)
 
       for (const file of items) {
+        setUploadingFileName(file.name)
         const mediaType = file.type.startsWith("video/") ? "video" : "image"
         let fileUrl = ""
 
@@ -160,6 +162,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
       }
     } finally {
       setUploading(false)
+      setUploadingFileName(null)
       event.target.value = ""
     }
   }
@@ -227,6 +230,18 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
           />
         ))}
       </div>
+
+      {uploading && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center px-4 bg-primary/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-2xl border border-outline-variant bg-surface p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-secondary/20 border-t-secondary animate-spin" />
+            <h3 className="font-title-sm text-title-sm text-primary">Subiendo material</h3>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              No cierres la ventana mientras se procesa {uploadingFileName ?? "el archivo"}.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 flex justify-center">
         <button

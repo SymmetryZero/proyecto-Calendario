@@ -106,7 +106,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
       const assignees = (task.assigneeIds || [])
         .map((id: string) => users.find((u: any) => u.id === id)?.name || id)
         .join(", ")
-      const taskEvidenceCount = (evidence || []).filter((e: any) => e.taskId === task.id).length
+      const taskEvidenceCount = (evidence || []).filter((e: any) => e.linkedTaskId === task.id).length
 
       const row = [
         task.id,

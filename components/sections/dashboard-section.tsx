@@ -582,7 +582,7 @@ function TaskCard({
 }: TaskCardProps) {
   const assignees = avatarByTechnicianIds(users, task.assigneeIds)
   const attachedEvidence = evidence.filter((item) => item.linkedTaskId === task.id)
-  const duration = workflowSelectors.getTaskDuration(task, now)
+  const duration = workflowSelectors.getTaskTotalDuration(task, now)
   const canManageTask = workflowSelectors.canManageTask(task, currentUser)
   const canEscalate = canManageTask
   const canClaimTask = workflowSelectors.canClaimTask(task, currentUser)
@@ -612,7 +612,7 @@ function TaskCard({
     task.status === "review" ? 80 :
     task.status === "inProgress" ? 40 : 0;
 
-  const durationInHours = (duration / 3600).toFixed(1);
+  const durationLabel = formatDuration(duration)
 
   // Dynamic due status label in Spanish
   let dynamicDueLabel = "Por iniciar";
@@ -793,7 +793,7 @@ function TaskCard({
       <div className="mt-2">
         <div className="flex justify-between items-center mb-1 text-[10px] font-medium text-on-surface-variant">
           <span>{progressPercentage}%</span>
-          <span>{durationInHours}hr</span>
+          <span>{durationLabel}</span>
         </div>
         <div className="w-full bg-surface-container-high h-1 rounded-full overflow-hidden">
           <div

@@ -174,7 +174,7 @@ export function WorkflowShell({
       const assignees = (task.assigneeIds || [])
         .map((id: string) => users.find((u: any) => u.id === id)?.name || id)
         .join(", ")
-      const taskEvidenceCount = (evidence || []).filter((e: any) => e.taskId === task.id).length
+      const taskEvidenceCount = (evidence || []).filter((e: any) => e.linkedTaskId === task.id).length
 
       const row = [
         task.id,
@@ -584,61 +584,42 @@ export function WorkflowShell({
         </footer>
 
         {/* Bottom Navigation for Mobile */}
-        <nav className="md:hidden bg-surface border-t border-outline-variant h-20 flex items-center justify-around z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)] px-2">
-          {filteredSidebarItems.slice(0, 2).map((item) => {
-            const isActive = section === item.key
-            return (
-              <button
-                key={item.key}
-                onClick={() => onSectionChange(item.key)}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-1",
-                  isActive ? "text-primary" : "text-on-surface-variant"
-                )}
-              >
-                <div className={cn(
-                  "w-12 h-8 rounded-full flex items-center justify-center transition-colors mb-0.5",
-                  isActive ? "bg-secondary-container" : "bg-transparent"
-                )}>
-                  <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
-              </button>
-            )
-          })}
+        <nav className="md:hidden relative bg-surface border-t border-outline-variant h-20 z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)] overflow-hidden">
+          <div className="flex h-full items-center gap-2 overflow-x-auto scrollbar-none px-2 pr-24">
+            {filteredSidebarItems.map((item) => {
+              const isActive = section === item.key
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => onSectionChange(item.key)}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-shrink-0 min-w-[72px]",
+                    isActive ? "text-primary" : "text-on-surface-variant"
+                  )}
+                >
+                  <div className={cn(
+                    "w-12 h-8 rounded-full flex items-center justify-center transition-colors mb-0.5",
+                    isActive ? "bg-secondary-container" : "bg-transparent"
+                  )}>
+                    <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap">{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
 
-          <div className="flex-1 flex justify-center -translate-y-6">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-6">
             <button
               onClick={onOpenTaskModal}
               className="flex flex-col items-center justify-center"
+              aria-label="Crear tarea"
             >
               <div className="w-14 h-14 rounded-2xl bg-secondary text-on-secondary shadow-xl flex items-center justify-center ring-8 ring-background">
                 <MaterialIcon name="add" className="text-[28px]" />
               </div>
             </button>
           </div>
-
-          {filteredSidebarItems.slice(2, 4).map((item) => {
-            const isActive = section === item.key
-            return (
-              <button
-                key={item.key}
-                onClick={() => onSectionChange(item.key)}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-1",
-                  isActive ? "text-primary" : "text-on-surface-variant"
-                )}
-              >
-                <div className={cn(
-                  "w-12 h-8 rounded-full flex items-center justify-center transition-colors mb-0.5",
-                  isActive ? "bg-secondary-container" : "bg-transparent"
-                )}>
-                  <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
-              </button>
-            )
-          })}
         </nav>
       </div>
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />

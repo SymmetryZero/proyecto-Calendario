@@ -34,6 +34,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const updateEvidence = useWorkflowStore((state) => state.updateEvidence)
   const deleteEvidence = useWorkflowStore((state) => state.deleteEvidence)
   const addEvidence = useWorkflowStore((state) => state.addEvidence)
+  const addTaskLog = useWorkflowStore((state) => state.addTaskLog)
   const claimTask = useWorkflowStore((state) => state.claimTask)
 
   const [activeView, setActiveView] = useState<"bento" | "drawing">("bento")
@@ -45,6 +46,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const [showHistory, setShowHistory] = useState(false)
   const [previewItem, setPreviewItem] = useState<TaskActivity | null>(null)
   const [escalateOpen, setEscalateOpen] = useState(false)
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   
@@ -240,6 +242,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     try {
       if (!task) return
       const file = files[0]
+      setUploadingFileName(file.name)
       
       let fileUrl = ""
       try {
@@ -271,8 +274,8 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
       
       setInternalPrompt({
         type: "upload_media",
-        title: "Descripción de Evidencia",
-        value: "",
+        title: "Nombre y descripción de la evidencia",
+        value: file.name,
         data: {
           base64: fileUrl, // Contains public URL or fallback base64
           type,
@@ -283,6 +286,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
       setShowAddChoice(false)
     } finally {
       setUploading(false)
+      setUploadingFileName(null)
       event.target.value = ""
     }
   }
@@ -293,10 +297,11 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     if (internalPrompt.type === "save_drawing") {
       const nextScene = internalPrompt.data.scene
       const fileName = value.trim() || internalPrompt.value
+      const detail = description?.trim() || ""
       
       addTaskActivity(task.id, "drawing", nextScene, { 
         fileName,
-        description: description?.trim()
+        description: detail
       })
       addEvidence({
         mediaType: "drawing",
@@ -304,28 +309,40 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
         name: fileName,
         base64: nextScene.preview || "",
         previewBase64: nextScene.preview || "",
-        caption: description?.trim() || "",
+        caption: detail,
         linkedTaskId: task.id,
         size: JSON.stringify(nextScene).length
+      })
+      addTaskLog(task.id, `Plano guardado: ${fileName}`, {
+        fileName,
+        mimeType: "application/json",
+        description: detail
       })
       updateTask(task.id, { drawingScene: nextScene })
       setEditingActivityId(null)
       setActiveView("bento")
     } else if (internalPrompt.type === "upload_media") {
       const { base64, type, fileName, mimeType } = internalPrompt.data
+      const finalName = value.trim() || internalPrompt.value || fileName
+      const finalDescription = description?.trim() || ""
       addTaskActivity(task.id, type, base64, {
-        fileName,
+        fileName: finalName,
         mimeType,
-        description: value.trim()
+        description: finalDescription
       })
       addEvidence({
         mediaType: type,
         mimeType: mimeType || "",
-        name: fileName,
+        name: finalName,
         base64: base64,
-        caption: value.trim() || "",
+        caption: finalDescription,
         linkedTaskId: task.id,
         size: base64.length
+      })
+      addTaskLog(task.id, `Evidencia subida: ${finalName}`, {
+        fileName: finalName,
+        mimeType,
+        description: finalDescription
       })
     }
     
@@ -1288,6 +1305,18 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
             </div>
          )}
 
+         {uploading && (
+            <div className="fixed inset-0 z-[190] flex items-center justify-center px-4 bg-primary/70 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="w-full max-w-sm rounded-2xl border border-outline-variant bg-surface p-6 text-center shadow-2xl">
+                <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-secondary/20 border-t-secondary animate-spin" />
+                <h3 className="font-title-sm text-title-sm text-primary">Subiendo evidencia</h3>
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  No cierres esta ventana mientras se procesa {uploadingFileName ?? "el archivo"}.
+                </p>
+              </div>
+            </div>
+         )}
+
           {internalPrompt && (
             <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200">
@@ -1300,8 +1329,9 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 
                 <div className="p-6">
                   {internalPrompt.type === "upload_media" && (
-                    <div className="mb-6 flex items-center gap-4 p-3 bg-surface-container rounded-xl border border-outline-variant">
-                       <div className="w-20 h-20 rounded-lg overflow-hidden bg-black shrink-0">
+                    <div className="space-y-5">
+                      <div className="flex items-center gap-4 p-3 bg-surface-container rounded-xl border border-outline-variant">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden bg-black shrink-0">
                           {internalPrompt.data.type === "image" ? (
                             <img src={internalPrompt.data.base64} className="w-full h-full object-cover" />
                           ) : internalPrompt.data.type === "video" ? (
@@ -1309,11 +1339,36 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-secondary bg-secondary/10"><MaterialIcon name="mic" /></div>
                           )}
-                       </div>
-                       <div className="min-w-0">
+                        </div>
+                        <div className="min-w-0">
                           <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">Vista previa</p>
                           <p className="text-sm text-primary font-bold truncate">{internalPrompt.data.fileName}</p>
-                       </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
+                          Nombre de la evidencia
+                        </label>
+                        <input
+                          autoFocus
+                          id="internal-media-name"
+                          type="text"
+                          defaultValue={internalPrompt.value}
+                          className="w-full h-12 px-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
+                          Descripción de la evidencia
+                        </label>
+                        <textarea
+                          id="internal-media-textarea"
+                          placeholder="Escriba aquí los detalles observados..."
+                          className="w-full h-32 p-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none text-sm"
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -1370,7 +1425,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                   
                   <p className="mt-3 text-[10px] text-on-surface-variant italic">
                     {internalPrompt.type === "upload_media" 
-                      ? "La descripción es opcional para el registro técnico." 
+                      ? "El nombre y la descripción se guardarán junto con la evidencia." 
                       : "Este nombre se usará para identificar el croquis en la lista."}
                   </p>
                 </div>
@@ -1378,11 +1433,15 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                 <div className="p-4 bg-surface-container flex flex-col sm:flex-row-reverse gap-2 border-t border-outline-variant">
                    <button 
                      onClick={() => {
+                        if (internalPrompt.type === "upload_media") {
+                          const name = (document.getElementById('internal-media-name') as HTMLInputElement)?.value || ""
+                          const desc = (document.getElementById('internal-media-textarea') as HTMLTextAreaElement)?.value || ""
+                          handleFinishInternalPrompt(name, desc)
+                          return
+                        }
                         const val = (document.getElementById('internal-modal-input') as HTMLInputElement)?.value || 
                                    (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value
-                        const desc = internalPrompt.type === "save_drawing" 
-                                   ? (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value 
-                                   : undefined
+                        const desc = (document.getElementById('internal-modal-textarea') as HTMLTextAreaElement)?.value
                         handleFinishInternalPrompt(val || "", desc)
                      }}
                      className="flex-1 h-11 bg-primary text-white font-bold rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all"
