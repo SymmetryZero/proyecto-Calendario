@@ -13,7 +13,7 @@ import { StatisticsSection } from "@/components/sections/statistics-section"
 import { SaveProgressModal } from "@/components/modals/save-progress-modal"
 import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
-import { AREA_OPTIONS, type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
+import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { useUser, SignIn } from "@clerk/nextjs"
 
@@ -54,27 +54,17 @@ export function WorkflowApp() {
     }
 
     if (localUser) {
-      const isClerkLinkedProfile = localUser.code === user.id || localUser.code === email
-      const shouldPromoteToAdmin =
-        isClerkLinkedProfile &&
-        localUser.role !== "administrador" &&
-        localUser.position === "Personal Técnico (Sincronizado)"
-
       // Si el código, avatar o nombre cambiaron en Clerk, los actualizamos dinámicamente
       const isOutdated =
         localUser.code !== user.id ||
         localUser.avatar !== avatar ||
         localUser.name !== name
 
-      if (isOutdated || shouldPromoteToAdmin) {
+      if (isOutdated) {
         useWorkflowStore.getState().updateUser(localUser.id, {
           code: user.id,
           avatar: avatar,
-          name: name,
-          position: shouldPromoteToAdmin ? "Administrador de Sistemas" : localUser.position,
-          role: shouldPromoteToAdmin ? "administrador" : localUser.role,
-          showAllZones: shouldPromoteToAdmin ? true : localUser.showAllZones,
-          areas: shouldPromoteToAdmin ? AREA_OPTIONS : localUser.areas
+          name: name
         })
       }
       if (currentUserId !== localUser.id) {
@@ -82,17 +72,17 @@ export function WorkflowApp() {
       }
     } else {
       // Registrar automáticamente al usuario de Clerk en el Zustand local
-      // Le asignamos rol de "administrador" por defecto para pruebas fluidas del panel
+      // Por defecto todos los usuarios nuevos son empleados, salvo que un admin/gerente los cambie después
       const newId = addUser({
         name: name,
         avatar: avatar,
         birthDate: "1990-01-01",
-        position: "Administrador de Sistemas",
+        position: "Personal Técnico (Sincronizado)",
         zone: "Oficina Central",
         zones: ["Oficina Central"],
-        role: "administrador",
-        showAllZones: true,
-        areas: AREA_OPTIONS,
+        role: "empleado",
+        showAllZones: false,
+        areas: ["Operacion"],
         skills: ["General"],
         clearances: [],
         availability: "available",
