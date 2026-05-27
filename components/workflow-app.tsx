@@ -13,7 +13,7 @@ import { StatisticsSection } from "@/components/sections/statistics-section"
 import { SaveProgressModal } from "@/components/modals/save-progress-modal"
 import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
-import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
+import { AREA_OPTIONS, type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { useUser, SignIn } from "@clerk/nextjs"
 
@@ -54,17 +54,27 @@ export function WorkflowApp() {
     }
 
     if (localUser) {
+      const isClerkLinkedProfile = localUser.code === user.id || localUser.code === email
+      const shouldPromoteToAdmin =
+        isClerkLinkedProfile &&
+        localUser.role !== "administrador" &&
+        localUser.position === "Personal Técnico (Sincronizado)"
+
       // Si el código, avatar o nombre cambiaron en Clerk, los actualizamos dinámicamente
       const isOutdated =
         localUser.code !== user.id ||
         localUser.avatar !== avatar ||
         localUser.name !== name
 
-      if (isOutdated) {
+      if (isOutdated || shouldPromoteToAdmin) {
         useWorkflowStore.getState().updateUser(localUser.id, {
           code: user.id,
           avatar: avatar,
-          name: name
+          name: name,
+          position: shouldPromoteToAdmin ? "Administrador de Sistemas" : localUser.position,
+          role: shouldPromoteToAdmin ? "administrador" : localUser.role,
+          showAllZones: shouldPromoteToAdmin ? true : localUser.showAllZones,
+          areas: shouldPromoteToAdmin ? AREA_OPTIONS : localUser.areas
         })
       }
       if (currentUserId !== localUser.id) {
@@ -77,12 +87,12 @@ export function WorkflowApp() {
         name: name,
         avatar: avatar,
         birthDate: "1990-01-01",
-        position: "Personal Técnico (Sincronizado)",
+        position: "Administrador de Sistemas",
         zone: "Oficina Central",
         zones: ["Oficina Central"],
-        role: "empleado",
-        showAllZones: false,
-        areas: ["Operacion"],
+        role: "administrador",
+        showAllZones: true,
+        areas: AREA_OPTIONS,
         skills: ["General"],
         clearances: [],
         availability: "available",
