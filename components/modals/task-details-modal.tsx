@@ -141,6 +141,9 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     return users.find((u) => u.id === currentUserId) ?? null
   }, [users, currentUserId])
 
+  const canManageTask = workflowSelectors.canManageTask(task, currentUser)
+  const canClaimTask = workflowSelectors.canClaimTask(task, currentUser)
+
   // Unify and de-duplicate evidence by filename
   const evidence = useMemo(() => {
     if (!task) return []
@@ -204,19 +207,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     return Array.from(map.values())
   }, [task, globalEvidence])
 
-  const canEscalateArea =
-    !!task &&
-    !!currentUserId &&
-    task.assigneeIds.includes(currentUserId)
-
-  const currentUserAreas = currentUser?.areas ?? []
-  const claimArea = task?.escalation?.toArea ?? task?.area
-  const canClaimTask =
-    !!task &&
-    !!currentUser?.id &&
-    !!claimArea &&
-    !task.assigneeIds.includes(currentUser.id) &&
-    (currentUserAreas.includes(claimArea) || currentUser.role === "administrador")
+  const canEscalateArea = !!task && !!currentUserId && canManageTask
 
   if (!open || !task) return null
 
@@ -497,7 +488,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             <p className="text-[10px] text-on-surface-variant">
                               {canEscalateArea
                                 ? "Redirige esta tarea a otro departamento. Los asignados seguirán viéndola."
-                                : "Disponible solo para el asignado de la tarea."}
+                                : "Disponible para asignado, creador o admin/gerente."}
                             </p>
                           </div>
                          
@@ -1604,4 +1595,3 @@ function ActivityItem({ activity, onPreview }: { activity: TaskActivity; onPrevi
      </svg>
    )
  }
-

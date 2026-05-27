@@ -197,8 +197,10 @@ export function DashboardSection({
   }, [searchQuery, scopedTasks, users, filterMode])
 
   function handleMove(task: Task, nextStatus: TaskStatus) {
-    // Role-based restrictions for employees
-    if (currentUser?.role === "empleado") {
+    const hasFullControl = workflowSelectors.canManageTask(task, currentUser)
+
+    // Role-based restrictions for employees without ownership over the task
+    if (currentUser?.role === "empleado" && !hasFullControl) {
       if (task.status === "done") {
         setGlobalAlert({
           title: "Acción no disponible",
@@ -256,7 +258,8 @@ export function DashboardSection({
       const nextStatus = status
       
       // Permission check for dragging
-      if (currentUser?.role === "empleado") {
+      const hasFullControl = workflowSelectors.canManageTask(task, currentUser)
+      if (currentUser?.role === "empleado" && !hasFullControl) {
         const statusOrder: TaskStatus[] = ["todo", "inProgress", "review", "done"]
         const currentIndex = statusOrder.indexOf(task.status)
         const nextIndex = statusOrder.indexOf(nextStatus)
@@ -578,14 +581,9 @@ function TaskCard({
   const assignees = avatarByTechnicianIds(users, task.assigneeIds)
   const attachedEvidence = evidence.filter((item) => item.linkedTaskId === task.id)
   const duration = workflowSelectors.getTaskDuration(task, now)
-  const canEscalate = !!currentUser?.id && task.assigneeIds.includes(currentUser.id)
-  const currentUserAreas = currentUser?.areas ?? []
-  const taskArea = task.escalation?.toArea ?? task.area
-  const canClaimTask =
-    !!taskArea &&
-    !!currentUser?.id &&
-    !task.assigneeIds.includes(currentUser.id) &&
-    (currentUserAreas.includes(taskArea) || currentUser.role === "administrador")
+  const canManageTask = workflowSelectors.canManageTask(task, currentUser)
+  const canEscalate = canManageTask
+  const canClaimTask = workflowSelectors.canClaimTask(task, currentUser)
   const isCreatedByCurrentUser = !!currentUser?.id && task.creatorId === currentUser.id
   
   const statusLabel =
@@ -718,7 +716,7 @@ function TaskCard({
           {(() => {
             const isEmployee = currentUser?.role === "empleado"
             const isDone = task.status === "done"
-            const canMove = !isEmployee || (!isDone && statusOrder.indexOf(nextStatus) >= statusOrder.indexOf(task.status))
+            const canMove = canManageTask || !isEmployee || (!isDone && statusOrder.indexOf(nextStatus) >= statusOrder.indexOf(task.status))
             
             return (
               <button
@@ -749,7 +747,7 @@ function TaskCard({
             }}
             className={cn(
               "flex items-center justify-center w-7 h-7 rounded-lg text-error/70 hover:text-error hover:bg-error/10 transition-all flex-shrink-0",
-              currentUser?.role === "empleado" && "hidden" // Ocultar eliminar para empleados
+              !canManageTask && "hidden"
             )}
             aria-label="Eliminar tarea"
             title="Eliminar"

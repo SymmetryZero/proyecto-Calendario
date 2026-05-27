@@ -135,7 +135,7 @@ export function EvidenceSection({ onCreateTask }: EvidenceSectionProps) {
 
           fileUrl = urlData.publicUrl
         } catch (uploadError: any) {
-          console.error("Storage upload failed, falling back to local base64:", uploadError)
+          console.error("Storage upload failed, falling back to Base64 backup:", uploadError)
           // Show alert in development so they can see the exact Supabase error (e.g. permission or RLS issues)
           alert(`Alerta de Supabase Storage:\n${uploadError?.message || "Error de red/conexión"}\n\nSe usará el respaldo local Base64.`)
           fileUrl = await fileToDataUrl(file)

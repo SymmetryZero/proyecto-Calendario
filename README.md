@@ -1,6 +1,6 @@
 # Demo
 
-PWA para la gestión de flujos de trabajo construida con Next.js, React, Tailwind CSS y Zustand, con persistencia local en `localStorage`.
+PWA para la gestion de flujos de trabajo construida con Next.js, React, Tailwind CSS y Zustand, con datos sincronizados en Supabase.
 
 ## Incluye
 
@@ -9,7 +9,7 @@ PWA para la gestión de flujos de trabajo construida con Next.js, React, Tailwin
 - Pizarra técnica propia en SVG con trazos libres, texto, líneas, selección y deshacer/rehacer.
 - Vista de asignación de requerimientos y técnicos.
 - Modal de guardado con carpetas nuevas o existentes.
-- Persistencia completa en `localStorage` mediante `persist` de Zustand.
+- Persistencia sincronizada en Supabase mediante `persist` de Zustand.
 - Base PWA con `manifest` y `service worker`.
 
 ## Instalación
@@ -35,4 +35,4 @@ npm run build
 ## Notas
 
 - El almacenamiento de videos grandes puede chocar con el límite del navegador.
-- Todo el estado principal se guarda localmente, sin base de datos SQL.
+- Todo el estado principal se guarda en Supabase, sin depender de almacenamiento local para los datos operativos.

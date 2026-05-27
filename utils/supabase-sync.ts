@@ -8,10 +8,13 @@ import type {
   AssignmentRecord,
   EvidenceFile,
   Notification,
-  WorkflowSeed
+  SaveRecord,
+  WorkflowSeed,
+  WorkspaceStateRecord
 } from "@/store/workflow-store"
 
 const ZONE_SEPARATOR = "|"
+const WORKSPACE_STATE_ID = "workspace"
 
 function parseZones(value?: string | null) {
   if (!value) return []
@@ -28,9 +31,18 @@ function serializeZones(zones: string[]) {
     .join(` ${ZONE_SEPARATOR} `)
 }
 
+function isMissingRelationError(error: any) {
+  return Boolean(
+    error &&
+      (error.code === "42P01" ||
+        /relation .* does not exist/i.test(error.message || "") ||
+        /does not exist/i.test(error.message || ""))
+  )
+}
+
 export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
   try {
-    // 1. Fetch from all 8 tables in parallel
+    // 1. Fetch from all 8 relational tables plus the workspace state row
     const [
       { data: dbUsers, error: uErr },
       { data: dbFolders, error: fErr },
@@ -39,7 +51,8 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       { data: dbAssignments, error: aErr },
       { data: dbActivities, error: acErr },
       { data: dbEvidence, error: eErr },
-      { data: dbNotifications, error: nErr }
+      { data: dbNotifications, error: nErr },
+      { data: dbWorkspaceState, error: wErr }
     ] = await Promise.all([
       supabase.from("flow_servimeci_users").select("*"),
       supabase.from("flow_servimeci_folders").select("*"),
@@ -48,11 +61,12 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       supabase.from("flow_servimeci_assignments").select("*"),
       supabase.from("flow_servimeci_activities").select("*"),
       supabase.from("flow_servimeci_evidence").select("*"),
-      supabase.from("flow_servimeci_notifications").select("*")
+      supabase.from("flow_servimeci_notifications").select("*"),
+      supabase.from("flow_servimeci_workspace_state").select("*").eq("id", WORKSPACE_STATE_ID).maybeSingle()
     ])
 
-    if (uErr || fErr || rErr || tErr || aErr || acErr || eErr || nErr) {
-      console.error("Error fetching data from Supabase:", { uErr, fErr, rErr, tErr, aErr, acErr, eErr, nErr })
+    if (uErr || fErr || rErr || tErr || aErr || acErr || eErr || nErr || (wErr && !isMissingRelationError(wErr))) {
+      console.error("Error fetching data from Supabase:", { uErr, fErr, rErr, tErr, aErr, acErr, eErr, nErr, wErr })
       return null
     }
 
@@ -198,6 +212,15 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       timestamp: n.created_at || new Date().toISOString()
     }))
 
+    const workspaceState: WorkspaceStateRecord | null = dbWorkspaceState
+      ? {
+          id: dbWorkspaceState.id,
+          saves: Array.isArray(dbWorkspaceState.saves) ? (dbWorkspaceState.saves as SaveRecord[]) : [],
+          drawingScene: dbWorkspaceState.drawing_scene || null,
+          updatedAt: dbWorkspaceState.updated_at || new Date().toISOString()
+        }
+      : null
+
     return {
       users,
       tasks,
@@ -205,8 +228,8 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       evidence,
       folders,
       assignments,
-      saves: [], // client-side saves are preserved or initialized empty
-      drawingScene: null,
+      saves: workspaceState?.saves ?? [],
+      drawingScene: workspaceState?.drawingScene ?? null,
       currentUserId: null,
       notifications,
       globalAlert: null
@@ -338,6 +361,13 @@ export async function pushToSupabase(state: any) {
       created_at: n.timestamp || new Date().toISOString()
     }))
 
+    const dbWorkspaceState = {
+      id: WORKSPACE_STATE_ID,
+      saves: state.saves || [],
+      drawing_scene: state.drawingScene || null,
+      updated_at: new Date().toISOString()
+    }
+
     // 2. RECONCILIACIÓN DE ELIMINACIONES
     const [
       { data: exUsers },
@@ -408,6 +438,7 @@ export async function pushToSupabase(state: any) {
     if (dbActivities.length) await supabase.from("flow_servimeci_activities").upsert(dbActivities)
     if (dbEvidence.length) await supabase.from("flow_servimeci_evidence").upsert(dbEvidence)
     if (dbNotifications.length) await supabase.from("flow_servimeci_notifications").upsert(dbNotifications)
+    await supabase.from("flow_servimeci_workspace_state").upsert(dbWorkspaceState)
 
     console.log("Supabase relational sync successful!")
   } catch (error) {

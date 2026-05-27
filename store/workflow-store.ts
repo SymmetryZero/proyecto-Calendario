@@ -1,7 +1,7 @@
 "use client"
 
 import { create } from "zustand"
-import { createJSONStorage, persist, type StateStorage } from "zustand/middleware"
+import { persist, type StateStorage } from "zustand/middleware"
 import {
   buildFolderPath,
   createAvatarDataUri,
@@ -13,11 +13,6 @@ import {
   makeId
 } from "@/utils/workflow"
 import { pullFromSupabase, pushToSupabase } from "@/utils/supabase-sync"
-
-// Limpiar explícitamente cualquier caché residual de localStorage para evitar interferencias locales
-if (typeof window !== "undefined") {
-  localStorage.removeItem("workflow-pro-storage")
-}
 
 
 
@@ -169,6 +164,45 @@ export interface Task {
   escalation?: TaskEscalation | null
 }
 
+function getTaskScopeArea(task: Task | null | undefined) {
+  return task?.escalation?.toArea ?? task?.area ?? DEFAULT_AREA
+}
+
+function isTaskCreator(user: User | null | undefined, task: Task | null | undefined) {
+  return Boolean(user && task && task.creatorId === user.id)
+}
+
+function isTaskAssignee(user: User | null | undefined, task: Task | null | undefined) {
+  return Boolean(user && task && task.assigneeIds.includes(user.id))
+}
+
+function canUserManageTask(user: User | null | undefined, task: Task | null | undefined) {
+  if (!user || !task) return false
+  if (user.role === "administrador" || user.role === "gerente") return true
+  return isTaskCreator(user, task) || isTaskAssignee(user, task)
+}
+
+function canUserClaimTask(user: User | null | undefined, task: Task | null | undefined) {
+  if (!user || !task) return false
+  if (isTaskAssignee(user, task)) return false
+  if (user.role === "administrador" || user.role === "gerente") return true
+  if (isTaskCreator(user, task)) return true
+  if (task.escalation?.targetUserId === user.id) return true
+
+  const userAreas = user.areas ?? []
+  const taskArea = getTaskScopeArea(task)
+
+  if (!task.assigneeIds.length && userAreas.includes(taskArea)) {
+    return true
+  }
+
+  if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) {
+    return true
+  }
+
+  return false
+}
+
 export interface Requirement {
   id: string
   code: string
@@ -308,6 +342,13 @@ export interface WorkflowSeed {
   currentUserId: string | null
   notifications: Notification[]
   globalAlert: GlobalAlert | null
+}
+
+export interface WorkspaceStateRecord {
+  id: string
+  saves: SaveRecord[]
+  drawingScene: DrawingScene | null
+  updatedAt: string
 }
 
 export interface WorkflowStore extends WorkflowSeed {
@@ -1845,6 +1886,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
             }
           })
 
+          get().addTaskLog(taskId, "Tarea creada")
+
           return taskId
         },
         updateTask: (taskId, patch) => {
@@ -1855,7 +1898,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
               if (t.id !== taskId) return t
               
               const currentUser = state.users.find(u => u.id === state.currentUserId)
-              if (currentUser?.role === "empleado") {
+              const hasFullControl = canUserManageTask(currentUser, t)
+              if (currentUser?.role === "empleado" && !hasFullControl) {
                 if (t.status === "done") {
                   get().setGlobalAlert({
                     title: "Acción no disponible",
@@ -1878,7 +1922,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                   }
                 }
               }
-
+              
               const now = Date.now()
               const updatedStatus = patch.status ?? t.status
               
@@ -1889,12 +1933,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               if (patch.status && patch.status !== t.status) {
                 const totalForOldStatus = accumulateTaskTime(t, now)
                 nextDurations[t.status] = totalForOldStatus
-                
-                if (patch.status === "done") {
-                  nextTimerStart = null
-                } else if (t.timerStartedAt !== null) {
-                  nextTimerStart = now
-                }
+                nextTimerStart = patch.status === "done" ? null : now
               }
               
               return { 
@@ -1924,11 +1963,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
                     } 
                   : req
               )
-            }
+              }
 
-            return {
-              tasks: nextTasks,
-              requirements: nextRequirements
+              return {
+                tasks: nextTasks,
+                requirements: nextRequirements
             }
           })
 
@@ -1960,6 +1999,17 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         },
         deleteTask: (taskId) => {
+          const currentUser = get().users.find((u) => u.id === get().currentUserId)
+          const taskToDelete = get().tasks.find((t) => t.id === taskId)
+          if (taskToDelete && !canUserManageTask(currentUser, taskToDelete)) {
+            get().setGlobalAlert({
+              title: "Eliminación no permitida",
+              message: "Solo quien creó o tomó la tarea puede eliminarla.",
+              type: "warning"
+            })
+            return
+          }
+
           set((state) => {
             const taskToDelete = state.tasks.find((t) => t.id === taskId)
             const requirementId = taskToDelete?.requirementId
@@ -1982,10 +2032,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
           set((state) => {
             const task = state.tasks.find(t => t.id === taskId)
             const currentUser = state.users.find(u => u.id === state.currentUserId)
+            const hasFullControl = canUserManageTask(currentUser, task)
             
             if (!task || !currentUser) return state
 
-            if (currentUser.role === "empleado") {
+            if (currentUser.role === "empleado" && !hasFullControl) {
               if (task.status === "done") {
                 get().setGlobalAlert({
                   title: "Acción no disponible",
@@ -2019,7 +2070,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 return {
                   ...t,
                   status,
-                  timerStartedAt: status === "done" ? null : (t.timerStartedAt !== null ? now : null),
+                  timerStartedAt: status === "done" ? null : now,
                   statusDurations: nextDurations,
                   updatedAt: new Date(now).toISOString()
                 }
@@ -2058,10 +2109,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
             return
           }
 
-          if (!task.assigneeIds.includes(currentUser.id)) {
+          if (!canUserManageTask(currentUser, task)) {
             get().setGlobalAlert({
               title: "Escalado no permitido",
-              message: "Solo el asignado puede escalar esta tarea.",
+              message: "Solo el asignado, creador o un administrador/gerente puede escalar esta tarea.",
               type: "warning"
             })
             return
@@ -2169,45 +2220,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             return
           }
 
-          const userAreas = currentUser.areas ?? []
-          if (!task.escalation.toArea || !userAreas.includes(task.escalation.toArea)) {
-            get().setGlobalAlert({
-              title: "Asignacion no permitida",
-              message: "No perteneces al area destino de esta tarea.",
-              type: "warning"
-            })
-            return
-          }
-
-          if (task.assigneeIds.includes(currentUser.id)) {
-            get().setGlobalAlert({
-              title: "Asignacion no necesaria",
-              message: "Ya estas asignado a esta tarea.",
-              type: "info"
-            })
-            return
-          }
-
-          const now = new Date().toISOString()
-          set((state) => ({
-            tasks: state.tasks.map((item) =>
-              item.id === taskId
-                ? {
-                    ...item,
-                    assigneeIds: Array.from(new Set([...item.assigneeIds, currentUser.id])),
-                    escalation: item.escalation
-                      ? { ...item.escalation, targetUserId: item.escalation.targetUserId ?? currentUser.id }
-                      : item.escalation,
-                    updatedAt: now
-                  }
-                : item
-            )
-          }))
-
-          get().addTaskLog(
-            taskId,
-            `Asignado en ${task.escalation.toArea}: ${currentUser.name} tomo la tarea.`
-          )
+          get().claimTask(taskId)
         },
         claimTask: (taskId) => {
           const { tasks, users, currentUserId } = get()
@@ -2216,28 +2229,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
           if (!task || !currentUser) {
             return
-          }
-
-          const userAreas = currentUser.areas ?? []
-
-          if (task.escalation) {
-            if (!task.escalation.toArea || !userAreas.includes(task.escalation.toArea)) {
-              get().setGlobalAlert({
-                title: "Asignación no permitida",
-                message: "No perteneces al área destino de esta tarea.",
-                type: "warning"
-              })
-              return
-            }
-          } else {
-            if (!task.area || !userAreas.includes(task.area)) {
-              get().setGlobalAlert({
-                title: "Asignación no permitida",
-                message: "No perteneces al área de esta tarea.",
-                type: "warning"
-              })
-              return
-            }
           }
 
           if (task.assigneeIds.includes(currentUser.id)) {
@@ -2249,6 +2240,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
             return
           }
 
+          if (!canUserClaimTask(currentUser, task)) {
+            get().setGlobalAlert({
+              title: "Asignación no permitida",
+              message: "No tienes permiso para tomar esta tarea.",
+              type: "warning"
+            })
+            return
+          }
+
           const now = new Date().toISOString()
           set((state) => ({
             tasks: state.tasks.map((item) =>
@@ -2259,8 +2259,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
                     escalation: item.escalation
                       ? { ...item.escalation, targetUserId: item.escalation.targetUserId ?? currentUser.id }
                       : item.escalation,
-                    updatedAt: now
-                  }
+                  updatedAt: now
+                }
                 : item
             )
           }))
@@ -2403,6 +2403,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
               tasks: [newTask, ...state.tasks]
             }
           })
+
+          const createdTask = get().tasks.find((task) => task.requirementId === id)
+          if (createdTask) {
+            get().addTaskLog(createdTask.id, "Tarea creada")
+          }
 
           return id
         },
@@ -2889,6 +2894,12 @@ export const workflowSelectors = {
   getUserZones(user: User | null) {
     return resolveUserZones(user)
   },
+  canManageTask(task: Task | null, user: User | null) {
+    return canUserManageTask(user, task)
+  },
+  canClaimTask(task: Task | null, user: User | null) {
+    return canUserClaimTask(user, task)
+  },
   filterTasksByZone(tasks: Task[], user: User | null) {
     if (!user) return []
     if (user.role === "administrador" || user.showAllZones) return tasks
@@ -2896,14 +2907,14 @@ export const workflowSelectors = {
     // Si es empleado, ve lo asignado y lo disponible en sus areas
     if (user.role === "empleado") {
       const userAreas = user.areas ?? []
-      const userZones = resolveUserZones(user)
       return tasks.filter((task) => {
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
         const taskArea = task.area ?? DEFAULT_AREA
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && userAreas.includes(taskArea) && isInUserZones(task.location, userZones)) return true
-        if (!task.escalation?.toArea) return false
-        return userAreas.includes(task.escalation.toArea)
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && userAreas.includes(taskArea)) return true
+        if (task.escalation?.targetUserId === user.id) return true
+        if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) return true
+        return false
       })
     }
 
@@ -2914,6 +2925,8 @@ export const workflowSelectors = {
       return tasks.filter((task) => {
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
+        const taskArea = task.area ?? DEFAULT_AREA
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && userAreas.includes(taskArea)) return true
         if (isInUserZones(task.location, userZones)) return true
         if (task.escalation?.targetUserId === user.id) return true
         if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) return true
@@ -2932,6 +2945,7 @@ export const workflowSelectors = {
       const userAreas = user.areas ?? []
       const userZones = resolveUserZones(user)
       return requirements.filter((req) => {
+        if (req.creatorId === user.id || req.selectedTechnicianId === user.id) return true
         if (!isInUserZones(req.location, userZones)) return false
         const reqArea = req.area ?? DEFAULT_AREA
         if (userAreas.length > 0 && !userAreas.includes(reqArea)) return false
@@ -2942,7 +2956,11 @@ export const workflowSelectors = {
     // Gerentes ven requerimientos de su zona
     if (user.role === "gerente") {
       const userZones = resolveUserZones(user)
-      return requirements.filter((req) => req.creatorId === user.id || isInUserZones(req.location, userZones))
+      return requirements.filter((req) =>
+        req.creatorId === user.id ||
+        req.selectedTechnicianId === user.id ||
+        isInUserZones(req.location, userZones)
+      )
     }
 
     return requirements.filter((req) => req.location === user.zone)

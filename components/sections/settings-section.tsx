@@ -141,7 +141,7 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
         <div>
           <h2 className="font-display-lg text-display-lg text-primary">Configuración</h2>
           <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-            Administra el almacenamiento local, las exportaciones y los datos de demostración sin salir del navegador.
+            Administra los datos sincronizados, las exportaciones y los datos de demostración sin salir del navegador.
           </p>
         </div>
         {switchNotice ? (
@@ -154,12 +154,12 @@ export function SettingsSection({ onSwitchUser }: SettingsSectionProps) {
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="rounded-xl border border-outline-variant bg-surface p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-title-sm text-title-sm text-primary">Almacenamiento local</h3>
+              <h3 className="font-title-sm text-title-sm text-primary">Estado sincronizado</h3>
               <MaterialIcon name="database" className="text-on-surface-variant" />
             </div>
             <div className="space-y-3 text-sm text-on-surface-variant">
               <div className="flex items-center justify-between">
-                <span>Tamaño serializado</span>
+                <span>Tamaño sincronizado</span>
                 <span className="font-data-mono text-data-mono text-on-surface">
                   {formatBytes(serializedSize)}
                 </span>
