@@ -45,13 +45,8 @@ export function WorkflowApp() {
     const name = user.fullName || user.username || email.split("@")[0] || "Usuario"
     const avatar = user.imageUrl || ""
 
-    // Buscar si ya existe un usuario local con el ID de Clerk (guardado en 'code')
+    // Buscar solo por el ID exacto de Clerk guardado en 'code'
     let localUser = users.find((u) => u.code === user.id)
-
-    // Si no lo encuentra, buscar por correo o por una coincidencia similar
-    if (!localUser && email) {
-      localUser = users.find((u) => u.code === email)
-    }
 
     if (localUser) {
       // Si el código, avatar o nombre cambiaron en Clerk, los actualizamos dinámicamente
@@ -86,11 +81,9 @@ export function WorkflowApp() {
         skills: ["General"],
         clearances: [],
         availability: "available",
-        availabilityLabel: "Disponible"
+        availabilityLabel: "Disponible",
+        code: user.id
       })
-
-      // Asociar su ID de Clerk para inicios de sesión futuros
-      useWorkflowStore.getState().updateUser(newId, { code: user.id })
       setCurrentUser(newId)
     }
   }, [isUserLoaded, isSignedIn, user, users, currentUserId, setCurrentUser, addUser])

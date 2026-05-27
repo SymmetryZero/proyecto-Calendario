@@ -419,26 +419,26 @@ export async function pushToSupabase(state: any) {
 
     // 3. UPSERTS ORDENADOS
     // Nivel 1: Usuarios y Carpetas
-    if (dbUsers.length) await supabase.from("flow_servimeci_users").upsert(dbUsers)
+    if (dbUsers.length) await supabase.from("flow_servimeci_users").upsert(dbUsers, { onConflict: "id" })
     if (dbFolders.length) {
       // First upsert folders with null parent to bypass self-referential keys
       const foldersWithoutParent = dbFolders.map((f: any) => ({ ...f, parent_id: null }))
-      await supabase.from("flow_servimeci_folders").upsert(foldersWithoutParent)
-      await supabase.from("flow_servimeci_folders").upsert(dbFolders)
+      await supabase.from("flow_servimeci_folders").upsert(foldersWithoutParent, { onConflict: "id" })
+      await supabase.from("flow_servimeci_folders").upsert(dbFolders, { onConflict: "id" })
     }
 
     // Nivel 2: Requerimientos
-    if (dbRequirements.length) await supabase.from("flow_servimeci_requirements").upsert(dbRequirements)
+    if (dbRequirements.length) await supabase.from("flow_servimeci_requirements").upsert(dbRequirements, { onConflict: "id" })
 
     // Nivel 3: Tareas y Asignaciones
-    if (dbTasks.length) await supabase.from("flow_servimeci_tasks").upsert(dbTasks)
-    if (dbAssignments.length) await supabase.from("flow_servimeci_assignments").upsert(dbAssignments)
+    if (dbTasks.length) await supabase.from("flow_servimeci_tasks").upsert(dbTasks, { onConflict: "id" })
+    if (dbAssignments.length) await supabase.from("flow_servimeci_assignments").upsert(dbAssignments, { onConflict: "id" })
 
     // Nivel 4: Actividades, Evidencias, Notificaciones
-    if (dbActivities.length) await supabase.from("flow_servimeci_activities").upsert(dbActivities)
-    if (dbEvidence.length) await supabase.from("flow_servimeci_evidence").upsert(dbEvidence)
-    if (dbNotifications.length) await supabase.from("flow_servimeci_notifications").upsert(dbNotifications)
-    await supabase.from("flow_servimeci_workspace_state").upsert(dbWorkspaceState)
+    if (dbActivities.length) await supabase.from("flow_servimeci_activities").upsert(dbActivities, { onConflict: "id" })
+    if (dbEvidence.length) await supabase.from("flow_servimeci_evidence").upsert(dbEvidence, { onConflict: "id" })
+    if (dbNotifications.length) await supabase.from("flow_servimeci_notifications").upsert(dbNotifications, { onConflict: "id" })
+    await supabase.from("flow_servimeci_workspace_state").upsert(dbWorkspaceState, { onConflict: "id" })
 
     console.log("Supabase relational sync successful!")
   } catch (error) {
