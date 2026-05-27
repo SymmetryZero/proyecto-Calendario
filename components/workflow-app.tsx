@@ -45,9 +45,29 @@ export function WorkflowApp() {
     const email = user.primaryEmailAddress?.emailAddress || ""
     const name = user.fullName || user.username || email.split("@")[0] || "Usuario"
     const avatar = user.imageUrl || ""
+    const normalizeLookup = (value: string) =>
+      value
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
 
     // Buscar solo por el ID exacto de Clerk guardado en 'code'
     let localUser = users.find((u) => u.code === user.id)
+
+    if (!localUser) {
+      const normalizedName = normalizeLookup(name)
+      if (normalizedName && normalizedName !== "usuario") {
+        const exactNameMatches = users.filter((u) => normalizeLookup(u.name) === normalizedName)
+        if (exactNameMatches.length === 1) {
+          localUser = exactNameMatches[0]
+        } else if (exactNameMatches.length > 1) {
+          localUser =
+            exactNameMatches.find((u) => normalizeUserRole(u.role) !== "empleado") ??
+            exactNameMatches[0]
+        }
+      }
+    }
 
     if (localUser) {
       // Si el código, avatar o nombre cambiaron en Clerk, los actualizamos dinámicamente
