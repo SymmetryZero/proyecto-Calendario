@@ -13,6 +13,7 @@ type NotificationPopoutProps = {
 export function NotificationPopout({ open, onClose }: NotificationPopoutProps) {
   const notifications = useWorkflowStore((state) => state.notifications)
   const users = useWorkflowStore((state) => state.users)
+  const tasks = useWorkflowStore((state) => state.tasks)
   const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const markNotificationAsRead = useWorkflowStore((state) => state.markNotificationAsRead)
 
@@ -38,12 +39,28 @@ export function NotificationPopout({ open, onClose }: NotificationPopoutProps) {
       if (currentUser.role === "empleado") {
         if (n.targetUserId === currentUser.id) return true // New assignment for them
         if (n.userId === currentUser.id) return true // Their own movement
+        
+        if (n.taskId) {
+          const task = tasks.find(t => t.id === n.taskId)
+          if (task) {
+            const isMyTask = task.assigneeIds.includes(currentUser.id) || task.creatorId === currentUser.id
+            if (isMyTask) return true // Changes, comments, evidence on their tasks
+            
+            // Untaken tasks in their area
+            const userAreas = currentUser.areas ?? []
+            const taskArea = task.area ?? "Operacion"
+            const isUntaken = !task.assigneeIds || task.assigneeIds.length === 0
+            const isInMyArea = userAreas.includes(taskArea)
+            
+            if (isUntaken && isInMyArea) return true // Untaken tasks in their area
+          }
+        }
         return false
       }
       
       return false
     })
-  }, [notifications, currentUser])
+  }, [notifications, currentUser, tasks])
 
   if (!open) return null
 

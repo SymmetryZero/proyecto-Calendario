@@ -2729,14 +2729,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
             )
           }))
 
-          // Trigger notification for messages (notes)
-          if (type === "note") {
+          // Trigger notification for messages (notes) and evidence
+          if (type === "note" || type === "image" || type === "video" || type === "audio" || type === "drawing") {
             const task = get().tasks.find(t => t.id === taskId)
             if (task) {
+              const typeLabels: Record<string, string> = {
+                note: "comentario",
+                image: "imagen",
+                video: "video",
+                audio: "audio",
+                drawing: "croquis"
+              }
+              const isNote = type === "note"
+              const title = isNote ? "Nuevo Comentario" : "Nueva Evidencia"
+              const message = isNote
+                ? `Nueva nota en "${task.title}": ${String(content).slice(0, 50)}${String(content).length > 50 ? "..." : ""}`
+                : `Se subió evidencia (${typeLabels[type] || type}) en "${task.title}"`
+
               get().addNotification({
-                title: "Nuevo Mensaje",
-                message: `Nueva nota en "${task.title}": ${String(content).slice(0, 50)}${String(content).length > 50 ? "..." : ""}`,
-                type: "message",
+                title,
+                message,
+                type: isNote ? "message" : "alert",
                 taskId,
                 userId: get().currentUserId || "system",
                 targetUserId: null // Broadcast

@@ -101,12 +101,29 @@ export function WorkflowShell({
         if (currentRole === "administrador") return true
         if (currentRole === "gerente") return true
         if (currentRole === "empleado") {
-          return n.targetUserId === currentUser.id || n.userId === currentUser.id
+          if (n.targetUserId === currentUser.id) return true
+          if (n.userId === currentUser.id) return true
+          
+          if (n.taskId) {
+            const task = tasks.find(t => t.id === n.taskId)
+            if (task) {
+              const isMyTask = task.assigneeIds.includes(currentUser.id) || task.creatorId === currentUser.id
+              if (isMyTask) return true
+              
+              // Untaken tasks in their area
+              const userAreas = currentUser.areas ?? []
+              const taskArea = task.area ?? "Operacion"
+              const isUntaken = !task.assigneeIds || task.assigneeIds.length === 0
+              const isInMyArea = userAreas.includes(taskArea)
+              
+              if (isUntaken && isInMyArea) return true
+            }
+          }
         }
       }
       return false
     }).length
-  }, [notifications, currentUser, currentRole])
+  }, [notifications, currentUser, currentRole, tasks])
 
   const filteredSidebarItems = useMemo(() => {
     if (!currentUser) return sidebarItems

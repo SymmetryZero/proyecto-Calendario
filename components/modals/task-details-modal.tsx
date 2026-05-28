@@ -684,29 +684,38 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                            </div>
                          ) : null}
 
-                         {!showHistory && isAddingNote ? (
-                           <div className="bg-surface-container-highest p-4 rounded-xl border-2 border-secondary/30 animate-in slide-in-from-top-2 duration-200">
-                              <textarea 
-                                autoFocus
-                                value={noteText}
-                                onChange={(e) => setNoteText(e.target.value)}
-                                placeholder="Escribe tu observación técnica..."
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm text-on-surface resize-none h-24 mb-3 p-0"
-                              />
-                              <div className="flex justify-end gap-2">
-                                 <button onClick={() => setIsAddingNote(false)} className="px-3 py-1.5 text-[11px] font-bold uppercase text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">Cancelar</button>
-                                 <button onClick={handleAddNote} className="px-4 py-1.5 bg-secondary text-white text-[11px] font-bold uppercase rounded-lg shadow-sm hover:opacity-90 transition-all">Guardar Nota</button>
+                         {!showHistory && (
+                            canManageTask ? (
+                              isAddingNote ? (
+                                <div className="bg-surface-container-highest p-4 rounded-xl border-2 border-secondary/30 animate-in slide-in-from-top-2 duration-200">
+                                  <textarea 
+                                    autoFocus
+                                    value={noteText}
+                                    onChange={(e) => setNoteText(e.target.value)}
+                                    placeholder="Escribe tu observación técnica..."
+                                    className="w-full bg-transparent border-none focus:ring-0 text-sm text-on-surface resize-none h-24 mb-3 p-0"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                     <button onClick={() => setIsAddingNote(false)} className="px-3 py-1.5 text-[11px] font-bold uppercase text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">Cancelar</button>
+                                     <button onClick={handleAddNote} className="px-4 py-1.5 bg-secondary text-white text-[11px] font-bold uppercase rounded-lg shadow-sm hover:opacity-90 transition-all">Guardar Nota</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => setIsAddingNote(true)}
+                                  className="w-full py-4 border-2 border-dashed border-outline-variant rounded-xl text-on-surface-variant font-title-sm text-sm flex items-center justify-center gap-2 hover:bg-secondary/5 hover:border-secondary/50 hover:text-secondary transition-all group border-none bg-transparent cursor-pointer"
+                                >
+                                   <MaterialIcon name="add_comment" className="group-hover:scale-110 transition-transform" />
+                                   Agregar Observación
+                                </button>
+                              )
+                            ) : (
+                              <div className="p-4 rounded-xl border border-outline-variant bg-surface-container-low text-xs text-on-surface-variant italic flex items-center gap-2">
+                                <MaterialIcon name="lock" className="text-sm text-on-surface-variant/70" />
+                                <span>Solo los asignados, el creador o administradores pueden agregar observaciones a esta tarea.</span>
                               </div>
-                           </div>
-                         ) : !showHistory ? (
-                           <button 
-                             onClick={() => setIsAddingNote(true)}
-                             className="w-full py-4 border-2 border-dashed border-outline-variant rounded-xl text-on-surface-variant font-title-sm text-sm flex items-center justify-center gap-2 hover:bg-secondary/5 hover:border-secondary/50 hover:text-secondary transition-all group"
-                           >
-                              <MaterialIcon name="add_comment" className="group-hover:scale-110 transition-transform" />
-                              Agregar Observación
-                           </button>
-                         ) : null}
+                            )
+                          )}
                       </div>
                    </section>
                 </div>
@@ -746,61 +755,74 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                        )}>
                          
                          {/* Add Evidence Choice / Dropzone */}
-                         <div className={cn(
-                            "relative rounded-2xl border-2 border-dashed border-secondary bg-secondary/5 overflow-hidden group transition-all",
-                            viewMode === "grid" ? "aspect-square" : "h-32"
-                          )}>
-                            {!showAddChoice ? (
-                               <button 
-                                 onClick={() => setShowAddChoice(true)}
-                                 className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center hover:bg-secondary/10 transition-colors"
-                               >
-                                  <div className="w-14 h-14 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
-                                     <MaterialIcon name="add_a_photo" className="text-[28px]" filled />
+                          <div className={cn(
+                             "relative rounded-2xl overflow-hidden transition-all duration-300",
+                             canManageTask 
+                               ? "border-2 border-dashed border-secondary bg-secondary/5 group" 
+                               : "border border-dashed border-outline-variant bg-surface-container-low",
+                             viewMode === "grid" ? "aspect-square" : "h-32 animate-none"
+                           )}>
+                             {canManageTask ? (
+                               !showAddChoice ? (
+                                  <button 
+                                    onClick={() => setShowAddChoice(true)}
+                                    className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center hover:bg-secondary/10 transition-colors border-none bg-transparent w-full h-full cursor-pointer"
+                                  >
+                                     <div className="w-14 h-14 rounded-2xl bg-secondary-container text-on-secondary-container flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                                        <MaterialIcon name="add_a_photo" className="text-[28px]" filled />
+                                     </div>
+                                     <span className="font-title-sm text-base text-secondary font-bold">Agregar Evidencia</span>
+                                     <p className="font-body-sm text-[11px] text-on-surface-variant mt-2 leading-tight">Sube fotos, videos o crea un dibujo técnico</p>
+                                  </button>
+                               ) : (
+                                  <div className="absolute inset-0 flex flex-col p-4 bg-white/95 backdrop-blur-sm animate-in fade-in duration-200">
+                                     <div className="flex justify-between items-center mb-3">
+                                        <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Seleccionar tipo</span>
+                                        <button onClick={() => setShowAddChoice(false)} className="text-on-surface-variant hover:text-error border-none bg-transparent cursor-pointer"><MaterialIcon name="close" className="text-[18px]" /></button>
+                                     </div>
+                                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 min-h-0 overflow-y-auto pr-1">
+                                        <button 
+                                          onClick={() => {
+                                            setDrawingScene(null)
+                                            setEditingActivityId(null)
+                                            setActiveView("drawing")
+                                          }}
+                                          className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant hover:border-secondary hover:bg-secondary/5 transition-all text-left group border-none bg-transparent cursor-pointer"
+                                        >
+                                           <div className="h-9 w-9 rounded-lg bg-surface-container flex items-center justify-center text-secondary group-hover:bg-secondary-container group-hover:text-on-secondary-container transition-colors">
+                                              <MaterialIcon name="architecture" className="text-[20px]" />
+                                           </div>
+                                           <div className="min-w-0">
+                                              <p className="text-[13px] font-bold text-on-surface leading-tight">Dibujo Técnico</p>
+                                              <p className="text-[9px] text-on-surface-variant">Croquis y medidas</p>
+                                           </div>
+                                        </button>
+                                        <button 
+                                          onClick={() => fileInputRef.current?.click()}
+                                          className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant hover:border-secondary hover:bg-secondary/5 transition-all text-left group border-none bg-transparent cursor-pointer"
+                                        >
+                                           <div className="h-9 w-9 rounded-lg bg-surface-container flex items-center justify-center text-secondary group-hover:bg-secondary-container group-hover:text-on-secondary-container transition-colors">
+                                              <MaterialIcon name="photo_camera" className="text-[20px]" />
+                                           </div>
+                                           <div className="min-w-0">
+                                              <p className="text-[13px] font-bold text-on-surface leading-tight">Cámara / Archivo</p>
+                                              <p className="text-[9px] text-on-surface-variant">Sube fotos, videos o audios</p>
+                                           </div>
+                                        </button>
+                                     </div>
                                   </div>
-                                  <span className="font-title-sm text-base text-secondary font-bold">Agregar Evidencia</span>
-                                  <p className="font-body-sm text-[11px] text-on-surface-variant mt-2 leading-tight">Sube fotos, videos o crea un dibujo técnico</p>
-                               </button>
-                            ) : (
-                               <div className="absolute inset-0 flex flex-col p-4 bg-white/95 backdrop-blur-sm animate-in fade-in duration-200">
-                                  <div className="flex justify-between items-center mb-3">
-                                     <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Seleccionar tipo</span>
-                                     <button onClick={() => setShowAddChoice(false)} className="text-on-surface-variant hover:text-error"><MaterialIcon name="close" className="text-[18px]" /></button>
+                               )
+                             ) : (
+                               <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-on-surface-variant italic text-xs leading-relaxed">
+                                  <div className="w-10 h-10 rounded-full bg-outline-variant/10 text-outline flex items-center justify-center mb-2">
+                                     <MaterialIcon name="lock" className="text-lg" />
                                   </div>
-                                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 min-h-0 overflow-y-auto pr-1">
-                                     <button 
-                                       onClick={() => {
-                                         setDrawingScene(null)
-                                         setEditingActivityId(null)
-                                         setActiveView("drawing")
-                                       }}
-                                       className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant hover:border-secondary hover:bg-secondary/5 transition-all text-left group"
-                                     >
-                                        <div className="h-9 w-9 rounded-lg bg-surface-container flex items-center justify-center text-secondary group-hover:bg-secondary-container group-hover:text-on-secondary-container transition-colors">
-                                           <MaterialIcon name="architecture" className="text-[20px]" />
-                                        </div>
-                                        <div className="min-w-0">
-                                           <p className="text-[13px] font-bold text-on-surface leading-tight">Dibujo Técnico</p>
-                                           <p className="text-[9px] text-on-surface-variant">Croquis y medidas</p>
-                                        </div>
-                                     </button>
-                                     <button 
-                                       onClick={() => fileInputRef.current?.click()}
-                                       className="flex items-center gap-3 p-3 rounded-xl border border-outline-variant hover:border-secondary hover:bg-secondary/5 transition-all text-left group"
-                                     >
-                                        <div className="h-9 w-9 rounded-lg bg-surface-container flex items-center justify-center text-secondary group-hover:bg-secondary-container group-hover:text-on-secondary-container transition-colors">
-                                           <MaterialIcon name="photo_camera" className="text-[20px]" />
-                                        </div>
-                                        <div className="min-w-0">
-                                           <p className="text-[13px] font-bold text-on-surface leading-tight">Cámara / Archivo</p>
-                                           <p className="text-[9px] text-on-surface-variant">Sube fotos, videos o audios</p>
-                                        </div>
-                                     </button>
-                                  </div>
+                                  <span className="font-semibold text-on-surface-variant">Acceso Restringido</span>
+                                  <p className="text-[10px] text-on-surface-variant/80 mt-1 max-w-[160px]">Solo asignados, creador o admin pueden subir evidencias.</p>
                                </div>
-                            )}
-                            <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" capture="environment" multiple className="hidden" onChange={handleUpload} />
-                         </div>
+                             )}
+                             <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" capture="environment" multiple className="hidden" onChange={handleUpload} />
+                          </div>
 
                          {/* Evidence Grid Items */}
                          {evidence.map(item => (
@@ -881,30 +903,34 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                   <button 
                                     title="Visualizar"
                                     onClick={() => setPreviewItem(item)}
-                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-primary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
+                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-primary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30 cursor-pointer"
                                   >
                                     <MaterialIcon name="visibility" className="text-[18px]" />
                                   </button>
-                                  <button 
-                                    title={item.type === "drawing" ? "Editar Metadatos" : "Renombrar"}
-                                    onClick={() => {
-                                      setRenamingItem(item)
-                                      setEditNameValue(item.metadata?.fileName || "")
-                                      setEditDescriptionValue(item.metadata?.description || "")
-                                    }}
-                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-secondary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
-                                  >
-                                    <MaterialIcon name="edit" className="text-[18px]" />
-                                  </button>
-                                  <button 
-                                    title="Eliminar"
-                                    onClick={() => {
-                                      setDeletingItem(item)
-                                    }}
-                                    className="h-9 w-9 bg-white/90 backdrop-blur-sm text-error rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30"
-                                  >
-                                    <MaterialIcon name="delete" className="text-[18px]" />
-                                  </button>
+                                  {canManageTask && (
+                                    <>
+                                      <button 
+                                        title={item.type === "drawing" ? "Editar Metadatos" : "Renombrar"}
+                                        onClick={() => {
+                                          setRenamingItem(item)
+                                          setEditNameValue(item.metadata?.fileName || "")
+                                          setEditDescriptionValue(item.metadata?.description || "")
+                                        }}
+                                        className="h-9 w-9 bg-white/90 backdrop-blur-sm text-secondary rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30 cursor-pointer"
+                                      >
+                                        <MaterialIcon name="edit" className="text-[18px]" />
+                                      </button>
+                                      <button 
+                                        title="Eliminar"
+                                        onClick={() => {
+                                          setDeletingItem(item)
+                                        }}
+                                        className="h-9 w-9 bg-white/90 backdrop-blur-sm text-error rounded-xl shadow-lg flex items-center justify-center hover:bg-white hover:scale-105 active:scale-95 transition-all border border-outline-variant/30 cursor-pointer"
+                                      >
+                                        <MaterialIcon name="delete" className="text-[18px]" />
+                                      </button>
+                                    </>
+                                  )}
                                </div>
                             </div>
                          ))}
