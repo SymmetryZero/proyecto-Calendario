@@ -2135,13 +2135,51 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ? Array.from(new Set([...task.assigneeIds, targetUserId]))
             : task.assigneeIds
 
+          const timeNow = Date.now()
+          const nextDurations = { ...task.statusDurations }
+          nextDurations[task.status] = accumulateTaskTime(task, timeNow)
+
+          const formatDurationText = (seconds: number) => {
+            const h = Math.floor(seconds / 3600)
+            const m = Math.floor((seconds % 3600) / 60)
+            const s = seconds % 60
+            return `${h}h ${m}m ${s}s`
+          }
+
+          const todoTime = formatDurationText(nextDurations.todo)
+          const inProgressTime = formatDurationText(nextDurations.inProgress)
+          const reviewTime = formatDurationText(nextDurations.review)
+          const doneTime = formatDurationText(nextDurations.done)
+          const totalSeconds = nextDurations.todo + nextDurations.inProgress + nextDurations.review + nextDurations.done
+          const totalTime = formatDurationText(totalSeconds)
+
+          const assigneeNames = task.assigneeIds
+            .map(id => users.find(u => u.id === id)?.name || "Desconocido")
+            .join(", ") || "Sin asignados"
+
+          let logMessage = `Tarea escalada de ${fromArea} a ${toArea}.\n`
+          logMessage += `• Empleados: ${assigneeNames}\n`
+          logMessage += `• Tiempos acumulados:\n`
+          logMessage += `   - Por hacer: ${todoTime}\n`
+          logMessage += `   - En progreso: ${inProgressTime}\n`
+          logMessage += `   - En revisión: ${reviewTime}\n`
+          logMessage += `   - Completada: ${doneTime}\n`
+          logMessage += `• Tiempo total: ${totalTime}`
+          
+          if (note && note.trim()) {
+            logMessage += `\n• Motivo del escalado: "${note.trim()}"`
+          }
+
           set((state) => {
             const nextTasks = state.tasks.map((item) =>
               item.id === taskId
                 ? {
                     ...item,
                     area: toArea,
+                    status: "todo" as TaskStatus,
                     assigneeIds: nextAssigneeIds,
+                    timerStartedAt: timeNow,
+                    statusDurations: nextDurations,
                     escalation: {
                       fromArea,
                       toArea,
@@ -2158,7 +2196,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
             const requirementId = task.requirementId
             const nextRequirements = requirementId
               ? state.requirements.map((req) =>
-                  req.id === requirementId ? { ...req, area: toArea } : req
+                  req.id === requirementId 
+                    ? { 
+                        ...req, 
+                        area: toArea,
+                        status: nextAssigneeIds.length > 0 ? "assigned" as const : "unassigned" as const,
+                        selectedTechnicianId: nextAssigneeIds[0] ?? null,
+                        assignedAt: nextAssigneeIds.length > 0 ? now : null
+                      } 
+                    : req
                 )
               : state.requirements
 
@@ -2171,13 +2217,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const assignedUser = targetUserId
             ? users.find((item) => item.id === targetUserId)
             : null
-          let logMessage = `Tarea escalada de ${fromArea} a ${toArea}.`
-          if (assignedUser) {
-            logMessage += ` Asignada a ${assignedUser.name}.`
-          }
-          if (note && note.trim()) {
-            logMessage += ` Nota: ${note.trim()}`
-          }
+
           get().addTaskLog(taskId, logMessage)
 
           if (assignedUser) {
@@ -2821,7 +2861,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
               return { state: createEmptyState(), version: 9 }
             }
             console.log("Carga de Supabase exitosa.")
-            return { state: remoteState as any, version: 9 }
+            const savedUserId = typeof window !== 'undefined' ? localStorage.getItem("flow_current_user_id") : null
+            const finalState = {
+              ...remoteState,
+              currentUserId: savedUserId || remoteState.currentUserId
+            }
+            return { state: finalState as any, version: 9 }
           } catch (e) {
             console.error("Fallo al cargar desde Supabase, inicializando vacía", e)
             return { state: createEmptyState(), version: 9 }
@@ -2829,6 +2874,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
         },
         setItem: async (name, value: any) => {
           try {
+            if (typeof window !== 'undefined' && value.state.currentUserId) {
+              localStorage.setItem("flow_current_user_id", value.state.currentUserId)
+            }
             // Limit task/evidence base64 to avoid performance issues (raised to 10MB of base64 chars for photos)
             const prunedState = {
               ...value.state,

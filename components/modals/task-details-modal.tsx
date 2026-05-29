@@ -386,6 +386,54 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
     }
   }
 
+  const getAssigneeParticipation = (techId: string) => {
+    const statuses = ["todo", "inProgress", "review", "done"] as const
+    const labels: Record<string, string> = {
+      todo: "Por Hacer",
+      inProgress: "En Progreso",
+      review: "En Revisión",
+      done: "Completada"
+    }
+    
+    const parts: string[] = []
+    let totalSeconds = 0
+    
+    statuses.forEach((s) => {
+      const isCurrentStatus = task.status === s
+      const isActive = isCurrentStatus && task.timerStartedAt !== null
+      const accumulatedForStatus = task.statusDurations?.[s] || 0
+      const currentSessionTime = isActive ? Math.max(0, Math.floor((Date.now() - (task.timerStartedAt || 0)) / 1000)) : 0
+      const duration = accumulatedForStatus + currentSessionTime
+      
+      if (duration > 0 || isCurrentStatus) {
+        totalSeconds += duration
+        const h = Math.floor(duration / 3600)
+        const m = Math.floor((duration % 3600) / 60)
+        const sVal = duration % 60
+        
+        let timeStr = ""
+        if (h > 0) timeStr += `${h}h `
+        if (m > 0 || h > 0) timeStr += `${m}m `
+        timeStr += `${sVal}s`
+        
+        parts.push(`${labels[s]}: ${timeStr}`)
+      }
+    })
+    
+    const totalH = Math.floor(totalSeconds / 3600)
+    const totalM = Math.floor((totalSeconds % 3600) / 60)
+    const totalS = totalSeconds % 60
+    let totalStr = ""
+    if (totalH > 0) totalStr += `${totalH}h `
+    if (totalM > 0 || totalH > 0) totalStr += `${totalM}m `
+    totalStr += `${totalS}s`
+    
+    return {
+      phases: parts,
+      total: totalStr
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/80 backdrop-blur-md sm:px-6 sm:py-4">
       <div className={cn(
@@ -597,19 +645,38 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                  ) : null}
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {assignees.map(tech => (
-                                  <div key={tech.id} className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/50 group hover:border-secondary transition-colors">
-                                     <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
-                                     <div className="min-w-0 flex-1">
-                                        <p className="font-title-sm text-sm font-bold text-on-surface">{tech.name}</p>
-                                        <p className="text-[11px] text-on-surface-variant">{tech.role}</p>
-                                     </div>
-                                     <button className="h-8 w-8 rounded-full flex items-center justify-center text-secondary hover:bg-secondary/10 opacity-0 group-hover:opacity-100 transition-all">
-                                        <MaterialIcon name="mail" className="text-[18px]" />
-                                     </button>
-                                  </div>
-                                ))}
+                              <div className="space-y-3">
+                                {assignees.map(tech => {
+                                  const participation = getAssigneeParticipation(tech.id)
+                                  return (
+                                    <div key={tech.id} className="flex flex-col gap-2.5 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/50 group hover:border-secondary transition-all">
+                                       <div className="flex items-center gap-3">
+                                          <Avatar name={tech.name} src={tech.avatar} className="h-10 w-10 ring-2 ring-white" />
+                                          <div className="min-w-0 flex-1">
+                                             <p className="font-title-sm text-sm font-bold text-on-surface">{tech.name}</p>
+                                             <p className="text-[11px] text-on-surface-variant">{tech.role}</p>
+                                          </div>
+                                       </div>
+                                       
+                                       <div className="pt-2 border-t border-outline-variant/30 space-y-1.5">
+                                          <div className="flex items-center justify-between text-[11px]">
+                                             <span className="text-on-surface-variant font-medium">Tiempo total activo:</span>
+                                             <span className="font-bold text-primary font-data-mono">{participation.total}</span>
+                                          </div>
+                                          <div className="flex flex-col gap-1">
+                                             <span className="text-[9px] text-on-surface-variant font-semibold uppercase tracking-wider">Procesos de participación:</span>
+                                             <div className="flex flex-wrap gap-1.5 mt-0.5">
+                                                {participation.phases.map((phase, idx) => (
+                                                   <span key={idx} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/5 text-primary border border-primary/10">
+                                                      {phase}
+                                                   </span>
+                                                ))}
+                                             </div>
+                                          </div>
+                                       </div>
+                                    </div>
+                                  )
+                                })}
                                 {canClaimTask ? (
                                   <button
                                     type="button"
@@ -657,7 +724,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                                  <div className="flex-1">
                                    <p
                                      className={cn(
-                                       "font-body-sm text-sm text-on-surface mb-2",
+                                       "font-body-sm text-sm text-on-surface mb-2 whitespace-pre-wrap",
                                        activity.type === "note" && "italic"
                                      )}
                                    >

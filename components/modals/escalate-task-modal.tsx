@@ -144,7 +144,7 @@ export function EscalateTaskModal({ open, onClose, taskId }: EscalateTaskModalPr
               ))}
             </select>
             <p className="text-[11px] text-on-surface-variant/80 italic">
-              * Si asignas a alguien, se agregará como co-responsable de la tarea junto contigo.
+              * Si asignas a alguien, será el nuevo responsable de la tarea. Si lo dejas vacío, cualquier técnico del área destino podrá tomarla.
             </p>
           </div>
 

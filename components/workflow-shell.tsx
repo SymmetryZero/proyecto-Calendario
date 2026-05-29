@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, type ReactNode } from "react"
+import { useState, useMemo, useRef, useEffect, type ReactNode } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { AREA_OPTIONS, type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
@@ -25,6 +25,7 @@ type WorkflowShellProps = {
   onZoneFilterChange: (value: string) => void
   onAreaFilterChange: (value: string) => void
   children: ReactNode
+  onSync?: () => Promise<void>
 }
 
 const sidebarItems: Array<{ key: SectionKey; label: string; icon: string }> = [
@@ -55,9 +56,85 @@ export function WorkflowShell({
   areaFilter,
   onZoneFilterChange,
   onAreaFilterChange,
-  children
+  children,
+  onSync
 }: WorkflowShellProps) {
   const [helpOpen, setHelpOpen] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [pulling, setPulling] = useState(false)
+  const pullStartY = useRef(0)
+  const isPullAllowed = useRef(false)
+
+  // Recursively check if any parent scrollable container is scrolled down
+  const isAtScrollTop = (element: HTMLElement | null): boolean => {
+    if (!element) return true
+    let current: HTMLElement | null = element
+    while (current && current !== document.body) {
+      if (current.scrollHeight > current.clientHeight) {
+        const style = window.getComputedStyle(current)
+        const overflowY = style.overflowY
+        if ((overflowY === "auto" || overflowY === "scroll") && current.scrollTop > 1) {
+          return false
+        }
+      }
+      current = current.parentElement
+    }
+    return true
+  }
+
+  const handleSync = async () => {
+    if (isSyncing) return
+    setIsSyncing(true)
+    try {
+      if (onSync) {
+        await onSync()
+      }
+    } catch (err) {
+      console.error("Error manual syncing:", err)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return
+    const touch = e.touches[0]
+    pullStartY.current = touch.clientY
+    
+    const target = e.target as HTMLElement
+    isPullAllowed.current = isAtScrollTop(target)
+    setPulling(false)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPullAllowed.current || e.touches.length !== 1) return
+    const touch = e.touches[0]
+    const diff = touch.clientY - pullStartY.current
+    
+    if (diff > 0) {
+      const dist = Math.min(diff * 0.45, 100)
+      setPullDistance(dist)
+      setPulling(true)
+      
+      if (dist > 5) {
+        if (e.cancelable) e.preventDefault()
+      }
+    }
+  }
+
+  const handleTouchEnd = async () => {
+    if (!isPullAllowed.current) return
+    isPullAllowed.current = false
+    
+    if (pullDistance > 60) {
+      await handleSync()
+    }
+    
+    setPulling(false)
+    setPullDistance(0)
+  }
+
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [pwaModalOpen, setPwaModalOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
@@ -225,7 +302,37 @@ export function WorkflowShell({
   const activeTopSection = filteredTopTabs.some((tab) => tab.key === section) ? section : "dashboard"
 
   return (
-    <div className="h-screen flex bg-background text-on-background overflow-hidden flex-col md:flex-row">
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="h-screen h-[100dvh] flex bg-background text-on-background overflow-hidden flex-col md:flex-row relative"
+    >
+      {/* Pull-to-Refresh elegant floating indicator */}
+      {pullDistance > 0 && (
+        <div 
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-surface border border-outline-variant rounded-full shadow-lg p-2.5 flex items-center justify-center transition-transform duration-75 pointer-events-none"
+          style={{
+            transform: `translate3d(-50%, ${pullDistance}px, 0) scale(${Math.min(pullDistance / 50, 1.1)})`,
+            opacity: Math.min(pullDistance / 40, 1),
+          }}
+        >
+          <div className="text-primary flex items-center justify-center">
+            <span 
+              className="flex items-center justify-center"
+              style={{
+                transform: `rotate(${pullDistance * 4}deg)`
+              }}
+            >
+              <MaterialIcon 
+                name="sync" 
+                className={cn("transition-transform", pullDistance > 60 ? "text-secondary scale-110 font-bold" : "")}
+              />
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Header - Search or Profile Mode */}
       {mobileSearchOpen ? (
         <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center gap-3 px-4 z-40 shrink-0 animate-in fade-in duration-200">
@@ -291,6 +398,18 @@ export function WorkflowShell({
               aria-label="Buscar"
             >
               <MaterialIcon name="search" />
+            </button>
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className={cn(
+                "p-2 text-on-surface-variant hover:bg-surface-container rounded-full active:scale-95 transition-all flex items-center justify-center",
+                isSyncing && "animate-spin text-primary"
+              )}
+              title="Sincronizar Datos"
+              aria-label="Sincronizar Datos"
+            >
+              <MaterialIcon name="sync" />
             </button>
             <button className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full"><MaterialIcon name="notifications" /></button>
           </div>
@@ -485,6 +604,20 @@ export function WorkflowShell({
 
                 <button
                   type="button"
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className={cn(
+                    "w-9 h-9 flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors active:scale-95",
+                    isSyncing && "animate-spin text-primary"
+                  )}
+                  title="Sincronizar Datos"
+                  aria-label="Sincronizar Datos"
+                >
+                  <MaterialIcon name="sync" />
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setHelpOpen(true)}
                   className="w-9 h-9 flex justify-center items-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
                   title="Ayuda"
@@ -600,9 +733,20 @@ export function WorkflowShell({
           </div>
         </footer>
 
+        {/* Mobile Floating Action Button */}
+        <div className="md:hidden fixed bottom-20 right-4 z-40">
+          <button
+            onClick={onOpenTaskModal}
+            className="w-14 h-14 rounded-full bg-secondary text-on-secondary shadow-xl flex items-center justify-center active:scale-95 transition-all border-none cursor-pointer hover:bg-secondary/90"
+            aria-label="Crear tarea"
+          >
+            <MaterialIcon name="add" className="text-[28px]" />
+          </button>
+        </div>
+
         {/* Bottom Navigation for Mobile */}
-        <nav className="md:hidden relative bg-surface border-t border-outline-variant h-20 z-40 shrink-0 pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.05)] overflow-hidden">
-          <div className="flex h-full items-center gap-2 overflow-x-auto scrollbar-none px-2 pr-24">
+        <nav className="md:hidden bg-surface border-t border-outline-variant h-16 z-40 shrink-0 pb-safe shadow-[0_-8px_24px_rgba(0,0,0,0.08)] overflow-visible flex items-center justify-around px-2">
+          <div className="flex w-full items-center gap-1 overflow-x-auto scrollbar-none justify-around">
             {filteredSidebarItems.map((item) => {
               const isActive = section === item.key
               return (
@@ -610,32 +754,20 @@ export function WorkflowShell({
                   key={item.key}
                   onClick={() => onSectionChange(item.key)}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-shrink-0 min-w-[72px]",
-                    isActive ? "text-primary" : "text-on-surface-variant"
+                    "flex flex-col items-center justify-center gap-1 transition-all duration-300 flex-1 py-1 max-w-[72px] border-none bg-transparent cursor-pointer",
+                    isActive ? "text-primary scale-105" : "text-on-surface-variant hover:text-primary"
                   )}
                 >
                   <div className={cn(
-                    "w-12 h-8 rounded-full flex items-center justify-center transition-colors mb-0.5",
+                    "w-12 h-7 rounded-full flex items-center justify-center transition-colors mb-0.5",
                     isActive ? "bg-secondary-container" : "bg-transparent"
                   )}>
-                    <MaterialIcon name={item.icon} filled={isActive} className="text-[20px]" />
+                    <MaterialIcon name={item.icon} filled={isActive} className="text-[18px]" />
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap">{item.label}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-tight whitespace-nowrap">{item.label}</span>
                 </button>
               )
             })}
-          </div>
-
-          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-6">
-            <button
-              onClick={onOpenTaskModal}
-              className="flex flex-col items-center justify-center"
-              aria-label="Crear tarea"
-            >
-              <div className="w-14 h-14 rounded-2xl bg-secondary text-on-secondary shadow-xl flex items-center justify-center ring-8 ring-background">
-                <MaterialIcon name="add" className="text-[28px]" />
-              </div>
-            </button>
           </div>
         </nav>
       </div>

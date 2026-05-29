@@ -35,12 +35,45 @@ export function WorkflowApp() {
   const [searchQuery, setSearchQuery] = useState("")
   const [zoneFilter, setZoneFilter] = useState("todas")
   const [areaFilter, setAreaFilter] = useState("todas")
+  const triggerSupabaseSync = async () => {
+    try {
+      const { pullFromSupabase } = await import("@/utils/supabase-sync")
+      const remote = await pullFromSupabase()
+      if (remote) {
+        useWorkflowStore.setState((state) => ({
+          users: remote.users,
+          tasks: remote.tasks,
+          requirements: remote.requirements,
+          evidence: remote.evidence,
+          folders: remote.folders,
+          assignments: remote.assignments,
+          saves: remote.saves,
+          drawingScene: remote.drawingScene,
+          notifications: remote.notifications
+        }))
+      }
+    } catch (err) {
+      console.error("Error manual syncing Supabase:", err)
+    }
+  }
 
+  // Sincronizar con Supabase al cambiar de sección o menú
+  useEffect(() => {
+    if (hasHydrated && isSignedIn) {
+      triggerSupabaseSync()
+    }
+  }, [section, hasHydrated, isSignedIn])
 
+  // Sincronizar con Supabase al abrir el detalle de una tarea
+  useEffect(() => {
+    if (hasHydrated && isSignedIn && taskDetailsTaskId !== null) {
+      triggerSupabaseSync()
+    }
+  }, [taskDetailsTaskId, hasHydrated, isSignedIn])
 
   // Sincronizar el usuario autenticado de Clerk con el almacén local de Zustand
   useEffect(() => {
-    if (!isUserLoaded || !isSignedIn || !user) return
+    if (!hasHydrated || !isUserLoaded || !isSignedIn || !user) return
 
     const email = user.primaryEmailAddress?.emailAddress || ""
     const name = user.fullName || user.username || email.split("@")[0] || "Usuario"
@@ -107,7 +140,7 @@ export function WorkflowApp() {
       })
       setCurrentUser(newId)
     }
-  }, [isUserLoaded, isSignedIn, user, users, currentUserId, setCurrentUser, addUser])
+  }, [hasHydrated, isUserLoaded, isSignedIn, user, users, currentUserId, setCurrentUser, addUser])
 
   const currentUser = useMemo(
     () => workflowSelectors.getCurrentUser(users, currentUserId),
@@ -199,6 +232,7 @@ export function WorkflowApp() {
         areaFilter={areaFilter}
         onZoneFilterChange={setZoneFilter}
         onAreaFilterChange={setAreaFilter}
+        onSync={triggerSupabaseSync}
       >
         {section === "dashboard" ? (
           <DashboardSection
