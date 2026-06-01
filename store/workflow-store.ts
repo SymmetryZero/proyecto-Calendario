@@ -430,7 +430,7 @@ export interface WorkspaceStateRecord {
 export interface WorkflowStore extends WorkflowSeed {
   hasHydrated: boolean
   setHydrated: (value: boolean) => void
-  addTask: (input: CreateTaskInput) => string
+  addTask: (input: CreateTaskInput) => string | null
   updateTask: (taskId: string, patch: Partial<Task>) => void
   deleteTask: (taskId: string) => void
   moveTask: (taskId: string, status: TaskStatus) => void
