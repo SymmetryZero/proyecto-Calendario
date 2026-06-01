@@ -247,7 +247,14 @@ export function WorkflowApp() {
         onSectionChange={handleSectionChange}
         onOpenTaskModal={() => setTaskModalOpen(true)}
         onOpenSaveModal={() => setSaveModalOpen(true)}
-        onToggleSidebar={() => setSidebarOpen((current) => !current)}
+        onToggleSidebar={() => {
+          if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+            // On desktop, keep sidebar visible (do not toggle off). Ensure it's open.
+            setSidebarOpen(true)
+          } else {
+            setSidebarOpen((current) => !current)
+          }
+        }}
         sidebarOpen={sidebarOpen}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

@@ -426,8 +426,8 @@ export function WorkflowShell({
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen w-72 bg-surface border-r border-outline-variant z-50 flex flex-col py-6 transition-transform duration-300",
-          "lg:static lg:h-full lg:flex-shrink-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          "lg:translate-x-0 lg:static lg:h-full lg:flex-shrink-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         <div className="px-6 mb-8 flex flex-col gap-4">
@@ -531,7 +531,7 @@ export function WorkflowShell({
           type="button"
           aria-label="Cerrar menú"
           onClick={onToggleSidebar}
-          className="fixed inset-0 bg-primary/40 z-40 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/20 z-40 lg:hidden"
         />
       ) : null}
 
@@ -677,10 +677,10 @@ export function WorkflowShell({
                   </div>
                 </>
               ) : (
-                <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant/70 flex items-center gap-1.5">
-                  <MaterialIcon name="verified_user" className="text-sm text-secondary" />
-                  Región {zoneSummary || "Alfa"}
-                </div>
+                  <div className="text-xs font-semibold text-on-surface-variant/80 flex items-center gap-1.5">
+                    <MaterialIcon name="verified_user" className="text-sm text-secondary" />
+                    {zoneSummary || primaryZoneLabel || "Oficina"}
+                  </div>
               )}
             </div>
 
