@@ -543,7 +543,7 @@ export function WorkflowShell({
               <button
                 type="button"
                 onClick={onToggleSidebar}
-                className="lg:hidden w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                className="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
               >
                 <MaterialIcon name="menu" />
               </button>
