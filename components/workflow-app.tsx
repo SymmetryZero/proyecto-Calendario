@@ -13,7 +13,7 @@ import { StatisticsSection } from "@/components/sections/statistics-section"
 import { SaveProgressModal } from "@/components/modals/save-progress-modal"
 import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
-import { type SectionKey, useWorkflowStore, workflowSelectors } from "@/store/workflow-store"
+import { type SectionKey, useWorkflowStore, workflowSelectors, isRecentLocalWrite } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { useUser, SignIn } from "@clerk/nextjs"
 import { normalizeUserRole } from "@/utils/roles"
@@ -38,7 +38,7 @@ export function WorkflowApp() {
   const syncInFlightRef = useRef(false)
 
   const triggerSupabaseSync = useCallback(async () => {
-    if (syncInFlightRef.current) {
+    if (syncInFlightRef.current || isRecentLocalWrite()) {
       return
     }
 

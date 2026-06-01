@@ -1842,6 +1842,16 @@ function accumulateTaskTime(task: Task, now = Date.now()) {
   return (task.statusDurations?.[task.status] || 0) + runningSeconds
 }
 
+let lastLocalWriteTime = 0
+
+export function recordLocalWrite() {
+  lastLocalWriteTime = Date.now()
+}
+
+export function isRecentLocalWrite(thresholdMs = 2500) {
+  return Date.now() - lastLocalWriteTime < thresholdMs
+}
+
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: any
   return (...args: Parameters<T>) => {
@@ -3000,6 +3010,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 base64: (e.base64 && e.base64.length > 10000000) ? "" : e.base64
               }))
             }
+            recordLocalWrite()
             debouncedPush(prunedState)
           } catch (e) {
             console.error("Error al procesar/sincronizar cambio a Supabase", e)
