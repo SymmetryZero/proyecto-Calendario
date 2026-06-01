@@ -52,9 +52,10 @@ export type EvidenceType = "image" | "video" | "audio" | "drawing"
 export type FolderMode = "existing" | "new"
 export type TechnicianAvailability = "available" | "soon" | "offline"
 export type UserRole = "administrador" | "gerente" | "empleado"
-export type Area = "Direccion" | "Contabilidad" | "Compras" | "Proyectos" | "RH" | "Operacion"
+export type Area = "General" | "Direccion" | "Contabilidad" | "Compras" | "Proyectos" | "RH" | "Operacion"
 
 export const AREA_OPTIONS: Area[] = [
+  "General",
   "Direccion",
   "Contabilidad",
   "Compras",
@@ -64,6 +65,7 @@ export const AREA_OPTIONS: Area[] = [
 ]
 
 const DEFAULT_AREA: Area = "Operacion"
+const GLOBAL_AREA: Area = "General"
 const ZONE_SEPARATOR = "|"
 
 function parseZones(value?: string | null) {
@@ -80,6 +82,10 @@ function normalizeZones(zones?: string[] | null, fallback?: string | null) {
     .filter(Boolean)
   if (normalized.length > 0) return normalized
   return parseZones(fallback)
+}
+
+function isGlobalArea(area?: Area | null) {
+  return area === GLOBAL_AREA
 }
 
 
@@ -193,11 +199,15 @@ function canUserClaimTask(user: User | null | undefined, task: Task | null | und
   const userAreas = user.areas ?? []
   const taskArea = getTaskScopeArea(task)
 
-  if (!task.assigneeIds.length && userAreas.includes(taskArea)) {
+  if (isGlobalArea(taskArea) && !task.assigneeIds.length) {
     return true
   }
 
-  if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) {
+  if (!task.assigneeIds.length && (userAreas.includes(taskArea) || isGlobalArea(taskArea))) {
+    return true
+  }
+
+  if (task.escalation?.toArea && (userAreas.includes(task.escalation.toArea) || isGlobalArea(task.escalation.toArea))) {
     return true
   }
 
@@ -2975,12 +2985,13 @@ export const workflowSelectors = {
     if (isEmployeeRole(user.role)) {
       const userAreas = user.areas ?? []
       return tasks.filter((task) => {
+        const taskArea = task.area ?? DEFAULT_AREA
+        if (isGlobalArea(taskArea)) return true
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
-        const taskArea = task.area ?? DEFAULT_AREA
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && userAreas.includes(taskArea)) return true
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && (userAreas.includes(taskArea) || isGlobalArea(taskArea))) return true
         if (task.escalation?.targetUserId === user.id) return true
-        if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) return true
+        if (task.escalation?.toArea && (userAreas.includes(task.escalation.toArea) || isGlobalArea(task.escalation.toArea))) return true
         return false
       })
     }
@@ -2990,13 +3001,14 @@ export const workflowSelectors = {
       const userAreas = user.areas ?? []
       const userZones = resolveUserZones(user)
       return tasks.filter((task) => {
+        const taskArea = task.area ?? DEFAULT_AREA
+        if (isGlobalArea(taskArea)) return true
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
-        const taskArea = task.area ?? DEFAULT_AREA
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && userAreas.includes(taskArea)) return true
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && (userAreas.includes(taskArea) || isGlobalArea(taskArea))) return true
         if (isInUserZones(task.location, userZones)) return true
         if (task.escalation?.targetUserId === user.id) return true
-        if (task.escalation?.toArea && userAreas.includes(task.escalation.toArea)) return true
+        if (task.escalation?.toArea && (userAreas.includes(task.escalation.toArea) || isGlobalArea(task.escalation.toArea))) return true
         return false
       })
     }
@@ -3013,9 +3025,10 @@ export const workflowSelectors = {
       const userZones = resolveUserZones(user)
       return requirements.filter((req) => {
         if (req.creatorId === user.id || req.selectedTechnicianId === user.id) return true
-        if (!isInUserZones(req.location, userZones)) return false
         const reqArea = req.area ?? DEFAULT_AREA
-        if (userAreas.length > 0 && !userAreas.includes(reqArea)) return false
+        if (isGlobalArea(reqArea)) return true
+        if (!isInUserZones(req.location, userZones)) return false
+        if (userAreas.length > 0 && !userAreas.includes(reqArea) && !isGlobalArea(reqArea)) return false
         return true
       })
     }
@@ -3026,6 +3039,7 @@ export const workflowSelectors = {
       return requirements.filter((req) =>
         req.creatorId === user.id ||
         req.selectedTechnicianId === user.id ||
+        isGlobalArea(req.area ?? DEFAULT_AREA) ||
         isInUserZones(req.location, userZones)
       )
     }

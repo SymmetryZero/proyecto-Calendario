@@ -87,12 +87,12 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/60 backdrop-blur-[2px] px-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-primary/60 backdrop-blur-[2px] px-4 py-4 sm:items-center">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl rounded-xl border border-outline-variant bg-surface-container-lowest shadow-panel overflow-hidden"
+        className="w-full max-w-2xl bg-surface-container-lowest rounded-xl border border-outline-variant shadow-panel overflow-hidden flex flex-col min-h-0 max-h-[calc(100dvh-2rem)] sm:max-h-[90vh]"
       >
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant bg-surface">
+        <div className="flex items-center justify-between p-6 border-b border-outline-variant bg-surface shrink-0">
           <div className="flex items-center gap-3 text-tertiary">
             <MaterialIcon name="add_task" filled />
             <h2 className="font-headline-md text-headline-md">Nueva tarea</h2>
@@ -106,7 +106,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
           </button>
         </div>
 
-        <div className="p-6 grid gap-5">
+        <div className="p-6 grid gap-5 overflow-y-auto scrollbar-thin flex-1 min-h-0">
           <div className="grid gap-2">
             <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
               Título
@@ -233,7 +233,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
           </div>
         </div>
 
-        <div className="p-6 border-t border-outline-variant bg-surface flex items-center justify-end gap-4">
+        <div className="p-6 border-t border-outline-variant bg-surface flex items-center justify-end gap-4 shrink-0">
           <button
             type="button"
             onClick={onClose}

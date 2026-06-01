@@ -274,7 +274,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
       
       setInternalPrompt({
         type: "upload_media",
-        title: "Nombre y descripción de la evidencia",
+        title: "Guardar evidencia",
         value: file.name,
         data: {
           base64: fileUrl, // Contains public URL or fallback base64
@@ -1411,16 +1411,16 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
          )}
 
           {internalPrompt && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200">
-                <div className="p-6 border-b border-outline-variant bg-surface-container-low">
+            <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto px-4 py-4 bg-primary/60 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center">
+              <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-outline-variant animate-in zoom-in-95 duration-200 flex flex-col min-h-0 max-h-[calc(100dvh-2rem)] sm:max-h-[90vh]">
+                <div className="p-6 border-b border-outline-variant bg-surface-container-low shrink-0">
                    <h3 className="font-bold text-primary flex items-center gap-2">
                      <MaterialIcon name={internalPrompt.type === "upload_media" ? "description" : "architecture"} className="text-secondary" />
                      {internalPrompt.title}
                    </h3>
                 </div>
                 
-                <div className="p-6">
+                <div className="p-6 overflow-y-auto scrollbar-thin flex-1 min-h-0">
                   {internalPrompt.type === "upload_media" && (
                     <div className="space-y-5">
                       <div className="flex items-center gap-4 p-3 bg-surface-container rounded-xl border border-outline-variant">
@@ -1441,7 +1441,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
                       <div className="space-y-2">
                         <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
-                          Nombre de la evidencia
+                          Nombre
                         </label>
                         <input
                           autoFocus
@@ -1454,7 +1454,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
 
                       <div className="space-y-2">
                         <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
-                          Descripción de la evidencia
+                          Descripción
                         </label>
                         <textarea
                           id="internal-media-textarea"
@@ -1465,7 +1465,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                     </div>
                   )}
 
-                  {internalPrompt.type === "save_drawing" ? (
+                  {internalPrompt.type === "save_drawing" && (
                     <div className="space-y-4">
                       <div>
                         <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
@@ -1496,24 +1496,6 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                         />
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">
-                        Descripción de la evidencia
-                      </label>
-                      <textarea 
-                        autoFocus
-                        id="internal-modal-textarea"
-                        placeholder="Escriba aquí los detalles observados..."
-                        className="w-full h-32 p-4 bg-surface-container-low border border-outline rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault()
-                            handleFinishInternalPrompt(e.currentTarget.value)
-                          }
-                        }}
-                      />
-                    </>
                   )}
                   
                   <p className="mt-3 text-[10px] text-on-surface-variant italic">
@@ -1523,7 +1505,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                   </p>
                 </div>
 
-                <div className="p-4 bg-surface-container flex flex-col sm:flex-row-reverse gap-2 border-t border-outline-variant">
+                <div className="p-4 bg-surface-container flex flex-col sm:flex-row-reverse gap-2 border-t border-outline-variant shrink-0">
                    <button 
                      onClick={() => {
                         if (internalPrompt.type === "upload_media") {
