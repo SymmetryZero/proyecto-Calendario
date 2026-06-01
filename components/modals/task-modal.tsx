@@ -84,7 +84,8 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     const now = new Date()
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
     setDueLabel(now.toISOString().slice(0, 16))
-  }, [open, canUseGeneralArea, availableAreaOptions, technicians])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   useEffect(() => {
     if (!canUseGeneralArea && area === "General") {

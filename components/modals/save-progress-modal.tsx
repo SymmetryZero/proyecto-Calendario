@@ -33,7 +33,8 @@ export function SaveProgressModal({ open, onClose }: SaveProgressModalProps) {
     setExistingFolderId(defaultFolder?.id ?? "")
     setParentFolderId(defaultFolder?.id ?? "")
     setNewFolderName(`Guardado ${dateLabel.replaceAll("/", "-")} ${timeLabel.replaceAll(":", "-")}`)
-  }, [dateLabel, folders, open, timeLabel])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   if (!open) {
     return null

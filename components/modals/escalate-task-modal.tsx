@@ -47,7 +47,8 @@ export function EscalateTaskModal({ open, onClose, taskId }: EscalateTaskModalPr
       setAssigneeId("")
       setNote("")
     }
-  }, [open, availableAreas])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Get eligible users for the selected area
   const eligibleUsers = useMemo(() => {
