@@ -379,7 +379,7 @@ export function WorkflowShell({
               className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-sm active:scale-95 transition-all cursor-pointer shadow-sm border-none"
               aria-label="Abrir menú"
             >
-              {currentUserInitials}
+              <MaterialIcon name="menu" />
             </button>
             <span 
               onClick={onToggleSidebar}
