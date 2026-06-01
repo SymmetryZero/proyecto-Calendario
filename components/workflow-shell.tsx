@@ -207,11 +207,18 @@ export function WorkflowShell({
     if (currentRole === "administrador" || currentRole === "gerente") {
       return sidebarItems
     }
-    // Empleado: Solamente Tablero y Tareas
-    return sidebarItems.filter(item =>
+    // Empleado: Tablero, Tareas y Mi Perfil
+    const employeeItems = sidebarItems.filter(item =>
       item.key === "dashboard" ||
-      item.key === "assignments"
+      item.key === "assignments" ||
+      item.key === "users"
     )
+    return employeeItems.map(item => {
+      if (item.key === "users") {
+        return { ...item, label: "Mi Perfil", icon: "person" }
+      }
+      return item
+    })
   }, [currentRole, currentUser])
 
   const filteredTopTabs = useMemo(() => {
@@ -306,7 +313,7 @@ export function WorkflowShell({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className="h-screen h-[100dvh] flex bg-background text-on-background overflow-hidden flex-col md:flex-row relative"
+      className="h-screen h-[100dvh] flex bg-background text-on-background overflow-hidden flex-col lg:flex-row relative"
     >
       {/* Pull-to-Refresh elegant floating indicator */}
       {pullDistance > 0 && (
@@ -335,7 +342,7 @@ export function WorkflowShell({
 
       {/* Mobile Header - Search or Profile Mode */}
       {mobileSearchOpen ? (
-        <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center gap-3 px-4 z-40 shrink-0 animate-in fade-in duration-200">
+        <header className="lg:hidden bg-surface border-b border-outline-variant h-16 flex items-center gap-3 px-4 z-40 shrink-0 animate-in fade-in duration-200">
           <button 
             onClick={() => {
               setMobileSearchOpen(false)
@@ -365,7 +372,7 @@ export function WorkflowShell({
           )}
         </header>
       ) : (
-        <header className="md:hidden bg-surface border-b border-outline-variant h-16 flex items-center justify-between px-4 z-40 shrink-0">
+        <header className="lg:hidden bg-surface border-b border-outline-variant h-16 flex items-center justify-between px-4 z-40 shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={onToggleSidebar}
@@ -419,8 +426,8 @@ export function WorkflowShell({
       <aside
         className={cn(
           "fixed left-0 top-0 h-screen w-72 bg-surface border-r border-outline-variant z-50 flex flex-col py-6 transition-transform duration-300",
-          "md:translate-x-0 md:static md:h-full md:flex-shrink-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          "lg:static lg:h-full lg:flex-shrink-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="px-6 mb-8 flex flex-col gap-4">
@@ -507,7 +514,7 @@ export function WorkflowShell({
           })}
         </div>
 
-        <div className="px-6 mt-auto hidden md:block">
+        <div className="px-6 mt-auto hidden lg:block">
           <button
             type="button"
             onClick={onOpenTaskModal}
@@ -524,19 +531,19 @@ export function WorkflowShell({
           type="button"
           aria-label="Cerrar menú"
           onClick={onToggleSidebar}
-          className="fixed inset-0 bg-primary/40 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-primary/40 z-40 backdrop-blur-sm"
         />
       ) : null}
 
       <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        <header className="bg-surface z-40 hidden md:flex flex-col w-full border-b border-outline-variant flex-shrink-0">
+        <header className="bg-surface z-40 hidden lg:flex flex-col w-full border-b border-outline-variant flex-shrink-0">
           {/* Top Header Row */}
           <div className="flex justify-between items-center px-gutter h-16 border-b border-outline-variant/30 w-full">
             <div className="flex items-center gap-8 min-w-0">
               <button
                 type="button"
                 onClick={onToggleSidebar}
-                className="md:hidden w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
+                className="lg:hidden w-10 h-10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container rounded-full transition-colors"
               >
                 <MaterialIcon name="menu" />
               </button>
@@ -545,7 +552,7 @@ export function WorkflowShell({
                 Tareas
               </h1>
 
-              <div className="relative hidden md:block w-80">
+              <div className="relative hidden lg:block w-48 xl:w-80 transition-all">
                 <MaterialIcon
                   name="search"
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm pointer-events-none"
@@ -568,7 +575,7 @@ export function WorkflowShell({
                 className="flex items-center gap-2 px-3 h-9 bg-primary text-on-primary rounded-full cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0"
               >
                 <MaterialIcon name="add" className="text-lg" />
-                <span className="text-xs font-bold">Agregar Tarea</span>
+                <span className="text-xs font-bold hidden xl:inline">Agregar Tarea</span>
               </button>
 
               <div className="flex items-center gap-4 ml-4 flex-shrink-0">
@@ -717,7 +724,7 @@ export function WorkflowShell({
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
 
         {/* Bottom Stats Footer (Desktop only) */}
-        <footer className="hidden md:flex h-10 bg-white border-t border-outline-variant items-center px-gutter justify-between text-[11px] text-on-surface-variant flex-shrink-0">
+        <footer className="hidden lg:flex h-10 bg-white border-t border-outline-variant items-center px-gutter justify-between text-[11px] text-on-surface-variant flex-shrink-0">
           <div className="flex gap-4 items-center">
             <span>Mostrando {tasks.length} de {tasks.length} Tarea(s).</span>
             <div className="flex gap-2">
@@ -734,7 +741,7 @@ export function WorkflowShell({
         </footer>
 
         {/* Mobile Floating Action Button */}
-        <div className="md:hidden fixed bottom-20 right-4 z-40">
+        <div className="lg:hidden fixed bottom-20 right-4 z-40">
           <button
             onClick={onOpenTaskModal}
             className="w-14 h-14 rounded-full bg-secondary text-on-secondary shadow-xl flex items-center justify-center active:scale-95 transition-all border-none cursor-pointer hover:bg-secondary/90"
@@ -745,7 +752,7 @@ export function WorkflowShell({
         </div>
 
         {/* Bottom Navigation for Mobile */}
-        <nav className="md:hidden bg-surface border-t border-outline-variant h-16 z-40 shrink-0 pb-safe shadow-[0_-8px_24px_rgba(0,0,0,0.08)] overflow-visible flex items-center justify-around px-2">
+        <nav className="lg:hidden bg-surface border-t border-outline-variant h-16 z-40 shrink-0 pb-safe shadow-[0_-8px_24px_rgba(0,0,0,0.08)] overflow-visible flex items-center justify-around px-2">
           <div className="flex w-full items-center gap-1 overflow-x-auto scrollbar-none justify-around">
             {filteredSidebarItems.map((item) => {
               const isActive = section === item.key

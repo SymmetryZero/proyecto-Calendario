@@ -166,14 +166,37 @@ export function WorkflowApp() {
     setTaskDetailsTaskId(null)
   }, [section])
 
+  // Inicializar visibilidad del sidebar según ancho de pantalla (mostrar en desktop)
   useEffect(() => {
-    if (currentRole === "empleado" && section !== "dashboard" && section !== "assignments") {
+    if (typeof window === "undefined") return
+    const mql = window.matchMedia("(min-width: 1024px)")
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setSidebarOpen(Boolean((e as any).matches))
+    // Set initial
+    setSidebarOpen(mql.matches)
+    // Listen for changes
+    if (mql.addEventListener) {
+      mql.addEventListener("change", handler as any)
+    } else {
+      // Safari fallback
+      ;(mql as any).addListener(handler as any)
+    }
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener("change", handler as any)
+      } else {
+        ;(mql as any).removeListener(handler as any)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentRole === "empleado" && section !== "dashboard" && section !== "assignments" && section !== "users") {
       setSection("dashboard")
     }
   }, [currentRole, section])
 
   function handleSectionChange(nextSection: SectionKey) {
-    if (currentRole === "empleado" && nextSection !== "dashboard" && nextSection !== "assignments") {
+    if (currentRole === "empleado" && nextSection !== "dashboard" && nextSection !== "assignments" && nextSection !== "users") {
       return
     }
     setSection(nextSection)
