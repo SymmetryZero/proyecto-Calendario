@@ -88,6 +88,11 @@ function isGlobalArea(area?: Area | null) {
   return area === GLOBAL_AREA
 }
 
+function canCreateInGlobalArea(user: User | null | undefined) {
+  if (!user) return false
+  return isAdminRole(user.role) || isManagerRole(user.role)
+}
+
 
 export interface User {
   id: string
@@ -183,35 +188,95 @@ function isTaskAssignee(user: User | null | undefined, task: Task | null | undef
   return Boolean(user && task && task.assigneeIds.includes(user.id))
 }
 
+function getTaskAssigneeUsers(task: Task | null | undefined, users: User[]) {
+  if (!task) return []
+  const assigneeIds = new Set(task.assigneeIds)
+  return users.filter((user) => assigneeIds.has(user.id))
+}
+
+function hasTaskAssigneeInArea(task: Task | null | undefined, users: User[], area: Area) {
+  if (!task) return false
+  if (!task.assigneeIds.length) return false
+  if (task.escalation?.targetUserId) return true
+
+  return getTaskAssigneeUsers(task, users).some((user) => {
+    const userAreas = user.areas ?? []
+    return userAreas.includes(area) || (isGlobalArea(area) && (isAdminRole(user.role) || isManagerRole(user.role)))
+  })
+}
+
+type TaskClaimState = {
+  canClaim: boolean
+  reason: "already_assigned_to_you" | "already_taken_by_someone_else" | "no_permission" | null
+}
+
+function getTaskClaimState(
+  user: User | null | undefined,
+  task: Task | null | undefined,
+  users: User[] = []
+): TaskClaimState {
+  if (!user || !task) {
+    return { canClaim: false, reason: null }
+  }
+
+  if (isAdminRole(user.role) || isManagerRole(user.role)) {
+    return { canClaim: true, reason: null }
+  }
+
+  if (isTaskAssignee(user, task)) {
+    return { canClaim: false, reason: "already_assigned_to_you" }
+  }
+
+  if (isTaskCreator(user, task)) {
+    if (!task.assigneeIds.length) {
+      return { canClaim: true, reason: null }
+    }
+  }
+
+  const userAreas = user.areas ?? []
+  const taskArea = getTaskScopeArea(task)
+  const canSeeTaskArea = userAreas.includes(taskArea) || isGlobalArea(taskArea)
+  const taskTakenInArea = hasTaskAssigneeInArea(task, users, taskArea)
+
+  if (task.escalation?.targetUserId === user.id) {
+    return { canClaim: true, reason: null }
+  }
+
+  if (task.escalation) {
+    if (!canSeeTaskArea) {
+      return { canClaim: false, reason: "no_permission" }
+    }
+
+    if (taskTakenInArea) {
+      return { canClaim: false, reason: "already_taken_by_someone_else" }
+    }
+
+    return { canClaim: true, reason: null }
+  }
+
+  if (task.assigneeIds.length > 0) {
+    return { canClaim: false, reason: "already_taken_by_someone_else" }
+  }
+
+  if (isGlobalArea(taskArea) && !task.assigneeIds.length) {
+    return { canClaim: true, reason: null }
+  }
+
+  if (!task.assigneeIds.length && canSeeTaskArea) {
+    return { canClaim: true, reason: null }
+  }
+
+  return { canClaim: false, reason: "no_permission" }
+}
+
 function canUserManageTask(user: User | null | undefined, task: Task | null | undefined) {
   if (!user || !task) return false
   if (isAdminRole(user.role) || isManagerRole(user.role)) return true
   return isTaskCreator(user, task) || isTaskAssignee(user, task)
 }
 
-function canUserClaimTask(user: User | null | undefined, task: Task | null | undefined) {
-  if (!user || !task) return false
-  if (isTaskAssignee(user, task)) return false
-  if (isAdminRole(user.role) || isManagerRole(user.role)) return true
-  if (isTaskCreator(user, task)) return true
-  if (task.escalation?.targetUserId === user.id) return true
-
-  const userAreas = user.areas ?? []
-  const taskArea = getTaskScopeArea(task)
-
-  if (isGlobalArea(taskArea) && !task.assigneeIds.length) {
-    return true
-  }
-
-  if (!task.assigneeIds.length && (userAreas.includes(taskArea) || isGlobalArea(taskArea))) {
-    return true
-  }
-
-  if (task.escalation?.toArea && (userAreas.includes(task.escalation.toArea) || isGlobalArea(task.escalation.toArea))) {
-    return true
-  }
-
-  return false
+function canUserClaimTask(user: User | null | undefined, task: Task | null | undefined, users: User[] = []) {
+  return getTaskClaimState(user, task, users).canClaim
 }
 
 export interface Requirement {
@@ -1834,6 +1899,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
           const area = input.area ?? DEFAULT_AREA
           const currentUser = get().users.find((user) => user.id === get().currentUserId)
           const resolvedLocation = input.location ?? currentUser?.zone ?? ""
+
+          if (isGlobalArea(area) && !canCreateInGlobalArea(currentUser)) {
+            get().setGlobalAlert({
+              title: "Área no permitida",
+              message: "Solo administradores o gerentes pueden crear tareas en el área General.",
+              type: "warning"
+            })
+            return null
+          }
           
           const reqCode = `REQ-${Math.floor(1000 + Math.random() * 9000)}`
           
@@ -2129,6 +2203,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
             return
           }
 
+          if (isGlobalArea(toArea) && !canCreateInGlobalArea(currentUser)) {
+            get().setGlobalAlert({
+              title: "Área no permitida",
+              message: "Solo administradores o gerentes pueden escalar tareas al área General.",
+              type: "warning"
+            })
+            return
+          }
+
           if (task.area === toArea) {
             get().setGlobalAlert({
               title: "Área inválida",
@@ -2252,6 +2335,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
               })
             })
           }
+
+          // Persist the escalation immediately so other profiles see the new assignees and area right away.
+          void pushToSupabase(get())
         },
         claimEscalatedTask: (taskId) => {
           const { tasks, users, currentUserId } = get()
@@ -2282,21 +2368,28 @@ export const useWorkflowStore = create<WorkflowStore>()(
             return
           }
 
-          if (task.assigneeIds.includes(currentUser.id)) {
-            get().setGlobalAlert({
-              title: "Asignación no necesaria",
-              message: "Ya estás asignado a esta tarea.",
-              type: "info"
-            })
-            return
-          }
+          const claimState = getTaskClaimState(currentUser, task, users)
+          if (!claimState.canClaim) {
+            const alertConfig =
+              claimState.reason === "already_assigned_to_you"
+                ? {
+                    title: "Asignación no necesaria",
+                    message: "Ya estás asignado a esta tarea.",
+                    type: "info" as const
+                  }
+                : claimState.reason === "already_taken_by_someone_else"
+                  ? {
+                      title: "Tarea ya tomada",
+                      message: "Ya la tomó otra persona del área.",
+                      type: "warning" as const
+                    }
+                  : {
+                      title: "Asignación no permitida",
+                      message: "No tienes permiso para tomar esta tarea.",
+                      type: "warning" as const
+                    }
 
-          if (!canUserClaimTask(currentUser, task)) {
-            get().setGlobalAlert({
-              title: "Asignación no permitida",
-              message: "No tienes permiso para tomar esta tarea.",
-              type: "warning"
-            })
+            get().setGlobalAlert(alertConfig)
             return
           }
 
@@ -2321,6 +2414,9 @@ export const useWorkflowStore = create<WorkflowStore>()(
             taskId,
             `Auto-tomada en ${areaName}: ${currentUser.name} tomó la tarea.`
           )
+
+          // Persist the claim immediately so another sync cannot briefly rehydrate the old assignee list.
+          void pushToSupabase(get())
         },
         startTaskTimer: (taskId) => {
           const now = Date.now()
@@ -2974,24 +3070,36 @@ export const workflowSelectors = {
   canManageTask(task: Task | null, user: User | null) {
     return canUserManageTask(user, task)
   },
-  canClaimTask(task: Task | null, user: User | null) {
-    return canUserClaimTask(user, task)
+  canClaimTask(task: Task | null, user: User | null, users: User[] = []) {
+    return canUserClaimTask(user, task, users)
   },
-  filterTasksByZone(tasks: Task[], user: User | null) {
+  getTaskClaimState(task: Task | null, user: User | null, users: User[] = []) {
+    return getTaskClaimState(user, task, users)
+  },
+  filterTasksByZone(tasks: Task[], user: User | null, users: User[] = []) {
     if (!user) return []
     if (isAdminRole(user.role) || user.showAllZones) return tasks
-    
+
     // Si es empleado, ve lo asignado y lo disponible en sus areas
     if (isEmployeeRole(user.role)) {
       const userAreas = user.areas ?? []
       return tasks.filter((task) => {
-        const taskArea = task.area ?? DEFAULT_AREA
-        if (isGlobalArea(taskArea)) return true
+        const taskArea = getTaskScopeArea(task)
+        const canSeeTaskArea = userAreas.includes(taskArea) || isGlobalArea(taskArea)
+
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && (userAreas.includes(taskArea) || isGlobalArea(taskArea))) return true
         if (task.escalation?.targetUserId === user.id) return true
-        if (task.escalation?.toArea && (userAreas.includes(task.escalation.toArea) || isGlobalArea(task.escalation.toArea))) return true
+
+        if (!canSeeTaskArea) return false
+
+        if (task.escalation) {
+          return !hasTaskAssigneeInArea(task, users, taskArea)
+        }
+
+        if (task.assigneeIds.length > 0) return false
+        if (isGlobalArea(taskArea)) return true
+        if (userAreas.includes(taskArea)) return true
         return false
       })
     }
@@ -3001,14 +3109,21 @@ export const workflowSelectors = {
       const userAreas = user.areas ?? []
       const userZones = resolveUserZones(user)
       return tasks.filter((task) => {
-        const taskArea = task.area ?? DEFAULT_AREA
+        const taskArea = getTaskScopeArea(task)
+        const canSeeTaskArea = userAreas.includes(taskArea) || isGlobalArea(taskArea)
         if (isGlobalArea(taskArea)) return true
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
-        if ((!task.assigneeIds || task.assigneeIds.length === 0) && (userAreas.includes(taskArea) || isGlobalArea(taskArea))) return true
         if (isInUserZones(task.location, userZones)) return true
         if (task.escalation?.targetUserId === user.id) return true
-        if (task.escalation?.toArea && (userAreas.includes(task.escalation.toArea) || isGlobalArea(task.escalation.toArea))) return true
+
+        if (!canSeeTaskArea && !isInUserZones(task.location, userZones)) return false
+
+        if (task.escalation) {
+          return !hasTaskAssigneeInArea(task, users, taskArea)
+        }
+
+        if ((!task.assigneeIds || task.assigneeIds.length === 0) && canSeeTaskArea) return true
         return false
       })
     }

@@ -139,8 +139,8 @@ export function DashboardSection({
   const currentRole = normalizeUserRole(currentUser?.role)
 
   const zoneTasks = useMemo(() => 
-    workflowSelectors.filterTasksByZone(tasks, currentUser),
-  [tasks, currentUser])
+    workflowSelectors.filterTasksByZone(tasks, currentUser, users),
+  [tasks, currentUser, users])
 
   const scopedTasks = useMemo(() => {
     if (currentRole === "empleado") {
@@ -585,7 +585,8 @@ function TaskCard({
   const duration = workflowSelectors.getTaskTotalDuration(task, now)
   const canManageTask = workflowSelectors.canManageTask(task, currentUser)
   const canEscalate = canManageTask
-  const canClaimTask = workflowSelectors.canClaimTask(task, currentUser)
+  const canClaimTask = workflowSelectors.canClaimTask(task, currentUser, users)
+  const claimState = workflowSelectors.getTaskClaimState(task, currentUser, users)
   const isCreatedByCurrentUser = !!currentUser?.id && task.creatorId === currentUser.id
   
   const statusLabel =

@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/avatar"
 import { cn, fileToDataUrl, formatBytes, formatDateTime, makeId } from "@/utils/workflow"
 import { EscalateTaskModal } from "@/components/modals/escalate-task-modal"
 import { supabase } from "@/utils/supabase"
+import { normalizeUserRole } from "@/utils/roles"
 import {
   type DrawingScene,
   type EvidenceFile,
@@ -22,6 +23,68 @@ type TaskDetailsModalProps = {
   taskId: string | null
   onClose: () => void
 }
+
+function downloadHref(href: string, fileName: string) {
+  const link = document.createElement("a")
+  link.href = href
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+function ensureImageFileName(fileName: string, extension: ".jpg" | ".png" | ".svg") {
+  const baseName = fileName.trim().replace(/\.[^.]+$/, "") || "croquis"
+  return `${baseName}${extension}`
+}
+
+function loadImage(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    if (source.startsWith("http://") || source.startsWith("https://")) {
+      image.crossOrigin = "anonymous"
+    }
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("No se pudo cargar la imagen del croquis."))
+    image.src = source
+  })
+}
+
+function svgElementToDataUrl(svgElement: SVGSVGElement) {
+  const cloned = svgElement.cloneNode(true) as SVGSVGElement
+  const viewBox = cloned.viewBox.baseVal
+
+  if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+    cloned.setAttribute("width", String(Math.max(1, Math.round(viewBox.width))))
+    cloned.setAttribute("height", String(Math.max(1, Math.round(viewBox.height))))
+  }
+
+  cloned.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+
+  const serialized = new XMLSerializer().serializeToString(cloned)
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`
+}
+
+async function imageSourceToJpegDataUrl(source: string) {
+  const image = await loadImage(source)
+  const canvas = document.createElement("canvas")
+  const width = Math.max(1, Math.round(image.naturalWidth || image.width || 1))
+  const height = Math.max(1, Math.round(image.naturalHeight || image.height || 1))
+  canvas.width = width
+  canvas.height = height
+
+  const ctx = canvas.getContext("2d")
+  if (!ctx) {
+    throw new Error("No se pudo preparar el canvas para exportar el croquis.")
+  }
+
+  ctx.fillStyle = "#ffffff"
+  ctx.fillRect(0, 0, width, height)
+  ctx.drawImage(image, 0, 0, width, height)
+
+  return canvas.toDataURL("image/jpeg", 0.96)
+}
+
 export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProps) {
   const task = useWorkflowStore((state) => workflowSelectors.getTaskById(state.tasks, taskId))
   const users = useWorkflowStore((state) => state.users)
@@ -66,25 +129,70 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   } | null>(null)
 
   const [now, setNow] = useState(Date.now())
+  const drawingPreviewRef = useRef<HTMLDivElement | null>(null)
 
   const handleDownload = async (item: any) => {
-    const content = item.content || item.base64
-    if (!content) return
+    const fallbackType = String(item.type || item.mediaType || "archivo").toUpperCase()
+    const fileName = item.metadata?.fileName || item.name || (item.type === "drawing" ? "croquis" : `${fallbackType}_file`)
 
-    const fileName = item.metadata?.fileName || item.name || `${item.type.toUpperCase()}_file`
-    
+    if (item.type === "drawing") {
+      const scene = item.content
+      const downloadName = ensureImageFileName(fileName, ".jpg")
+
+      try {
+        const svgElement = drawingPreviewRef.current?.querySelector("svg") as SVGSVGElement | null
+        if (svgElement) {
+          const svgDataUrl = svgElementToDataUrl(svgElement)
+          const jpegDataUrl = await imageSourceToJpegDataUrl(svgDataUrl)
+          downloadHref(jpegDataUrl, downloadName)
+          return
+        }
+
+        const fallbackSource =
+          typeof scene?.preview === "string" && scene.preview
+            ? scene.preview
+            : typeof scene?.previewBase64 === "string" && scene.previewBase64
+              ? scene.previewBase64
+              : typeof scene?.base64 === "string" && scene.base64
+                ? scene.base64
+                : null
+
+        if (fallbackSource) {
+          const jpegDataUrl = await imageSourceToJpegDataUrl(fallbackSource)
+          downloadHref(jpegDataUrl, downloadName)
+          return
+        }
+      } catch (error) {
+        console.error("Error exporting drawing as image:", error)
+      }
+
+      const directSource =
+        typeof scene?.preview === "string" && scene.preview
+          ? scene.preview
+          : typeof scene?.previewBase64 === "string" && scene.previewBase64
+            ? scene.previewBase64
+            : typeof scene?.base64 === "string" && scene.base64
+              ? scene.base64
+              : null
+
+      if (directSource) {
+        const fallbackExtension = directSource.startsWith("data:image/svg+xml") ? ".svg" : ".png"
+        downloadHref(directSource, ensureImageFileName(fileName, fallbackExtension))
+      }
+
+      return
+    }
+
+    const content = item.content || item.base64
+    if (!content || typeof content !== "string") return
+
     if (content.startsWith("http://") || content.startsWith("https://")) {
       try {
         const response = await fetch(content)
         const blob = await response.blob()
         const url = URL.createObjectURL(blob)
-        const link = document.createElement("a")
-        link.href = url
-        link.download = fileName
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
+        downloadHref(url, fileName)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
       } catch (error) {
         console.error("Error downloading file directly:", error)
         const link = document.createElement("a")
@@ -94,20 +202,10 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
         link.click()
       }
     } else if (content.startsWith("data:")) {
-      const link = document.createElement("a")
-      link.href = content
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      downloadHref(content, fileName)
     } else {
       const mime = item.metadata?.mimeType || item.mimeType || "application/octet-stream"
-      const link = document.createElement("a")
-      link.href = `data:${mime};base64,${content}`
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      downloadHref(`data:${mime};base64,${content}`, fileName)
     }
   }
 
@@ -142,9 +240,13 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
   const currentUser = useMemo(() => {
     return users.find((u) => u.id === currentUserId) ?? null
   }, [users, currentUserId])
+  const currentRole = normalizeUserRole(currentUser?.role)
 
   const canManageTask = workflowSelectors.canManageTask(task, currentUser)
-  const canClaimTask = workflowSelectors.canClaimTask(task, currentUser)
+  const canClaimTask = workflowSelectors.canClaimTask(task, currentUser, users)
+  const claimState = workflowSelectors.getTaskClaimState(task, currentUser, users)
+  const wasTakenByAnotherEmployee = currentRole === "empleado" && claimState.reason === "already_taken_by_someone_else"
+  const assigneeNames = assignees.map((assignee) => assignee.name).filter(Boolean).join(", ")
 
   // Unify and de-duplicate evidence by filename
   const evidence = useMemo(() => {
@@ -553,7 +655,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                             <p className="text-[10px] text-on-surface-variant">
                               {canEscalateArea
                                 ? "Redirige esta tarea a otro departamento. Los asignados seguirán viéndola."
-                                : "Disponible para asignado, creador o admin/gerente."}
+                                : "Disponible mientras siga libre para tomarla en tu área."}
                             </p>
                           </div>
                          
@@ -646,6 +748,20 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                               </div>
                             ) : (
                               <div className="space-y-3">
+                                {wasTakenByAnotherEmployee ? (
+                                  <div className="rounded-xl border border-warning/20 bg-warning-container p-4 text-sm text-on-warning-container">
+                                    <p className="font-bold text-[12px] uppercase tracking-wider mb-1">
+                                      Ya la tomó otra persona del área
+                                    </p>
+                                    <p className="text-[12px] leading-relaxed">
+                                      {assigneeNames
+                                        ? `Esta tarea ya fue tomada por ${assigneeNames}.`
+                                        : "Esta tarea ya fue tomada por otro compañero del área."}
+                                      {" "}
+                                      Por eso no aparece el botón de tomarla.
+                                    </p>
+                                  </div>
+                                ) : null}
                                 {assignees.map(tech => {
                                   const participation = getAssigneeParticipation(tech.id)
                                   return (
@@ -1344,10 +1460,10 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                   <button 
                     onClick={() => handleDownload(previewItem)}
                     className="h-12 px-5 flex items-center gap-2 rounded-full bg-secondary text-white hover:bg-secondary-fixed-dim transition-all border border-secondary shadow-lg font-bold text-sm cursor-pointer border-none"
-                    title="Descargar archivo"
+                    title={previewItem.type === "drawing" ? "Descargar croquis como imagen" : "Descargar archivo"}
                   >
                      <MaterialIcon name="download" className="text-[20px]" />
-                     <span>Descargar</span>
+                     <span>{previewItem.type === "drawing" ? "Descargar imagen" : "Descargar"}</span>
                   </button>
                   <button onClick={() => setPreviewItem(null)} className="h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20 cursor-pointer">
                      <MaterialIcon name="close" className="text-[24px]" />
@@ -1379,7 +1495,7 @@ export function TaskDetailsModal({ open, taskId, onClose }: TaskDetailsModalProp
                     </div>
                   )}
                   {previewItem.type === "drawing" && (
-                    <div className="w-full max-w-4xl aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center p-4">
+                    <div ref={drawingPreviewRef} className="w-full max-w-4xl aspect-video bg-white rounded-lg overflow-hidden shadow-2xl border border-white/10 flex items-center justify-center p-4">
                        <DrawingPreview scene={previewItem.content} className="w-full h-full" />
                     </div>
                   )}

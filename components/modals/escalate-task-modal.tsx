@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { AREA_OPTIONS, type Area, type Task, useWorkflowStore } from "@/store/workflow-store"
-import { normalizeUserRole } from "@/utils/roles"
+import { isAdminRole, isManagerRole, normalizeUserRole } from "@/utils/roles"
 
 type EscalateTaskModalProps = {
   open: boolean
@@ -15,12 +15,20 @@ type EscalateTaskModalProps = {
 export function EscalateTaskModal({ open, onClose, taskId }: EscalateTaskModalProps) {
   const users = useWorkflowStore((state) => state.users)
   const tasks = useWorkflowStore((state) => state.tasks)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
   const escalateTask = useWorkflowStore((state) => state.escalateTask)
+  const setGlobalAlert = useWorkflowStore((state) => state.setGlobalAlert)
 
   const task = useMemo(() => {
     if (!taskId) return null
     return tasks.find((t) => t.id === taskId) ?? null
   }, [tasks, taskId])
+
+  const currentUser = useMemo(() => {
+    return users.find((user) => user.id === currentUserId) ?? null
+  }, [users, currentUserId])
+  const currentRole = normalizeUserRole(currentUser?.role)
+  const canUseGlobalArea = isAdminRole(currentRole) || isManagerRole(currentRole)
 
   const [selectedArea, setSelectedArea] = useState<Area | "">("")
   const [assigneeId, setAssigneeId] = useState<string>("")
@@ -29,8 +37,8 @@ export function EscalateTaskModal({ open, onClose, taskId }: EscalateTaskModalPr
   // Get available areas (excluding the task's current area)
   const availableAreas = useMemo(() => {
     if (!task) return AREA_OPTIONS
-    return AREA_OPTIONS.filter((area) => area !== task.area)
-  }, [task])
+    return AREA_OPTIONS.filter((area) => area !== task.area && (canUseGlobalArea || area !== "General"))
+  }, [task, canUseGlobalArea])
 
   // Set default selected area when open
   useEffect(() => {
@@ -66,6 +74,15 @@ export function EscalateTaskModal({ open, onClose, taskId }: EscalateTaskModalPr
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedArea || !task) return
+
+    if (selectedArea === "General" && !canUseGlobalArea) {
+      setGlobalAlert({
+        title: "Área no permitida",
+        message: "Solo administradores o gerentes pueden escalar tareas al área General.",
+        type: "warning"
+      })
+      return
+    }
 
     escalateTask(task.id, selectedArea as Area, assigneeId || null, note.trim())
     onClose()

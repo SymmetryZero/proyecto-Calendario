@@ -127,9 +127,9 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-primary/60 backdrop-blur-[2px] px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-xl rounded-xl border border-outline-variant bg-surface shadow-panel overflow-hidden"
+        className="w-full max-w-xl rounded-xl border border-outline-variant bg-surface shadow-panel overflow-hidden flex flex-col max-h-[90vh] overflow-x-hidden"
       >
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant">
+        <div className="flex items-center justify-between p-6 border-b border-outline-variant shrink-0">
           <div className="flex items-center gap-3 text-primary">
             <MaterialIcon name={userToEdit ? "edit" : "person_add"} filled />
             <h2 className="font-headline-md text-headline-md">
@@ -145,7 +145,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
           </button>
         </div>
 
-        <div className="p-6 grid gap-6">
+        <div className="p-6 grid gap-6 overflow-y-auto scrollbar-thin flex-1">
           {/* Photo Upload Section */}
           <div className="flex flex-col items-center gap-4 py-2">
             <div className="relative group">
@@ -194,7 +194,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
               <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
                 Fecha de nacimiento
@@ -226,7 +226,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
               <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
                 Puesto / Cargo
@@ -243,7 +243,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
               <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
                 Zonas de trabajo
               </label>
-              <div className="flex gap-2">
+              <div className="grid gap-2">
                 <input
                   value={zoneInput}
                   onChange={(e) => setZoneInput(e.target.value)}
@@ -262,7 +262,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
                   type="button"
                   onClick={handleAddZone}
                   disabled={isSelfEmployee}
-                  className="h-12 px-4 rounded-lg bg-primary text-on-primary text-xs font-bold uppercase tracking-wider disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="h-12 px-4 rounded-lg bg-primary text-on-primary text-xs font-bold uppercase tracking-wider disabled:opacity-60 disabled:cursor-not-allowed justify-self-start"
                 >
                   Agregar
                 </button>
@@ -301,7 +301,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
             <label className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">
               Areas de trabajo
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {AREA_OPTIONS.map((area) => {
                 const isActive = areas.includes(area)
                 return (
@@ -336,7 +336,7 @@ export function UserModal({ open, onClose, userToEdit }: UserModalProps) {
           </div>
         </div>
 
-        <div className="p-6 border-t border-outline-variant bg-surface flex items-center justify-end gap-4">
+        <div className="p-6 border-t border-outline-variant bg-surface flex items-center justify-end gap-4 shrink-0">
           <button
             type="button"
             onClick={onClose}

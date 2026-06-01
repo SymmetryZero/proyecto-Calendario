@@ -1,129 +1,266 @@
-# 📘 Manual de Usuario Oficial: Servimeci App
+# Manual de Usuario - Servimeci App
 
-Bienvenido al manual de usuario oficial de **Servimeci App**, el ecosistema digital premium diseñado para optimizar el flujo de trabajo, programación y documentación de proyectos de mantenimiento técnico e infraestructura de Servimeci.
+## 1. Presentación
 
-Este documento sirve como guía paso a paso para los diferentes perfiles del sistema: **Administradores, Gerentes y Personal Técnico (Empleados)**.
+Servimeci App es una plataforma para registrar usuarios, crear tareas, asignar personal, subir evidencias, editar croquis y dar seguimiento al trabajo diario del equipo.
 
----
+Este manual explica, paso a paso, cómo usar el sistema desde el registro de usuarios hasta las funciones principales disponibles para administradores, gerentes y empleados.
 
-## 🚀 Índice
+## 2. Roles del sistema
 
-1. [Introducción y Arquitectura de Roles](#1-introducción-y-arquitectura-de-roles)
-2. [Acceso e Inicio de Sesión](#2-acceso-e-inicio-de-sesión)
-3. [Módulo de Tablero de Control (Dashboard)](#3-módulo-de-tablero-de-control-dashboard)
-4. [Módulo de Programación de Tareas](#4-módulo-de-programación-de-tareas)
-5. [Módulo de Planos Técnicos y Diseño](#5-módulo-de-planos-técnicos-y-diseño)
-6. [Módulo de Evidencia Técnica y Carpetas](#6-módulo-de-evidencia-técnica-y-carpetas)
-7. [Módulo de Gestión de Usuarios y Perfiles](#7-módulo-de-gestión-de-usuarios-y-perfiles)
-8. [Mecanismos de Sincronización en Tiempo Real](#8-mecanismos-de-sincronización-en-tiempo-real)
-9. [Preguntas Frecuentes y Soporte](#9-preguntas-frecuentes-y-soporte)
+### Administrador
+Puede ver toda la información del sistema, crear y editar usuarios, crear tareas, administrar áreas, revisar evidencias y consultar estadísticas.
 
----
+### Gerente
+Puede crear y administrar tareas, asignar personal, revisar avances, subir o consultar evidencias y supervisar el trabajo de su equipo.
 
-## 1. Introducción y Arquitectura de Roles
+### Empleado
+Puede ver las tareas asignadas o disponibles según sus permisos, tomar tareas, cambiar su estado, registrar evidencias y consultar la información necesaria para su trabajo.
 
-Servimeci App cuenta con una estructura de permisos jerárquica para proteger la integridad de los datos y simplificar la experiencia visual en celulares:
+## 3. Acceso al sistema
 
-*   **Administrador**: Control total del sistema. Puede crear, modificar y eliminar cualquier tarea, plano, evidencia o cuenta de usuario. Tiene acceso completo a estadísticas globales e históricos.
-*   **Gerente**: Responsable de la asignación y planeación regional. Puede crear tareas, evaluar requerimientos técnicos basándose en las certificaciones del personal, y supervisar el avance de las zonas asignadas.
-*   **Empleado / Personal Técnico**: Interfaz optimizada y responsiva para celulares. Se enfoca exclusivamente en sus tareas activas. Cuenta con herramientas para reclamar tareas de su área, cronometrar tiempos de trabajo, subir evidencias directamente desde la cámara y escalar tareas cuando sea necesario.
+1. Abre la aplicación desde el navegador o desde el acceso directo si ya está instalada como PWA.
+2. Inicia sesión con tu cuenta autorizada.
+3. Una vez dentro, verás el tablero principal con las tareas, filtros y accesos a los módulos disponibles según tu rol.
 
----
+## 4. Registro y edición de usuarios
 
-## 2. Acceso e Inicio de Sesión
+Este módulo se usa principalmente por administradores.
 
-La aplicación utiliza **Clerk** para garantizar un inicio de sesión seguro y ágil.
+### 4.1 Registrar un usuario
 
-1.  Ingrese a la URL de la plataforma desde su navegador o abra la aplicación PWA instalada en su celular.
-2.  Introduzca sus credenciales asignadas o utilice el sistema de autenticación rápida.
-3.  **Registro Automático**: Si es su primera vez iniciando sesión a través de la invitación oficial, el sistema registrará su cuenta en el almacén central asignándole por defecto el rol de **Empleado**, el cual puede ser elevado por un administrador posteriormente.
+1. Entra al módulo de usuarios.
+2. Pulsa el botón Registrar Usuario.
+3. Completa los campos:
+   - Nombre completo
+   - Fecha de nacimiento
+   - Rol en el sistema
+   - Puesto o cargo
+   - Zonas de trabajo
+   - Áreas de trabajo
+   - Fotografía, si es necesario
+4. Guarda los cambios.
 
----
+### 4.2 Editar un usuario
 
-## 3. Módulo de Tablero de Control (Dashboard)
+1. Busca al usuario en la lista.
+2. Presiona Editar.
+3. Actualiza los datos necesarios.
+4. Guarda los cambios.
 
-El tablero principal es el centro neurálgico del día a día de Servimeci.
+### 4.3 Zonas de trabajo
 
-### Flujo de Estados de una Tarea
-Las tareas avanzan a través de cuatro columnas dinámicas:
-1.  **Por Hacer (Todo)**: Tareas planificadas listas para ser tomadas.
-2.  **En Progreso (In Progress)**: Tareas activas que el personal técnico está ejecutando.
-3.  **En Revisión (Review)**: Trabajos completados en espera de visto bueno fotográfico o documental por parte de gerencia.
-4.  **Completada (Done)**: Trabajos finalizados exitosamente con registro histórico.
+Las zonas ayudan a organizar el personal y las tareas. Puedes agregar una o varias zonas por usuario.
 
-### Toma y Control de Tiempos (Técnicos)
-*   **Reclamar Tarea**: Al abrir una tarea disponible en tu área, puedes presionar el botón **"Tomar Tarea"** para asignártela automáticamente.
-*   **Cronómetro Integrado**: Al iniciar el trabajo, presiona **"Iniciar Tiempo"**. El sistema registrará los minutos y horas invertidos de manera precisa. Puedes pausarlo si requieres ir por materiales y reanudarlo al volver. Esto asegura que la duración acumulada del empleado se guarde de forma permanente en la base de datos de Supabase.
+La primera zona se toma como principal.
 
-### Escalación de Tareas
-Si estás ejecutando un trabajo y encuentras un problema que requiere apoyo de otra área (por ejemplo, una falla de fontanería que necesita un electricista):
-1.  Abre la tarea y presiona el botón **"Escalar Tarea"**.
-2.  Selecciona el área de destino (Contabilidad, Compras, Proyectos, Operación, etc.) y escribe una nota explicativa.
-3.  **Protección de Datos**: Al realizar la escalación, *no perderás tu progreso ni tu historial*. Tu tiempo acumulado y tu nombre quedarán grabados en el historial de la tarea de forma permanente para la rendición de cuentas, mientras que el nuevo técnico podrá reclamarla y sumar su propio tiempo.
+### 4.4 Áreas de trabajo
 
----
+Las áreas controlan qué tareas puede ver o tomar cada usuario.
 
-## 4. Módulo de Programación de Tareas
+Importante:
+Las tareas del área General solo pueden crearlas administradores o gerentes.
 
-Diseñado especialmente para Administradores y Gerentes desde computadoras o tabletas.
+## 5. Crear tareas
 
-*   **Filtros Inteligentes**: Permite segmentar las tareas por **Zona/Región** (ej. Zona Norte, Zona Sur, Oficina Central) y **Área** para monitorear cargas de trabajo en segundos.
-*   **Asignaciones por Certificación**: Al programar un requerimiento, puedes ver qué técnicos están "Disponibles" o "Libres en 1h", junto con sus certificaciones vigentes (ej. Altura, Espacios Confinados, Arco Eléctrico). Esto garantiza asignar al personal idóneo para cada riesgo.
-*   **Exportación a Excel (CSV)**: Con un solo clic en el botón verde **"Exportar Excel"**, puedes descargar el reporte completo de las tareas actuales, tiempos estimados, técnicos asignados e hitos completados.
+### 5.1 Abrir el formulario
 
----
+1. Pulsa Nueva tarea.
+2. Se abrirá el formulario de registro.
 
-## 5. Módulo de Planos Técnicos y Diseño
+### 5.2 Completar la tarea
 
-Servimeci App cuenta con un **lienzo de diseño digital interactivo integrado** para croquis e indicaciones en sitio.
+Llena los campos principales:
 
-*   **Edición y Trazado**: Permite dibujar líneas, formas geométricas, ingresar texto técnico y tomar medidas sobre una cuadrícula limpia.
-*   **Carga de Planos**: Ideal para subir diagramas unifilares o planos arquitectónicos y realizar anotaciones encima directamente con el dedo (celulares) o el mouse (PC).
-*   **Guardado Automático**: Los trazos se sincronizan directamente con el sistema para que cualquier técnico en el sitio visualice las modificaciones.
+- Título
+- Descripción
+- Ubicación
+- Fecha de vencimiento
+- Prioridad
+- Área
+- Estado
+- Asignado a
+- Duración estimada
 
----
+### 5.3 Ubicación
 
-## 6. Módulo de Evidencia Técnica y Carpetas
+Al escribir una ubicación, el sistema sugiere valores ya usados anteriormente.
 
-La documentación visual es clave para certificar la calidad de los servicios de Servimeci.
+Si la ubicación ya existe, puedes seleccionarla de la lista.
+Si no existe, puedes escribir una nueva.
 
-*   **Subir Multimedia**: Permite adjuntar imágenes, videos tomados en el sitio, notas de voz explicativas y croquis.
-*   **Estructura de Carpetas**: Administra tus archivos multimedia mediante carpetas dinámicas organizadas por cliente, fecha o tipo de proyecto para evitar el desorden.
-*   **Vinculación de Evidencia**: Toda evidencia subida dentro de la ficha de una tarea se asocia automáticamente a la misma, facilitando las auditorías posteriores del cliente.
+### 5.4 Área General
 
----
+El área General está reservada para administradores y gerentes.
+Los empleados no pueden crear tareas en esa área.
 
-## 7. Módulo de Gestión de Usuarios y Perfiles
+### 5.5 Guardar la tarea
 
-Permite a los administradores mantener al equipo técnico actualizado.
+1. Revisa los datos.
+2. Presiona Crear tarea.
+3. La tarea aparecerá en el tablero y en los módulos relacionados.
 
-*   **Habilidades e Disponibilidad**: Actualiza el estado de disponibilidad del técnico (Disponible, Libre pronto, Fuera de servicio) y asigna sus destrezas y certificaciones correspondientes.
-*   **Gestión de Áreas**: Configura a qué áreas pertenece cada usuario para recibir notificaciones inteligentes únicamente de los proyectos que le corresponden.
+## 6. Revisar y administrar tareas
 
----
+### 6.1 Ver tareas
 
-## 8. Mecanismos de Sincronización en Tiempo Real
+Desde el tablero puedes ver las tareas por estado:
 
-Para evitar conflictos de escritura concurrente y asegurar la máxima velocidad, Servimeci App implementa tres métodos de actualización en tiempo real:
+- Por hacer
+- En progreso
+- En revisión
+- Hechas
 
-1.  **Sincronización al Entrar a una Tarea**: Cada vez que abres el modal de detalles de cualquier tarea, la aplicación realiza un fetch rápido en segundo plano para traerte la información y tiempos más recientes de Supabase.
-2.  **Sincronización por Menú**: Al moverte entre las pestañas del menú inferior en celulares o el menú lateral en PC, la aplicación se actualiza de manera silenciosa y segura.
-3.  **Gesto Deslizar para Actualizar (Pull-to-Refresh) 📱**: En celulares, simplemente arrastra la pantalla hacia abajo desde la parte superior. Verás un elegante indicador circular girando en tiempo real que recargará toda la base de datos de inmediato.
-4.  **Botón de Sincronización Manual 🔄**: Ubicado en la cabecera superior (tanto en PC como celulares), un icono de flechas circulares que al ser presionado gira activamente y actualiza todos los datos del tablero en un segundo.
+### 6.2 Tomar una tarea
 
----
+Si una tarea está disponible y puedes trabajarla:
 
-## 9. Preguntas Frecuentes y Soporte
+1. Abre la tarea.
+2. Presiona Tomar tarea.
+3. La tarea quedará asignada a ti.
 
-#### ¿Por qué no puedo ver todos los menús en mi celular?
-Si tu rol es **Empleado**, tu menú estará simplificado y optimizado con las opciones de **Tablero** y **Tareas** para facilitar la usabilidad en pantallas pequeñas y evitar distracciones. Los menús de configuración global, usuarios y estadísticas están reservados para Gerentes y Administradores.
+### 6.3 Cambiar estado
 
-#### ¿Qué pasa si cierro la aplicación sin pausar el cronómetro de una tarea?
-El sistema registra la hora exacta de inicio en la base de datos de Supabase. El tiempo continuará acumulándose de manera segura y correcta incluso si tu teléfono se apaga o cierras el navegador. Al volver a abrir la tarea, verás el tiempo real transcurrido.
+Según tu rol, podrás mover la tarea entre los estados disponibles.
+Esto sirve para indicar si la tarea va avanzando o ya está terminada.
 
-#### ¿Cómo instalo Servimeci App en mi pantalla de inicio?
-En la barra lateral o en el encabezado móvil, presiona el botón **"Instalar App"** para agregar Servimeci como una PWA (Progressive Web App) nativa. Esto te dará acceso directo sin escribir la URL y mejorará el rendimiento general.
+### 6.4 Escalar una tarea
 
----
+Si una tarea necesita revisión o apoyo de otra área:
 
-*Servimeci App — Calidad, Control y Eficiencia Técnica en tus manos.*
+1. Abre la tarea.
+2. Selecciona Escalar tarea.
+3. Escoge el área de destino.
+4. Si hace falta, asigna una persona específica.
+5. Agrega una explicación.
+6. Confirma.
+
+## 7. Evidencias
+
+Las evidencias sirven para guardar pruebas del trabajo realizado.
+
+### 7.1 Subir evidencia desde una tarea
+
+1. Abre la tarea.
+2. Selecciona Agregar evidencia.
+3. Elige una imagen, video o audio.
+4. Escribe el nombre de la evidencia.
+5. Agrega una descripción si es necesario.
+6. Guarda la evidencia.
+
+### 7.2 Ver evidencias
+
+Las evidencias se pueden consultar dentro de la tarea y también en el módulo de evidencias.
+
+### 7.3 Editar o eliminar evidencias
+
+Si tienes permisos, podrás:
+
+- Cambiar el nombre
+- Cambiar la descripción
+- Eliminar el archivo
+
+## 8. Plano o dibujo técnico
+
+La aplicación incluye una herramienta de dibujo para croquis técnicos.
+
+### 8.1 Guardar un croquis
+
+1. Abre el módulo de dibujo.
+2. Usa las herramientas para trazar líneas, figuras o texto.
+3. Guarda el croquis cuando termines.
+
+### 8.2 Relación con tareas
+
+El croquis puede vincularse como evidencia para dejar registro visual del trabajo.
+
+## 9. Módulo de evidencias
+
+Aquí puedes revisar todo el material cargado al sistema.
+
+### Funciones principales
+
+- Buscar evidencias
+- Ver imágenes, videos o audios
+- Revisar evidencias vinculadas a tareas
+- Cargar más archivos, según permiso
+
+## 10. Dashboard
+
+El tablero principal es el centro de operación.
+
+### Qué permite
+
+- Ver tareas activas
+- Revisar estados
+- Buscar por nombre, descripción, zona o evidencia
+- Acceder rápidamente a nuevas tareas
+- Consultar información resumida del trabajo diario
+
+## 11. Filtros
+
+La aplicación permite filtrar la información para encontrar más rápido lo que necesitas.
+
+Puedes filtrar por:
+
+- Zona
+- Área
+- Estado
+- Texto de búsqueda
+
+## 12. Estadísticas
+
+El módulo de estadísticas muestra información resumida del sistema.
+
+Sirve para revisar:
+
+- Cantidad de tareas
+- Avances por zona o área
+- Evidencias registradas
+- Actividad general
+
+## 13. Configuración
+
+Desde configuración puedes revisar opciones relacionadas con la sesión, visibilidad y comportamiento general del sistema.
+
+## 14. Uso en celular
+
+La aplicación está pensada para funcionar en móvil.
+
+Recomendaciones:
+
+- Desliza para ver formularios completos
+- Usa el botón de cerrar para salir de un modal
+- Revisa los campos antes de guardar
+- Si un campo tiene sugerencias, aprovecha la lista para escribir más rápido
+
+## 15. Recomendaciones de uso
+
+- Mantén actualizados los datos del usuario.
+- Usa nombres claros para tareas y evidencias.
+- Registra ubicación y zona siempre que sea posible.
+- Carga evidencias al terminar el trabajo.
+- Si una tarea requiere otro departamento, escálala en lugar de duplicarla.
+
+## 16. Problemas frecuentes
+
+### No veo todas las tareas
+
+Puede deberse a tu rol, zona o áreas asignadas.
+
+### No puedo crear una tarea en General
+
+Solo administradores y gerentes pueden usar esa área.
+
+### No puedo subir una evidencia
+
+Revisa si tienes permiso sobre esa tarea y si el archivo es válido.
+
+### El formulario no se ve completo en el móvil
+
+Desliza dentro del modal para llegar a los botones finales.
+
+## 17. Cierre
+
+Servimeci App centraliza usuarios, tareas, evidencias y seguimiento operativo en un solo sistema.
+Para un mejor uso, mantén la información completa y ordenada en cada registro.

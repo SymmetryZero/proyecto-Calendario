@@ -5,6 +5,7 @@ import type {
   Folder,
   Requirement,
   Task,
+  TaskEscalation,
   TaskActivity,
   AssignmentRecord,
   EvidenceFile,
@@ -16,6 +17,7 @@ import type {
 
 const ZONE_SEPARATOR = "|"
 const WORKSPACE_STATE_ID = "workspace"
+const WORKSPACE_STATE_SYNC_ENABLED = process.env.NEXT_PUBLIC_ENABLE_WORKSPACE_STATE_SYNC === "true"
 
 function parseZones(value?: string | null) {
   if (!value) return []
@@ -44,9 +46,85 @@ function isMissingRelationError(error: any) {
   )
 }
 
+function toTimestamp(value?: string | null) {
+  if (!value) return 0
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function collectStringIds(...values: unknown[]) {
+  const ids: string[] = []
+
+  values.forEach((value) => {
+    if (!value) return
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (typeof item === "string" && item.trim()) {
+          ids.push(item)
+        }
+      })
+      return
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      ids.push(value)
+    }
+  })
+
+  return Array.from(new Set(ids))
+}
+
+function collectTaskAssigneeIds(
+  assigneeIds: unknown,
+  escalation?: TaskEscalation | null,
+  existingAssigneeIds?: unknown
+) {
+  return collectStringIds(
+    existingAssigneeIds,
+    assigneeIds,
+    escalation?.originalAssigneeIds,
+    escalation?.targetUserId
+  )
+}
+
+export function mergeTaskSnapshots(localTask: Task, remoteTask: Task) {
+  const localUpdatedAt = toTimestamp(localTask.updatedAt)
+  const remoteUpdatedAt = toTimestamp(remoteTask.updatedAt)
+  const preferredTask = remoteUpdatedAt > localUpdatedAt ? remoteTask : localTask
+
+  return {
+    ...preferredTask,
+    assigneeIds: collectStringIds(
+      localTask.assigneeIds,
+      remoteTask.assigneeIds,
+      preferredTask.escalation?.originalAssigneeIds,
+      preferredTask.escalation?.targetUserId
+    )
+  }
+}
+
+export function mergeTaskLists(localTasks: Task[], remoteTasks: Task[]) {
+  const localTaskById = new Map(localTasks.map((task) => [task.id, task]))
+  const remoteIds = new Set(remoteTasks.map((task) => task.id))
+
+  const merged = remoteTasks.map((remoteTask) => {
+    const localTask = localTaskById.get(remoteTask.id)
+    return localTask ? mergeTaskSnapshots(localTask, remoteTask) : remoteTask
+  })
+
+  localTasks.forEach((task) => {
+    if (!remoteIds.has(task.id)) {
+      merged.push(task)
+    }
+  })
+
+  return merged
+}
+
 export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
   try {
-    // 1. Fetch from all 8 relational tables plus the workspace state row
+    // 1. Fetch relational tables; workspace state is optional because some deployments do not create it yet.
     const [
       { data: dbUsers, error: uErr },
       { data: dbFolders, error: fErr },
@@ -55,8 +133,7 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       { data: dbAssignments, error: aErr },
       { data: dbActivities, error: acErr },
       { data: dbEvidence, error: eErr },
-      { data: dbNotifications, error: nErr },
-      { data: dbWorkspaceState, error: wErr }
+      { data: dbNotifications, error: nErr }
     ] = await Promise.all([
       supabase.from("flow_servimeci_users").select("*"),
       supabase.from("flow_servimeci_folders").select("*"),
@@ -65,12 +142,11 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       supabase.from("flow_servimeci_assignments").select("*"),
       supabase.from("flow_servimeci_activities").select("*"),
       supabase.from("flow_servimeci_evidence").select("*"),
-      supabase.from("flow_servimeci_notifications").select("*"),
-      supabase.from("flow_servimeci_workspace_state").select("*").eq("id", WORKSPACE_STATE_ID).maybeSingle()
+      supabase.from("flow_servimeci_notifications").select("*")
     ])
 
-    if (uErr || fErr || rErr || tErr || aErr || acErr || eErr || nErr || (wErr && !isMissingRelationError(wErr))) {
-      console.error("Error fetching data from Supabase:", { uErr, fErr, rErr, tErr, aErr, acErr, eErr, nErr, wErr })
+    if (uErr || fErr || rErr || tErr || aErr || acErr || eErr || nErr) {
+      console.error("Error fetching data from Supabase:", { uErr, fErr, rErr, tErr, aErr, acErr, eErr, nErr })
       return null
     }
 
@@ -167,7 +243,7 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       description: t.description || "",
       priority: t.priority || "medium",
       status: t.status || "todo",
-      assigneeIds: t.assignee_ids || [],
+      assigneeIds: collectTaskAssigneeIds(t.assignee_ids, t.escalation || null),
       createdAt: t.created_at || new Date().toISOString(),
       updatedAt: t.updated_at || new Date().toISOString(),
       timerStartedAt: t.timer_started_at ? Number(t.timer_started_at) : null,
@@ -217,14 +293,28 @@ export async function pullFromSupabase(): Promise<WorkflowSeed | null> {
       timestamp: n.created_at || new Date().toISOString()
     }))
 
-    const workspaceState: WorkspaceStateRecord | null = dbWorkspaceState
-      ? {
-          id: dbWorkspaceState.id,
-          saves: Array.isArray(dbWorkspaceState.saves) ? (dbWorkspaceState.saves as SaveRecord[]) : [],
-          drawingScene: dbWorkspaceState.drawing_scene || null,
-          updatedAt: dbWorkspaceState.updated_at || new Date().toISOString()
-        }
-      : null
+    let workspaceState: WorkspaceStateRecord | null = null
+    if (WORKSPACE_STATE_SYNC_ENABLED) {
+      const { data: dbWorkspaceState, error: wErr } = await supabase
+        .from("flow_servimeci_workspace_state")
+        .select("*")
+        .eq("id", WORKSPACE_STATE_ID)
+        .maybeSingle()
+
+      if (wErr && !isMissingRelationError(wErr)) {
+        console.error("Error loading workspace state from Supabase:", wErr)
+        return null
+      }
+
+      workspaceState = dbWorkspaceState
+        ? {
+            id: dbWorkspaceState.id,
+            saves: Array.isArray(dbWorkspaceState.saves) ? (dbWorkspaceState.saves as SaveRecord[]) : [],
+            drawingScene: dbWorkspaceState.drawing_scene || null,
+            updatedAt: dbWorkspaceState.updated_at || new Date().toISOString()
+          }
+        : null
+    }
 
     return {
       users,
@@ -302,7 +392,7 @@ export async function pushToSupabase(state: any) {
       description: t.description || null,
       priority: t.priority || "medium",
       status: t.status || "todo",
-      assignee_ids: t.assigneeIds || [],
+      assignee_ids: collectTaskAssigneeIds(t.assigneeIds, t.escalation || null),
       created_at: t.createdAt || new Date().toISOString(),
       updated_at: t.updatedAt || new Date().toISOString(),
       timer_started_at: t.timerStartedAt || null,
@@ -385,7 +475,7 @@ export async function pushToSupabase(state: any) {
     ] = await Promise.all([
       supabase.from("flow_servimeci_folders").select("id"),
       supabase.from("flow_servimeci_requirements").select("id"),
-      supabase.from("flow_servimeci_tasks").select("id"),
+      supabase.from("flow_servimeci_tasks").select("id, assignee_ids, escalation"),
       supabase.from("flow_servimeci_assignments").select("id"),
       supabase.from("flow_servimeci_activities").select("id"),
       supabase.from("flow_servimeci_evidence").select("id"),
@@ -400,6 +490,7 @@ export async function pushToSupabase(state: any) {
     const orphansActivities = (exActivities || []).map(x => x.id).filter(id => !dbActivities.some((x: any) => x.id === id))
     const orphansEvidence = (exEvidence || []).map(x => x.id).filter(id => !state.evidence.some((x: any) => x.id === id))
     const orphansNotifications = (exNotifications || []).map(x => x.id).filter(id => !state.notifications.some((x: any) => x.id === id))
+    const exTasksById = new Map((exTasks || []).map((task: any) => [task.id, task]))
 
     // Perform deletions (dependents first)
     await Promise.all([
@@ -432,19 +523,36 @@ export async function pushToSupabase(state: any) {
     if (dbRequirements.length) await supabase.from("flow_servimeci_requirements").upsert(dbRequirements, { onConflict: "id" })
 
     // Nivel 3: Tareas y Asignaciones
-    if (dbTasks.length) await supabase.from("flow_servimeci_tasks").upsert(dbTasks, { onConflict: "id" })
+    if (dbTasks.length) {
+      const dbTasksWithMergedAssignees = dbTasks.map((task: any) => {
+        const existingTask = exTasksById.get(task.id)
+
+        return {
+          ...task,
+          assignee_ids: collectTaskAssigneeIds(
+            task.assignee_ids,
+            task.escalation || null,
+            existingTask?.assignee_ids
+          )
+        }
+      })
+
+      await supabase.from("flow_servimeci_tasks").upsert(dbTasksWithMergedAssignees, { onConflict: "id" })
+    }
     if (dbAssignments.length) await supabase.from("flow_servimeci_assignments").upsert(dbAssignments, { onConflict: "id" })
 
     // Nivel 4: Actividades, Evidencias, Notificaciones
     if (dbActivities.length) await supabase.from("flow_servimeci_activities").upsert(dbActivities, { onConflict: "id" })
     if (dbEvidence.length) await supabase.from("flow_servimeci_evidence").upsert(dbEvidence, { onConflict: "id" })
     if (dbNotifications.length) await supabase.from("flow_servimeci_notifications").upsert(dbNotifications, { onConflict: "id" })
-    const workspaceStateResult = await supabase
-      .from("flow_servimeci_workspace_state")
-      .upsert(dbWorkspaceState, { onConflict: "id" })
+    if (WORKSPACE_STATE_SYNC_ENABLED) {
+      const workspaceStateResult = await supabase
+        .from("flow_servimeci_workspace_state")
+        .upsert(dbWorkspaceState, { onConflict: "id" })
 
-    if (workspaceStateResult.error && !isMissingRelationError(workspaceStateResult.error)) {
-      throw workspaceStateResult.error
+      if (workspaceStateResult.error && !isMissingRelationError(workspaceStateResult.error)) {
+        throw workspaceStateResult.error
+      }
     }
 
     console.log("Supabase relational sync successful!")

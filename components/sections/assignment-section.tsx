@@ -123,7 +123,7 @@ export function AssignmentSection({
   }, [requirements, currentUser, searchQuery, zoneFilter, areaFilter])
 
   const zoneTasks = useMemo(() => {
-    const base = workflowSelectors.filterTasksByZone(tasks, currentUser)
+    const base = workflowSelectors.filterTasksByZone(tasks, currentUser, users)
     const normalizedZone = zoneFilter && zoneFilter !== "todas" ? zoneFilter : null
     const normalizedArea = areaFilter && areaFilter !== "todas" ? areaFilter : null
     return base.filter((task) => {
@@ -131,7 +131,7 @@ export function AssignmentSection({
       if (normalizedArea && task.area !== normalizedArea) return false
       return true
     })
-  }, [tasks, currentUser, zoneFilter, areaFilter])
+  }, [tasks, currentUser, users, zoneFilter, areaFilter])
 
   const [selectedRequirementId, setSelectedRequirementId] = useState<string | null>(null)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string | null>(null)

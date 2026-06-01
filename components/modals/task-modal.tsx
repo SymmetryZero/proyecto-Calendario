@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { cn } from "@/utils/workflow"
 import { AREA_OPTIONS, type Area, type Priority, type TaskStatus, useWorkflowStore } from "@/store/workflow-store"
-import { normalizeUserRole } from "@/utils/roles"
+import { isAdminRole, isManagerRole, normalizeUserRole } from "@/utils/roles"
 
 type TaskModalProps = {
   open: boolean
@@ -26,11 +26,37 @@ const statusOptions: Array<{ value: TaskStatus; label: string }> = [
 
 export function TaskModal({ open, onClose }: TaskModalProps) {
   const users = useWorkflowStore((state) => state.users)
+  const tasks = useWorkflowStore((state) => state.tasks)
+  const currentUserId = useWorkflowStore((state) => state.currentUserId)
+  const currentUser = useMemo(() => users.find((user) => user.id === currentUserId) ?? null, [users, currentUserId])
+  const existingLocations = useMemo(() => {
+    const locationSet = new Set<string>()
+    tasks.forEach((task) => {
+      if (task.location?.trim()) {
+        locationSet.add(task.location.trim())
+      }
+    })
+    users.forEach((user) => {
+      if (user.zone?.trim()) {
+        locationSet.add(user.zone.trim())
+      }
+      user.zones?.forEach((zone) => {
+        if (zone.trim()) {
+          locationSet.add(zone.trim())
+        }
+      })
+    })
+    return Array.from(locationSet).sort((a, b) => a.localeCompare(b))
+  }, [tasks, users])
   const technicians = useMemo(() => users.filter(u => {
     const role = normalizeUserRole(u.role)
     return role === "empleado" || role === "gerente"
   }), [users])
   const addTask = useWorkflowStore((state) => state.addTask)
+  const canUseGeneralArea = isAdminRole(currentUser?.role) || isManagerRole(currentUser?.role)
+  const availableAreaOptions = useMemo(() => {
+    return canUseGeneralArea ? AREA_OPTIONS : AREA_OPTIONS.filter((option) => option !== "General")
+  }, [canUseGeneralArea])
 
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -50,7 +76,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     setTitle("")
     setDescription("")
     setLocation("")
-    setArea("Operacion")
+    setArea(canUseGeneralArea ? "Operacion" : (availableAreaOptions[0] ?? "Operacion"))
     setPriority("medium")
     setStatus("todo")
     setAssigneeId(technicians[0]?.id ?? "")
@@ -58,7 +84,13 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     const now = new Date()
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
     setDueLabel(now.toISOString().slice(0, 16))
-  }, [open])
+  }, [open, canUseGeneralArea, availableAreaOptions, technicians])
+
+  useEffect(() => {
+    if (!canUseGeneralArea && area === "General") {
+      setArea(availableAreaOptions[0] ?? "Operacion")
+    }
+  }, [area, availableAreaOptions, canUseGeneralArea])
 
   if (!open) {
     return null
@@ -71,7 +103,11 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
       return
     }
 
-    addTask({
+    if (area === "General" && !canUseGeneralArea) {
+      return
+    }
+
+    const createdTaskId = addTask({
       title: title.trim(),
       description: description.trim() || "No se proporcionó descripción.",
       location: location.trim() || undefined,
@@ -83,7 +119,9 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
       estimatedHours
     })
 
-    onClose()
+    if (createdTaskId) {
+      onClose()
+    }
   }
 
   return (
@@ -138,9 +176,15 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
             <input
               value={location}
               onChange={(event) => setLocation(event.target.value)}
+              list="task-locations-list"
               className="h-12 rounded-lg border border-outline-variant bg-surface px-4 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
               placeholder="Ubicación opcional"
             />
+            <datalist id="task-locations-list">
+              {existingLocations.map((locationOption) => (
+                <option key={locationOption} value={locationOption} />
+              ))}
+            </datalist>
           </div>
 
           <div className="grid gap-2">
@@ -179,7 +223,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
                 onChange={(event) => setArea(event.target.value as Area)}
                 className="h-12 w-full rounded-lg border border-outline-variant bg-surface px-3 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
               >
-                {AREA_OPTIONS.map((option) => (
+                {availableAreaOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>

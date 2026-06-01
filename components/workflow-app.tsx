@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PWARegistration } from "@/components/pwa-registration"
 import { WorkflowShell } from "@/components/workflow-shell"
 import { DashboardSection } from "@/components/sections/dashboard-section"
@@ -35,14 +35,21 @@ export function WorkflowApp() {
   const [searchQuery, setSearchQuery] = useState("")
   const [zoneFilter, setZoneFilter] = useState("todas")
   const [areaFilter, setAreaFilter] = useState("todas")
-  const triggerSupabaseSync = async () => {
+  const syncInFlightRef = useRef(false)
+
+  const triggerSupabaseSync = useCallback(async () => {
+    if (syncInFlightRef.current) {
+      return
+    }
+
+    syncInFlightRef.current = true
     try {
-      const { pullFromSupabase } = await import("@/utils/supabase-sync")
+      const { pullFromSupabase, mergeTaskLists } = await import("@/utils/supabase-sync")
       const remote = await pullFromSupabase()
       if (remote) {
         useWorkflowStore.setState((state) => ({
           users: remote.users,
-          tasks: remote.tasks,
+          tasks: mergeTaskLists(state.tasks, remote.tasks),
           requirements: remote.requirements,
           evidence: remote.evidence,
           folders: remote.folders,
@@ -54,22 +61,51 @@ export function WorkflowApp() {
       }
     } catch (err) {
       console.error("Error manual syncing Supabase:", err)
+    } finally {
+      syncInFlightRef.current = false
     }
-  }
+  }, [])
 
   // Sincronizar con Supabase al cambiar de sección o menú
   useEffect(() => {
     if (hasHydrated && isSignedIn) {
       triggerSupabaseSync()
     }
-  }, [section, hasHydrated, isSignedIn])
+  }, [section, hasHydrated, isSignedIn, triggerSupabaseSync])
 
   // Sincronizar con Supabase al abrir el detalle de una tarea
   useEffect(() => {
     if (hasHydrated && isSignedIn && taskDetailsTaskId !== null) {
       triggerSupabaseSync()
     }
-  }, [taskDetailsTaskId, hasHydrated, isSignedIn])
+  }, [taskDetailsTaskId, hasHydrated, isSignedIn, triggerSupabaseSync])
+
+  // Mantener sincronizada la vista aunque dos perfiles permanezcan en la misma pantalla.
+  useEffect(() => {
+    if (!hasHydrated || !isSignedIn) return
+
+    const syncNow = () => {
+      void triggerSupabaseSync()
+    }
+
+    syncNow()
+
+    const interval = window.setInterval(syncNow, 15000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        syncNow()
+      }
+    }
+
+    window.addEventListener("focus", syncNow)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", syncNow)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [hasHydrated, isSignedIn, triggerSupabaseSync])
 
   // Sincronizar el usuario autenticado de Clerk con el almacén local de Zustand
   useEffect(() => {
@@ -178,13 +214,13 @@ export function WorkflowApp() {
       mql.addEventListener("change", handler as any)
     } else {
       // Safari fallback
-      ;(mql as any).addListener(handler as any)
+      ; (mql as any).addListener(handler as any)
     }
     return () => {
       if (mql.removeEventListener) {
         mql.removeEventListener("change", handler as any)
       } else {
-        ;(mql as any).removeListener(handler as any)
+        ; (mql as any).removeListener(handler as any)
       }
     }
   }, [])
