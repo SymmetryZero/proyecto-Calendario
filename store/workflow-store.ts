@@ -3256,12 +3256,13 @@ export const workflowSelectors = {
       const userAreas = user.areas ?? []
       return tasks.filter((task) => {
         const taskArea = getTaskScopeArea(task)
-        const canSeeTaskArea = userAreas.includes(taskArea) || isGlobalArea(taskArea)
+        if (isGlobalArea(taskArea)) return true
 
         if (task.assigneeIds.includes(user.id)) return true
         if (task.creatorId === user.id) return true
         if (task.escalation?.targetUserId === user.id) return true
 
+        const canSeeTaskArea = userAreas.includes(taskArea)
         if (!canSeeTaskArea) return false
 
         if (task.escalation) {
@@ -3269,7 +3270,6 @@ export const workflowSelectors = {
         }
 
         if (task.assigneeIds.length > 0) return false
-        if (isGlobalArea(taskArea)) return true
         if (userAreas.includes(taskArea)) return true
         return false
       })
