@@ -128,8 +128,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     setPriority("medium")
     setStatus("todo")
     
-    const defaultTechs = allTechnicians.filter(u => (u.areas ?? []).includes(defaultArea))
-    setAssigneeId(defaultTechs[0]?.id ?? "")
+    setAssigneeId("")
     
     setEstimatedHours(1)
     const now = new Date()
