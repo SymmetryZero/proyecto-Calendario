@@ -36,6 +36,9 @@ export interface Notification {
   userId?: string // Who triggered it
   targetUserId?: string | null // Who it's for (null for everyone/admin)
   read?: boolean
+  involvedUserIds?: string[]
+  area?: Area | null
+  location?: string | null
 }
 
 export interface GlobalAlert {
@@ -2134,17 +2137,17 @@ export const useWorkflowStore = create<WorkflowStore>()(
         deleteTask: (taskId) => {
           const currentUser = get().users.find((u) => u.id === get().currentUserId)
           const taskToDelete = get().tasks.find((t) => t.id === taskId)
-          if (taskToDelete && !canUserManageTask(currentUser, taskToDelete)) {
+
+          if (!currentUser || (currentUser.role !== "administrador" && currentUser.role !== "gerente")) {
             get().setGlobalAlert({
               title: "Eliminación no permitida",
-              message: "Solo quien creó o tomó la tarea puede eliminarla.",
+              message: "Solo administradores o gerentes pueden eliminar tareas.",
               type: "warning"
             })
             return
           }
 
           set((state) => {
-            const taskToDelete = state.tasks.find((t) => t.id === taskId)
             const requirementId = taskToDelete?.requirementId
 
             return {
@@ -2157,6 +2160,32 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 : state.assignments
             }
           })
+
+          if (taskToDelete && currentUser) {
+            // Collect all involved user IDs before deletion
+            const involvedIds = new Set<string>()
+            if (taskToDelete.creatorId) involvedIds.add(taskToDelete.creatorId)
+            taskToDelete.assigneeIds?.forEach(id => involvedIds.add(id))
+            if (taskToDelete.escalation?.escalatedBy) involvedIds.add(taskToDelete.escalation.escalatedBy)
+            if (taskToDelete.escalation?.targetUserId) involvedIds.add(taskToDelete.escalation.targetUserId)
+            taskToDelete.escalation?.originalAssigneeIds?.forEach(id => involvedIds.add(id))
+            taskToDelete.activities?.forEach(act => {
+              const u = get().users.find(usr => usr.name === act.metadata?.authorName)
+              if (u) involvedIds.add(u.id)
+            })
+
+            get().addNotification({
+              title: "Tarea Eliminada",
+              message: `${currentUser.name} eliminó la tarea: "${taskToDelete.title}"`,
+              type: "movement",
+              taskId: null,
+              userId: currentUser.id,
+              targetUserId: null,
+              involvedUserIds: Array.from(involvedIds),
+              area: taskToDelete.area || null,
+              location: taskToDelete.location || null
+            })
+          }
         },
         moveTask: (taskId, status) => {
           const now = Date.now()
@@ -3140,6 +3169,7 @@ export const workflowSelectors = {
       if (currentUser.role === "empleado") {
         if (n.targetUserId === currentUser.id) return true
         if (n.userId === currentUser.id) return true
+        if (n.involvedUserIds?.includes(currentUser.id)) return true
         
         if (n.taskId) {
           const task = tasks.find((t) => t.id === n.taskId)
@@ -3152,6 +3182,20 @@ export const workflowSelectors = {
       
       // Gerente:
       if (currentUser.role === "gerente") {
+        // If it's a deleted task alert, show if gerente has rights to that zone/area
+        if (n.title === "Tarea Eliminada") {
+          if (currentUser.showAllZones) return true
+          const userZones = currentUser.zones ?? (currentUser.zone ? [currentUser.zone] : [])
+          const userAreas = currentUser.areas ?? []
+          const taskArea = n.area ?? "Operacion"
+          
+          const isInMyZone = !n.location || userZones.includes(n.location)
+          const isInMyArea = userAreas.includes(taskArea) || taskArea === "General"
+          
+          if (isInMyZone && isInMyArea) return true
+          return false
+        }
+
         // 1. Creaciones, comentarios, evidencia
         const isCreation = n.title === "Nueva Tarea" || n.title === "Nuevo Requerimiento" || n.title === "Tarea creada"
         const isComment = n.type === "message" || n.title === "Nuevo Comentario"
@@ -3180,6 +3224,7 @@ export const workflowSelectors = {
         // 2. Lo anterior de empleado (tareas propias, asignaciones directas, sus acciones, tareas donde está inscrito)
         if (n.targetUserId === currentUser.id) return true
         if (n.userId === currentUser.id) return true
+        if (n.involvedUserIds?.includes(currentUser.id)) return true
         
         if (n.taskId) {
           const task = tasks.find((t) => t.id === n.taskId)

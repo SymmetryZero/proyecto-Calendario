@@ -581,6 +581,8 @@ function TaskCard({
   currentUser
 }: TaskCardProps) {
   const assignees = avatarByTechnicianIds(users, task.assigneeIds)
+  const currentRole = normalizeUserRole(currentUser?.role)
+  const canDelete = currentRole === "administrador" || currentRole === "gerente"
   const attachedEvidence = evidence.filter((item) => item.linkedTaskId === task.id)
   const duration = workflowSelectors.getTaskTotalDuration(task, now)
   const canManageTask = workflowSelectors.canManageTask(task, currentUser)
@@ -750,7 +752,7 @@ function TaskCard({
             }}
             className={cn(
               "flex items-center justify-center w-7 h-7 rounded-lg text-error/70 hover:text-error hover:bg-error/10 transition-all flex-shrink-0",
-              !canManageTask && "hidden"
+              !canDelete && "hidden"
             )}
             aria-label="Eliminar tarea"
             title="Eliminar"
