@@ -57,7 +57,8 @@ export function UsersSection() {
                 : "Administra el personal, roles y zonas de trabajo del sistema."}
             </p>
           </div>
-          {currentRole !== "empleado" && (
+          {/* Registrar usuario ocultado para todos los roles a petición */}
+          {false && (
             <button
               onClick={handleAdd}
               className="h-[56px] px-8 bg-secondary text-on-secondary rounded-xl font-title-md text-title-md flex items-center gap-3 shadow-lg hover:shadow-xl transition-all active:scale-95"
