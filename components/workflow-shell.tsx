@@ -26,6 +26,7 @@ type WorkflowShellProps = {
   onAreaFilterChange: (value: string) => void
   children: ReactNode
   onSync?: () => Promise<void>
+  onOpenTaskDetails?: (taskId: string) => void
 }
 
 const sidebarItems: Array<{ key: SectionKey; label: string; icon: string }> = [
@@ -57,7 +58,8 @@ export function WorkflowShell({
   onZoneFilterChange,
   onAreaFilterChange,
   children,
-  onSync
+  onSync,
+  onOpenTaskDetails
 }: WorkflowShellProps) {
   const [helpOpen, setHelpOpen] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -173,34 +175,9 @@ export function WorkflowShell({
 
   const unreadCount = useMemo(() => {
     if (!currentUser) return 0
-    return notifications.filter(n => {
-      if (!n.read) {
-        if (currentRole === "administrador") return true
-        if (currentRole === "gerente") return true
-        if (currentRole === "empleado") {
-          if (n.targetUserId === currentUser.id) return true
-          if (n.userId === currentUser.id) return true
-          
-          if (n.taskId) {
-            const task = tasks.find(t => t.id === n.taskId)
-            if (task) {
-              const isMyTask = task.assigneeIds.includes(currentUser.id) || task.creatorId === currentUser.id
-              if (isMyTask) return true
-              
-              // Untaken tasks in their area
-              const userAreas = currentUser.areas ?? []
-              const taskArea = task.area ?? "Operacion"
-              const isUntaken = !task.assigneeIds || task.assigneeIds.length === 0
-              const isInMyArea = userAreas.includes(taskArea)
-              
-              if (isUntaken && isInMyArea) return true
-            }
-          }
-        }
-      }
-      return false
-    }).length
-  }, [notifications, currentUser, currentRole, tasks])
+    const filtered = workflowSelectors.getFilteredNotifications(notifications, currentUser, tasks)
+    return filtered.filter(n => !n.read).length
+  }, [notifications, currentUser, tasks])
 
   const filteredSidebarItems = useMemo(() => {
     if (!currentUser) return sidebarItems
@@ -418,7 +395,18 @@ export function WorkflowShell({
             >
               <MaterialIcon name="sync" />
             </button>
-            <button className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full"><MaterialIcon name="notifications" /></button>
+             <button 
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              className="p-2 text-on-surface-variant hover:bg-surface-container rounded-full relative"
+              aria-label="Notificaciones"
+             >
+               <MaterialIcon name="notifications" filled={notificationsOpen} />
+               {unreadCount > 0 && (
+                 <span className="absolute top-1 right-1 w-4 h-4 bg-error text-white text-[10px] flex items-center justify-center rounded-full font-bold">
+                   {unreadCount}
+                 </span>
+               )}
+             </button>
           </div>
         </header>
       )}
@@ -606,6 +594,7 @@ export function WorkflowShell({
                   <NotificationPopout
                     open={notificationsOpen}
                     onClose={() => setNotificationsOpen(false)}
+                    onSelectTask={onOpenTaskDetails}
                   />
                 </div>
 

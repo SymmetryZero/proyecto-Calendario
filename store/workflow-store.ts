@@ -219,12 +219,12 @@ function getTaskClaimState(
     return { canClaim: false, reason: null }
   }
 
-  if (isAdminRole(user.role) || isManagerRole(user.role)) {
-    return { canClaim: true, reason: null }
-  }
-
   if (isTaskAssignee(user, task)) {
     return { canClaim: false, reason: "already_assigned_to_you" }
+  }
+
+  if (isAdminRole(user.role) || isManagerRole(user.role)) {
+    return { canClaim: true, reason: null }
   }
 
   if (isTaskCreator(user, task)) {
@@ -273,6 +273,22 @@ function canUserManageTask(user: User | null | undefined, task: Task | null | un
   if (!user || !task) return false
   if (isAdminRole(user.role) || isManagerRole(user.role)) return true
   return isTaskCreator(user, task) || isTaskAssignee(user, task)
+}
+
+function isUserInvolvedInTask(task: Task, currentUser: User) {
+  // 1. Creador o asignado actual
+  if (task.creatorId === currentUser.id) return true
+  if (task.assigneeIds.includes(currentUser.id)) return true
+  
+  // 2. Involucrado en la escalación
+  if (task.escalation?.originalAssigneeIds?.includes(currentUser.id)) return true
+  if (task.escalation?.escalatedBy === currentUser.id) return true
+  if (task.escalation?.targetUserId === currentUser.id) return true
+  
+  // 3. Participó en el historial (comentarios, notas, logs, evidencias)
+  if (task.activities?.some((act) => act.metadata?.authorName === currentUser.name)) return true
+  
+  return false
 }
 
 function canUserClaimTask(user: User | null | undefined, task: Task | null | undefined, users: User[] = []) {
@@ -463,6 +479,7 @@ export interface WorkflowStore extends WorkflowSeed {
   addTaskLog: (taskId: string, content: string, metadata?: any) => void
   addNotification: (notification: Omit<Notification, "id" | "timestamp">) => void
   markNotificationAsRead: (notificationId: string) => void
+  markAllNotificationsAsRead: () => void
   setGlobalAlert: (alert: GlobalAlert | null) => void
 }
 
@@ -1897,6 +1914,11 @@ export const useWorkflowStore = create<WorkflowStore>()(
             )
           }))
         },
+        markAllNotificationsAsRead: () => {
+          set((state) => ({
+            notifications: state.notifications.map((n) => ({ ...n, read: true }))
+          }))
+        },
         setGlobalAlert: (alert: GlobalAlert | null) => {
           set({ globalAlert: alert })
         },
@@ -1982,6 +2004,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
           })
 
           get().addTaskLog(taskId, "Tarea creada")
+          get().addNotification({
+            title: "Nueva Tarea",
+            message: `Se ha creado la tarea: "${newTask.title}"`,
+            type: "movement",
+            taskId: taskId,
+            userId: get().currentUserId || "system",
+            targetUserId: null
+          })
 
           return taskId
         },
@@ -2077,6 +2107,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
                 done: "Hecho"
               }
               logs.push(`Estado cambiado a: ${labels[updatedTask.status] || updatedTask.status}`)
+              get().addNotification({
+                title: "Movimiento de Tarea",
+                message: `La tarea "${updatedTask.title}" cambió a: ${labels[updatedTask.status] || updatedTask.status}`,
+                type: "movement",
+                taskId,
+                userId: get().currentUserId || "system",
+                targetUserId: null
+              })
             }
             if (
               patch.assigneeIds &&
@@ -2424,6 +2462,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
             taskId,
             `Auto-tomada en ${areaName}: ${currentUser.name} tomó la tarea.`
           )
+          get().addNotification({
+            title: "Tarea Tomada",
+            message: `${currentUser.name} tomó la tarea: "${task.title}"`,
+            type: "assignment",
+            taskId,
+            userId: currentUser.id,
+            targetUserId: null
+          })
 
           // Persist the claim immediately so another sync cannot briefly rehydrate the old assignee list.
           void pushToSupabase(get())
@@ -2531,40 +2577,45 @@ export const useWorkflowStore = create<WorkflowStore>()(
             creatorId: get().currentUserId || "system"
           }
 
-          set((state) => {
-            const taskId = makeId("task")
-            const now = new Date().toISOString()
-            const newTask: Task = {
-              id: taskId,
-              title: requirement.title,
-              description: requirement.description,
-              priority: requirement.priority,
-              status: "todo",
-              assigneeIds: [],
-              createdAt: now,
-              updatedAt: now,
-              timerStartedAt: Date.now(),
-              statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
-              location: requirement.location,
-              area,
-              drawingScene: null,
-              activities: [],
-              requirementId: id,
-              dueLabel: requirement.dueLabel,
-              estimatedHours: requirement.estimatedHours,
-              creatorId: get().currentUserId || "system"
-            }
+          const taskId = makeId("task")
+          const now = new Date().toISOString()
+          const newTask: Task = {
+            id: taskId,
+            title: requirement.title,
+            description: requirement.description,
+            priority: requirement.priority,
+            status: "todo",
+            assigneeIds: [],
+            createdAt: now,
+            updatedAt: now,
+            timerStartedAt: Date.now(),
+            statusDurations: { todo: 0, inProgress: 0, review: 0, done: 0 },
+            location: requirement.location,
+            area,
+            drawingScene: null,
+            activities: [],
+            requirementId: id,
+            dueLabel: requirement.dueLabel,
+            estimatedHours: requirement.estimatedHours,
+            creatorId: get().currentUserId || "system"
+          }
 
+          set((state) => {
             return {
               requirements: [requirement, ...state.requirements],
               tasks: [newTask, ...state.tasks]
             }
           })
 
-          const createdTask = get().tasks.find((task) => task.requirementId === id)
-          if (createdTask) {
-            get().addTaskLog(createdTask.id, "Tarea creada")
-          }
+          get().addTaskLog(taskId, "Tarea creada")
+          get().addNotification({
+            title: "Nuevo Requerimiento",
+            message: `Se ha creado el requerimiento: "${requirement.title}"`,
+            type: "movement",
+            taskId: taskId,
+            userId: get().currentUserId || "system",
+            targetUserId: null
+          })
 
           return id
         },
@@ -3077,6 +3128,70 @@ export const workflowSelectors = {
   },
   getUserZones(user: User | null) {
     return resolveUserZones(user)
+  },
+  getFilteredNotifications(notifications: Notification[], currentUser: User | null, tasks: Task[]) {
+    if (!currentUser) return []
+    
+    return notifications.filter((n) => {
+      // Admin: All
+      if (currentUser.role === "administrador") return true
+      
+      // Empleado:
+      if (currentUser.role === "empleado") {
+        if (n.targetUserId === currentUser.id) return true
+        if (n.userId === currentUser.id) return true
+        
+        if (n.taskId) {
+          const task = tasks.find((t) => t.id === n.taskId)
+          if (task) {
+            if (isUserInvolvedInTask(task, currentUser)) return true
+          }
+        }
+        return false
+      }
+      
+      // Gerente:
+      if (currentUser.role === "gerente") {
+        // 1. Creaciones, comentarios, evidencia
+        const isCreation = n.title === "Nueva Tarea" || n.title === "Nuevo Requerimiento" || n.title === "Tarea creada"
+        const isComment = n.type === "message" || n.title === "Nuevo Comentario"
+        const isEvidence = n.type === "alert" || n.title === "Nueva Evidencia" || n.title === "Alerta de Seguridad Crítica"
+        
+        if (isCreation || isComment || isEvidence) {
+          // If task exists, verify zone/area relevance
+          if (n.taskId) {
+            const task = tasks.find((t) => t.id === n.taskId)
+            if (task) {
+              if (currentUser.showAllZones) return true
+              const userZones = currentUser.zones ?? (currentUser.zone ? [currentUser.zone] : [])
+              const userAreas = currentUser.areas ?? []
+              const taskArea = task.area ?? "Operacion"
+              
+              const isInMyZone = !task.location || userZones.includes(task.location)
+              const isInMyArea = userAreas.includes(taskArea) || taskArea === "General"
+              
+              if (isInMyZone && isInMyArea) return true
+              return false
+            }
+          }
+          return true
+        }
+
+        // 2. Lo anterior de empleado (tareas propias, asignaciones directas, sus acciones, tareas donde está inscrito)
+        if (n.targetUserId === currentUser.id) return true
+        if (n.userId === currentUser.id) return true
+        
+        if (n.taskId) {
+          const task = tasks.find((t) => t.id === n.taskId)
+          if (task) {
+            if (isUserInvolvedInTask(task, currentUser)) return true
+          }
+        }
+        return false
+      }
+      
+      return false
+    })
   },
   canManageTask(task: Task | null, user: User | null) {
     return canUserManageTask(user, task)

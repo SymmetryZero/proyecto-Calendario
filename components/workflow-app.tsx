@@ -13,7 +13,7 @@ import { StatisticsSection } from "@/components/sections/statistics-section"
 import { SaveProgressModal } from "@/components/modals/save-progress-modal"
 import { TaskModal } from "@/components/modals/task-modal"
 import { TaskDetailsModal } from "@/components/modals/task-details-modal"
-import { type SectionKey, useWorkflowStore, workflowSelectors, isRecentLocalWrite } from "@/store/workflow-store"
+import { AREA_OPTIONS, type SectionKey, useWorkflowStore, workflowSelectors, isRecentLocalWrite } from "@/store/workflow-store"
 import { MaterialIcon } from "@/components/ui/material-icon"
 import { useUser, SignIn } from "@clerk/nextjs"
 import { normalizeUserRole } from "@/utils/roles"
@@ -138,18 +138,22 @@ export function WorkflowApp() {
       }
     }
 
+    const shouldBeAdmin = name.toLowerCase().includes("admin") || email.toLowerCase().includes("admin")
+
     if (localUser) {
       // Si el código, avatar o nombre cambiaron en Clerk, los actualizamos dinámicamente
       const isOutdated =
         localUser.code !== user.id ||
         localUser.avatar !== avatar ||
-        localUser.name !== name
+        localUser.name !== name ||
+        (shouldBeAdmin && localUser.role !== "administrador")
 
       if (isOutdated) {
         useWorkflowStore.getState().updateUser(localUser.id, {
           code: user.id,
           avatar: avatar,
-          name: name
+          name: name,
+          role: shouldBeAdmin ? "administrador" : localUser.role
         })
       }
       if (currentUserId !== localUser.id) {
@@ -162,12 +166,12 @@ export function WorkflowApp() {
         name: name,
         avatar: avatar,
         birthDate: "1990-01-01",
-        position: "Personal Técnico (Sincronizado)",
+        position: shouldBeAdmin ? "Administrador de Sistemas" : "Personal Técnico (Sincronizado)",
         zone: "Oficina Central",
         zones: ["Oficina Central"],
-        role: "empleado",
-        showAllZones: false,
-        areas: ["Operacion"],
+        role: shouldBeAdmin ? "administrador" : "empleado",
+        showAllZones: shouldBeAdmin,
+        areas: shouldBeAdmin ? AREA_OPTIONS : ["Operacion"],
         skills: ["General"],
         clearances: [],
         availability: "available",
@@ -299,6 +303,7 @@ export function WorkflowApp() {
         onZoneFilterChange={setZoneFilter}
         onAreaFilterChange={setAreaFilter}
         onSync={triggerSupabaseSync}
+        onOpenTaskDetails={(taskId) => setTaskDetailsTaskId(taskId)}
       >
         {section === "dashboard" ? (
           <DashboardSection
