@@ -23,30 +23,30 @@ Ejecuta el trabajo operativo. Puede ver las tareas asignadas o disponibles segú
 2. Inicia sesión con tu cuenta autorizada.
 3. Una vez dentro, verás el tablero principal con las tareas, filtros y accesos a los módulos disponibles según tu rol.
 
-## 4. Registro y edición de usuarios
+## 4. Gestión y edición de usuarios
 
 Este módulo se usa principalmente por administradores.
 
-### 4.1 Registrar un usuario
+**Nota Importante:** El botón para registrar usuarios manualmente ha sido desactivado y ocultado en el sistema para todos los roles, dado que los nuevos usuarios se registran y sincronizan de forma automatizada mediante la integración de autenticación de Clerk al iniciar sesión por primera vez.
 
-1. Entra al módulo de usuarios.
-2. Pulsa el botón Registrar Usuario.
-3. Completa los campos:
-   - Nombre completo
-   - Fecha de nacimiento
-   - Rol en el sistema
-   - Puesto o cargo
-   - Zonas de trabajo
-   - Áreas de trabajo
-   - Fotografía, si es necesario
-4. Guarda los cambios.
+### 4.1 Sincronización automática de usuarios
+
+1. Cuando un nuevo personal inicia sesión a través de la página de acceso autorizada, el sistema crea automáticamente su perfil de usuario local.
+2. Los administradores pueden visualizar estos perfiles en el módulo de usuarios para asignarles sus configuraciones personalizadas.
 
 ### 4.2 Editar un usuario
 
-1. Busca al usuario en la lista.
-2. Presiona Editar.
-3. Actualiza los datos necesarios.
-4. Guarda los cambios.
+1. Busca al usuario en la lista o tablero de perfiles.
+2. Presiona el botón de **Editar** (icono de lápiz).
+3. Completa o actualiza los campos asignados para su operación:
+   - Nombre completo (sincronizado)
+   - Fecha de nacimiento
+   - Rol en el sistema (Administrador, Gerente o Empleado)
+   - Puesto o cargo operativo
+   - Zonas de trabajo (permite asignar múltiples zonas)
+   - Áreas de trabajo (permite definir qué áreas opera)
+   - Fotografía del perfil
+4. Guarda los cambios para que se apliquen inmediatamente en su cuenta.
 
 ### 4.3 Zonas de trabajo
 
