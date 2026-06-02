@@ -48,7 +48,7 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     })
     return Array.from(locationSet).sort((a, b) => a.localeCompare(b))
   }, [tasks, users])
-  const technicians = useMemo(() => users.filter(u => {
+  const allTechnicians = useMemo(() => users.filter(u => {
     const role = normalizeUserRole(u.role)
     return role === "empleado" || role === "gerente"
   }), [users])
@@ -68,6 +68,53 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
   const [dueLabel, setDueLabel] = useState("")
   const [estimatedHours, setEstimatedHours] = useState<number>(1)
 
+  // Filtered technicians based on selected area
+  const filteredTechnicians = useMemo(() => {
+    return allTechnicians.filter(u => {
+      const userAreas = u.areas ?? []
+      return userAreas.includes(area)
+    })
+  }, [allTechnicians, area])
+
+  // Filtered areas based on selected assignee
+  const filteredAreaOptions = useMemo(() => {
+    if (!assigneeId) {
+      return availableAreaOptions
+    }
+    const assignee = users.find((u) => u.id === assigneeId)
+    if (!assignee) {
+      return availableAreaOptions
+    }
+    const userAreas = assignee.areas ?? []
+    return availableAreaOptions.filter((opt) => userAreas.includes(opt))
+  }, [assigneeId, users, availableAreaOptions])
+
+  const handleAreaChange = (newArea: Area) => {
+    setArea(newArea)
+    if (assigneeId) {
+      const assignee = users.find((u) => u.id === assigneeId)
+      if (assignee && !(assignee.areas ?? []).includes(newArea)) {
+        setAssigneeId("")
+      }
+    }
+  }
+
+  const handleAssigneeChange = (newAssigneeId: string) => {
+    setAssigneeId(newAssigneeId)
+    if (newAssigneeId) {
+      const assignee = users.find((u) => u.id === newAssigneeId)
+      if (assignee) {
+        const userAreas = assignee.areas ?? []
+        const validAreas = availableAreaOptions.filter((opt) => userAreas.includes(opt))
+        if (validAreas.length > 0) {
+          if (!validAreas.includes(area)) {
+            setArea(validAreas[0])
+          }
+        }
+      }
+    }
+  }
+
   useEffect(() => {
     if (!open) {
       return
@@ -76,10 +123,14 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
     setTitle("")
     setDescription("")
     setLocation("")
-    setArea(canUseGeneralArea ? "Operacion" : (availableAreaOptions[0] ?? "Operacion"))
+    const defaultArea = canUseGeneralArea ? "Operacion" : (availableAreaOptions[0] ?? "Operacion")
+    setArea(defaultArea)
     setPriority("medium")
     setStatus("todo")
-    setAssigneeId(technicians[0]?.id ?? "")
+    
+    const defaultTechs = allTechnicians.filter(u => (u.areas ?? []).includes(defaultArea))
+    setAssigneeId(defaultTechs[0]?.id ?? "")
+    
     setEstimatedHours(1)
     const now = new Date()
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
@@ -221,10 +272,10 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
             <FieldGroup label="Area">
               <select
                 value={area}
-                onChange={(event) => setArea(event.target.value as Area)}
+                onChange={(event) => handleAreaChange(event.target.value as Area)}
                 className="h-12 w-full rounded-lg border border-outline-variant bg-surface px-3 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
               >
-                {availableAreaOptions.map((option) => (
+                {filteredAreaOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>
@@ -249,11 +300,11 @@ export function TaskModal({ open, onClose }: TaskModalProps) {
             <FieldGroup label="Asignado a">
               <select
                 value={assigneeId}
-                onChange={(event) => setAssigneeId(event.target.value)}
+                onChange={(event) => handleAssigneeChange(event.target.value)}
                 className="h-12 w-full rounded-lg border border-outline-variant bg-surface px-3 outline-none focus:border-tertiary-container focus:ring-1 focus:ring-tertiary-container"
               >
                 <option value="">Sin asignar</option>
-                {technicians.map((technician) => (
+                {filteredTechnicians.map((technician) => (
                   <option key={technician.id} value={technician.id}>
                     {technician.name}
                   </option>
