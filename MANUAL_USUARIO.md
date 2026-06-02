@@ -9,13 +9,13 @@ Este manual explica, paso a paso, cómo usar el sistema desde el registro de usu
 ## 2. Roles del sistema
 
 ### Administrador
-Puede ver toda la información del sistema, crear y editar usuarios, crear tareas, administrar áreas, revisar evidencias y consultar estadísticas.
+Tiene control total del sistema. Puede ver toda la información, registrar, editar y eliminar usuarios, crear y eliminar tareas, administrar áreas y zonas de trabajo, y revisar estadísticas y evidencias globales.
 
 ### Gerente
-Puede crear y administrar tareas, asignar personal, revisar avances, subir o consultar evidencias y supervisar el trabajo de su equipo.
+Supervisa el trabajo de su equipo. Puede crear, administrar y eliminar tareas de su zona/área, asignar personal, revisar avances, consultar y cargar evidencias.
 
 ### Empleado
-Puede ver las tareas asignadas o disponibles según sus permisos, tomar tareas, cambiar su estado, registrar evidencias y consultar la información necesaria para su trabajo.
+Ejecuta el trabajo operativo. Puede ver las tareas asignadas o disponibles según sus áreas permitidas, reclamar tareas disponibles, cambiar su estado y registrar evidencias. **Importante:** Los empleados no tienen permitido eliminar tareas del sistema.
 
 ## 3. Acceso al sistema
 
@@ -113,11 +113,13 @@ Desde el tablero puedes ver las tareas por estado:
 
 ### 6.2 Tomar una tarea
 
-Si una tarea está disponible y puedes trabajarla:
+Si una tarea está disponible en tus áreas y no tiene personal asignado, puedes reclamarla:
 
 1. Abre la tarea.
-2. Presiona Tomar tarea.
+2. Presiona **Tomar tarea**.
 3. La tarea quedará asignada a ti.
+
+*Nota:* Si la tarea ya está asignada a ti, el botón **Tomar tarea** se ocultará automáticamente para evitar redundancias.
 
 ### 6.3 Cambiar estado
 
@@ -134,6 +136,16 @@ Si una tarea necesita revisión o apoyo de otra área:
 4. Si hace falta, asigna una persona específica.
 5. Agrega una explicación.
 6. Confirma.
+
+### 6.5 Eliminar una tarea
+
+La eliminación de tareas está estrictamente reservada para administradores y gerentes:
+
+1. En la tarjeta de la tarea en el tablero, presiona el icono de la papelera (**Eliminar**).
+2. Se abrirá una ventana de confirmación.
+3. Confirma la acción. La tarea y sus elementos asociados se eliminarán permanentemente del tablero.
+
+*Nota:* Si eres Empleado, el botón de eliminar no aparecerá en tus tarjetas para garantizar la integridad de los flujos de trabajo.
 
 ## 7. Evidencias
 
@@ -219,11 +231,29 @@ Sirve para revisar:
 - Evidencias registradas
 - Actividad general
 
-## 13. Configuración
+## 13. Centro de Alertas y Notificaciones
+
+El Centro de Alertas es una barra superior interactiva (con un ícono de campana) que notifica en tiempo real sobre los movimientos y eventos importantes de las tareas.
+
+### 13.1 Distribución inteligente de alertas por rol
+
+Para evitar la sobrecarga de notificaciones irrelevantes, el sistema filtra dinámicamente las alertas según el rol del usuario:
+
+- **Administradores**: Reciben absolutamente todas las alertas generadas en la aplicación (creaciones, comentarios, evidencias, movimientos y borrados de tareas).
+- **Gerentes**: Reciben notificaciones de creaciones de tareas, comentarios, evidencias subidas y tareas eliminadas, siempre y cuando la tarea pertenezca a su zona y área de trabajo supervisada.
+- **Empleados**: Reciben alertas únicamente de los cambios de estado, comentarios, evidencias y borrados correspondientes a las tareas en las que están **directamente involucrados** (ya sea porque las crearon, están asignadas a ellos, fueron parte del historial de comentarios/evidencias o participaron en su escalación).
+
+### 13.2 Funciones de Alertas
+
+- **Burbuja de conteo móvil y de escritorio**: Muestra en tiempo real la cantidad de alertas no leídas.
+- **Navegación al detalle**: Al hacer clic en cualquier alerta vinculada a una tarea, el sistema marcará la alerta como leída, cerrará el Centro de Alertas y abrirá automáticamente el Modal de Detalle e Historial de la Tarea.
+- **Limpieza local**: Puedes presionar el botón **Limpiar Todo** al final del panel de alertas. Esto marcará todas tus notificaciones como leídas localmente, ocultándolas de tu Centro de Alertas de forma instantánea sin borrarlas del servidor de Supabase, manteniendo así el historial íntegro.
+
+## 14. Configuración
 
 Desde configuración puedes revisar opciones relacionadas con la sesión, visibilidad y comportamiento general del sistema.
 
-## 14. Uso en celular
+## 15. Uso en celular
 
 La aplicación está pensada para funcionar en móvil.
 
@@ -234,7 +264,7 @@ Recomendaciones:
 - Revisa los campos antes de guardar
 - Si un campo tiene sugerencias, aprovecha la lista para escribir más rápido
 
-## 15. Recomendaciones de uso
+## 16. Recomendaciones de uso
 
 - Mantén actualizados los datos del usuario.
 - Usa nombres claros para tareas y evidencias.
@@ -242,11 +272,11 @@ Recomendaciones:
 - Carga evidencias al terminar el trabajo.
 - Si una tarea requiere otro departamento, escálala en lugar de duplicarla.
 
-## 16. Problemas frecuentes
+## 17. Problemas frecuentes
 
 ### No veo todas las tareas
 
-Puede deberse a tu rol, zona o áreas asignadas.
+Puede deberse a tu rol, zona o áreas asignadas. Los administradores ven todo de forma global, mientras que los gerentes y empleados están limitados a las áreas y zonas especificadas en su perfil.
 
 ### No puedo crear una tarea en General
 
@@ -260,7 +290,15 @@ Revisa si tienes permiso sobre esa tarea y si el archivo es válido.
 
 Desliza dentro del modal para llegar a los botones finales.
 
-## 17. Cierre
+### No veo el botón para eliminar una tarea
+
+El botón de eliminación (icono de papelera) está estrictamente oculto para empleados. Si necesitas eliminar una tarea, debes solicitarlo a un gerente o administrador.
+
+### No veo el botón de "Tomar tarea"
+
+Si la tarea ya está asignada a ti (eres el técnico responsable de ella), el botón de tomar tarea no se mostrará para evitar redundancias.
+
+## 18. Cierre
 
 Servimeci App centraliza usuarios, tareas, evidencias y seguimiento operativo en un solo sistema.
 Para un mejor uso, mantén la información completa y ordenada en cada registro.
