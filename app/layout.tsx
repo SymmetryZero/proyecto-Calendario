@@ -1,75 +1,29 @@
-import type { Metadata, Viewport } from "next"
-import { Inter, JetBrains_Mono } from "next/font/google"
-import type { ReactNode } from "react"
-import "./globals.css"
-import { ClerkProvider } from "@clerk/nextjs"
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+import { Toaster } from '@/components/ui/toaster'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter"
-})
-
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono"
-})
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: "Servimeci App",
-  description: "Servimeci App"
-}
-
-export const viewport: Viewport = {
-  themeColor: "#172839",
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover"
+  title: 'Workflow Pro',
+  description: 'Sistema de Gestión de Actividades Laborales',
 }
 
 export default function RootLayout({
-  children
+  children,
 }: Readonly<{
-  children: ReactNode
+  children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider>
-      <html
-        lang="es-MX"
-        className={`${inter.variable} ${jetBrainsMono.variable}`}
-        suppressHydrationWarning
-      >
-        <head />
-        <body className="bg-background text-on-background antialiased">
-          {process.env.NODE_ENV !== "production" ? (
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `
-                try {
-                  if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                      registrations.forEach(function(registration) {
-                        registration.unregister();
-                      });
-                    });
-                  }
-
-                  if ('caches' in window) {
-                    caches.keys().then(function(keys) {
-                      keys.forEach(function(key) {
-                        caches.delete(key);
-                      });
-                    });
-                  }
-                } catch (error) {
-                  console.warn('No se pudo limpiar la caché PWA en desarrollo.', error);
-                }
-              `
-              }}
-            />
-          ) : null}
+    <html lang="es" suppressHydrationWarning>
+      <body className={inter.className}>
+        <TooltipProvider>
           {children}
-        </body>
-      </html>
-    </ClerkProvider>
+        </TooltipProvider>
+        <Toaster />
+      </body>
+    </html>
   )
 }

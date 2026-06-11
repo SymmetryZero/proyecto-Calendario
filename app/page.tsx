@@ -1,5 +1,5 @@
-import { WorkflowApp } from "@/components/workflow-app"
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <WorkflowApp />
+export default function Home() {
+  redirect("/dashboard");
 }

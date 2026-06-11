@@ -3,145 +3,78 @@ import type { Config } from "tailwindcss"
 const config: Config = {
   darkMode: ["class"],
   content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./store/**/*.{ts,tsx}",
-    "./utils/**/*.{ts,tsx}"
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
   ],
+  prefix: "",
   theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
     extend: {
       colors: {
-        "secondary-fixed-dim": "#ffb961",
-        "inverse-surface": "#2d3131",
-        "on-primary-fixed-variant": "#37485b",
-        "on-tertiary-container": "#51aef3",
-        "surface-bright": "#f7faf9",
-        "primary-fixed-dim": "#b6c8df",
-        "surface-tint": "#4f6073",
-        "on-secondary-fixed-variant": "#663e00",
-        background: "#f7faf9",
-        outline: "#74777d",
-        "on-tertiary-fixed": "#001d31",
-        error: "#ba1a1a",
-        "surface-variant": "#e0e3e2",
-        "surface-container-high": "#e6e9e8",
-        "secondary-container": "#fea520",
-        "on-primary": "#ffffff",
-        "on-secondary-container": "#694000",
-        "on-primary-fixed": "#0a1d2d",
-        "surface-container-low": "#f1f4f3",
-        "outline-variant": "#c4c6cd",
-        "on-background": "#181c1c",
-        "surface-container": "#ebeeed",
-        "secondary-fixed": "#ffddb9",
-        "inverse-primary": "#b6c8df",
-        "tertiary-fixed": "#cce5ff",
-        "tertiary-container": "#004064",
-        "on-surface": "#181c1c",
-        "on-secondary": "#ffffff",
-        "surface-dim": "#d7dbda",
-        "error-container": "#ffdad6",
-        "primary-fixed": "#d2e4fb",
-        "primary-container": "#2d3e50",
-        "on-tertiary-fixed-variant": "#004b73",
-        "on-error": "#ffffff",
-        "inverse-on-surface": "#eef1f0",
-        primary: "#172839",
-        "on-secondary-fixed": "#2b1700",
-        "surface-container-highest": "#e0e3e2",
-        "on-surface-variant": "#43474c",
-        "tertiary-fixed-dim": "#92ccff",
-        secondary: "#865300",
-        "surface-container-lowest": "#ffffff",
-        "on-tertiary": "#ffffff",
-        tertiary: "#002942",
-        "on-primary-container": "#97a9be",
-        surface: "#f7faf9",
-        "on-error-container": "#93000a"
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
       },
       borderRadius: {
-        DEFAULT: "0.125rem",
-        lg: "0.25rem",
-        xl: "0.5rem",
-        full: "0.75rem"
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
-      spacing: {
-        "touch-target-min": "48px",
-        gutter: "1.5rem",
-        "stack-sm": "0.5rem",
-        "margin-edge": "2rem",
-        "stack-lg": "2rem",
-        "stack-md": "1rem"
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
       },
-      fontFamily: {
-        "title-sm": ["Inter", "sans-serif"],
-        "data-mono": ["JetBrains Mono", "monospace"],
-        "label-caps": ["Inter", "sans-serif"],
-        "headline-md": ["Inter", "sans-serif"],
-        "body-md": ["Inter", "sans-serif"],
-        "display-lg": ["Inter", "sans-serif"],
-        "body-sm": ["Inter", "sans-serif"]
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
       },
-      fontSize: {
-        "title-sm": [
-          "18px",
-          {
-            lineHeight: "24px",
-            fontWeight: "600"
-          }
-        ],
-        "data-mono": [
-          "14px",
-          {
-            lineHeight: "20px",
-            fontWeight: "500"
-          }
-        ],
-        "label-caps": [
-          "12px",
-          {
-            lineHeight: "16px",
-            letterSpacing: "0.05em",
-            fontWeight: "700"
-          }
-        ],
-        "headline-md": [
-          "24px",
-          {
-            lineHeight: "32px",
-            fontWeight: "600"
-          }
-        ],
-        "body-md": [
-          "16px",
-          {
-            lineHeight: "24px",
-            fontWeight: "400"
-          }
-        ],
-        "display-lg": [
-          "32px",
-          {
-            lineHeight: "40px",
-            letterSpacing: "-0.02em",
-            fontWeight: "700"
-          }
-        ],
-        "body-sm": [
-          "14px",
-          {
-            lineHeight: "20px",
-            fontWeight: "400"
-          }
-        ]
-      },
-      boxShadow: {
-        soft: "0 2px 4px rgba(23, 40, 57, 0.1)",
-        panel: "0 8px 30px rgba(0, 0, 0, 0.12)"
-      }
-    }
+    },
   },
-  plugins: []
+  plugins: [require("tailwindcss-animate")],
 }
 
 export default config
