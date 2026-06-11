@@ -61,8 +61,8 @@ export function PlanningForm({
           className="resize-none"
         />
       </div>
-      <div className="flex items-end justify-between">
-        <div className="grid gap-2 w-[200px]">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-4">
+        <div className="grid gap-2 w-full sm:w-[200px]">
           <Label>Prioridad del Día</Label>
           <Select value={priority} onValueChange={setPriority} disabled={isFinished}>
             <SelectTrigger>
@@ -76,7 +76,7 @@ export function PlanningForm({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleSave} disabled={saving || isFinished}>
+        <Button onClick={handleSave} disabled={saving || isFinished} className="w-full sm:w-auto">
           {saving ? 'Guardando...' : 'Guardar Planeación'}
         </Button>
       </div>

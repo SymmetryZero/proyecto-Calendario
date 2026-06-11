@@ -101,19 +101,19 @@ export default async function DailyLogPage({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/calendar">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start md:items-center gap-4">
+          <Link href="/dashboard/calendar" className="shrink-0 mt-1 md:mt-0">
             <Button variant="outline" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight capitalize">{formattedDate}</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight capitalize leading-tight">{formattedDate}</h1>
+            <p className="text-muted-foreground text-sm md:text-base mt-1">
               {log.calendario_profiles.full_name} • Inicio: {log.start_time || '--:--'}
             </p>
           </div>
         </div>
-        <div>
+        <div className="w-full md:w-auto">
           <StatusSelector logId={log.id} initialStatus={log.status} />
         </div>
       </div>
