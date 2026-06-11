@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { addProgressUpdate } from '@/app/actions/bitacora'
+import { addProgressUpdate, deleteProgressUpdate } from '@/app/actions/bitacora'
 import { useToast } from '@/hooks/use-toast'
 import { format } from 'date-fns'
+import { Trash2 } from 'lucide-react'
 
 type Update = {
   id: string
@@ -17,11 +18,13 @@ type Update = {
 export function UpdatesList({ 
   logId, 
   initialUpdates,
-  isFinished
+  isFinished,
+  isAdmin
 }: { 
   logId: string, 
   initialUpdates: Update[],
-  isFinished: boolean
+  isFinished: boolean,
+  isAdmin?: boolean
 }) {
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
@@ -34,11 +37,20 @@ export function UpdatesList({
       await addProgressUpdate(logId, comment)
       setComment('')
       toast({ title: "Actualización agregada" })
-      // Next.js revalidatePath will refresh the list automatically
     } catch (e) {
-      toast({ title: "Error", description: "No se pudo agregar la actualización.", variant: "destructive" })
+      toast({ title: "Error", description: "No se pudo agregar.", variant: "destructive" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este avance?')) return
+    try {
+      await deleteProgressUpdate(id)
+      toast({ title: "Avance eliminado" })
+    } catch (e) {
+      toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" })
     }
   }
 
@@ -49,12 +61,21 @@ export function UpdatesList({
           <p className="text-sm text-muted-foreground text-center py-4">No hay actualizaciones aún.</p>
         ) : (
           initialUpdates.map(u => (
-            <div key={u.id} className="bg-muted/50 p-3 rounded-lg text-sm border">
-              <p>{u.comment}</p>
+            <div key={u.id} className="bg-muted/50 p-3 rounded-lg text-sm border group relative">
+              <p className="pr-6">{u.comment}</p>
               <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                 <span>{u.calendario_profiles?.full_name}</span>
                 <span>{format(new Date(u.created_at), 'HH:mm')}</span>
               </div>
+              {isAdmin && (
+                <button 
+                  onClick={() => handleDelete(u.id)}
+                  className="absolute top-2 right-2 p-1 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Eliminar avance"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           ))
         )}

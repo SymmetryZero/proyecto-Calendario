@@ -12,6 +12,8 @@ import { PlanningForm } from '@/components/bitacora/planning-form'
 import { UpdatesList } from '@/components/bitacora/updates-list'
 import { Chat } from '@/components/bitacora/chat'
 import { getSession } from '@/lib/auth/session'
+import { deleteWorkLog } from '@/app/actions/bitacora'
+import { Trash2 } from 'lucide-react'
 
 export default async function DailyLogPage({ 
   params,
@@ -33,7 +35,8 @@ export default async function DailyLogPage({
 
   const supabase = await createClient()
 
-  const targetUserId = (session.role !== 'employee' && employeeId) ? employeeId : session.userId
+  // Cualquier usuario puede ver la bitácora de otro mediante employeeId
+  const targetUserId = employeeId ? employeeId : session.userId
 
   const { data: log } = await supabase
     .from('calendario_work_logs')
@@ -113,8 +116,18 @@ export default async function DailyLogPage({
             </p>
           </div>
         </div>
-        <div className="w-full md:w-auto">
+        <div className="w-full md:w-auto flex items-center gap-2">
           <StatusSelector logId={log.id} initialStatus={log.status} />
+          {session.role === 'admin' && (
+            <form action={async () => {
+              'use server'
+              await deleteWorkLog(log.id)
+            }}>
+              <Button variant="destructive" size="icon" type="submit" title="Eliminar Bitácora">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </form>
+          )}
         </div>
       </div>
 
@@ -147,6 +160,7 @@ export default async function DailyLogPage({
                 logId={log.id} 
                 initialUpdates={updates as any || []} 
                 isFinished={log.status === 'Finalizó actividades'}
+                isAdmin={session.role === 'admin'}
               />
             </CardContent>
           </Card>

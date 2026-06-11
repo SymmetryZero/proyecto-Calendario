@@ -26,9 +26,8 @@ export default async function CalendarPage() {
     .gte('date', startYearDate)
     .lte('date', endYearDate)
 
-  if (session.role === 'employee') {
-    query = query.eq('employee_id', session.userId)
-  }
+  // Todos pueden ver todas las bitácoras para colaborar
+  // La consulta trae las bitácoras de todos los usuarios
 
   const { data: logs } = await query
 

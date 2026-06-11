@@ -66,6 +66,11 @@ export default async function DashboardLayout({
                   Empleados
                 </Link>
               )}
+              {isAdmin && (
+                <Link href="/dashboard/audit" className="hover:text-foreground text-muted-foreground py-2">
+                  Auditoría
+                </Link>
+              )}
             </nav>
           </SheetContent>
         </Sheet>
@@ -129,6 +134,15 @@ export default async function DashboardLayout({
                   Directorio
                 </Link>
               </>
+            )}
+            {isAdmin && (
+              <Link
+                href="/dashboard/audit"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <CheckSquare className="h-4 w-4" />
+                Auditoría
+              </Link>
             )}
           </nav>
         </aside>
