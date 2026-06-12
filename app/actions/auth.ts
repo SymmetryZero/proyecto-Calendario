@@ -1,8 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createSession, logout } from '@/lib/auth/session'
+import { createSession, logout, getSession } from '@/lib/auth/session'
 import bcrypt from 'bcryptjs'
+import { revalidatePath } from 'next/cache'
 
 export async function loginAction(email: string, password: string) {
   const supabase = await createClient()
@@ -70,4 +71,74 @@ export async function registerAction(email: string, password: string, fullName: 
 
 export async function logoutAction() {
   await logout()
+}
+
+export async function updateProfileAction(userId: string, fullName: string, password?: string) {
+  const session = await getSession()
+  if (!session || (session.userId !== userId && session.role !== 'admin')) {
+    throw new Error('No autorizado')
+  }
+
+  const supabase = await createClient()
+  
+  const updates: any = { full_name: fullName }
+  if (password && password.trim() !== '') {
+    const salt = await bcrypt.genSalt(10)
+    updates.password_hash = await bcrypt.hash(password, salt)
+  }
+
+  const { error } = await supabase
+    .from('calendario_profiles')
+    .update(updates)
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard', 'layout')
+  return { success: true }
+}
+
+export async function adminUpdateUser(userId: string, fullName: string, role: string, password?: string) {
+  const session = await getSession()
+  if (!session || (session.role !== 'admin' && session.role !== 'supervisor')) {
+    throw new Error('No autorizado')
+  }
+
+  const supabase = await createClient()
+  
+  const updates: any = { full_name: fullName, role: role }
+  if (password && password.trim() !== '') {
+    const salt = await bcrypt.genSalt(10)
+    updates.password_hash = await bcrypt.hash(password, salt)
+  }
+
+  const { error } = await supabase
+    .from('calendario_profiles')
+    .update(updates)
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/users')
+  return { success: true }
+}
+
+export async function adminDeleteUser(userId: string) {
+  const session = await getSession()
+  if (!session || (session.role !== 'admin' && session.role !== 'supervisor')) {
+    throw new Error('No autorizado')
+  }
+
+  const supabase = await createClient()
+  
+  // Borrado en cascada gracias a las llaves foráneas en BD
+  const { error } = await supabase
+    .from('calendario_profiles')
+    .delete()
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/dashboard/users')
+  return { success: true }
 }

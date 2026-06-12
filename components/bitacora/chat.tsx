@@ -63,11 +63,12 @@ export function Chat({ logId, currentUserId }: { logId: string, currentUserId: s
     const messageToSend = newMessage
     setNewMessage('')
 
-    await supabase.from('calendario_chat_messages').insert({
-      work_log_id: logId,
-      sender_id: currentUserId,
-      content: messageToSend
-    })
+    try {
+      const { sendChatMessage } = await import('@/app/actions/bitacora')
+      await sendChatMessage(logId, messageToSend)
+    } catch (error) {
+      console.error("Error sending message:", error)
+    }
   }
 
   return (

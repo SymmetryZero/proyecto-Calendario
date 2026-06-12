@@ -13,13 +13,15 @@ export function PlanningForm({
   initialPlanned, 
   initialObjectives, 
   initialPriority,
-  isFinished
+  isFinished,
+  isAdmin
 }: { 
   logId: string, 
   initialPlanned: string, 
   initialObjectives: string, 
   initialPriority: string,
-  isFinished: boolean
+  isFinished: boolean,
+  isAdmin: boolean
 }) {
   const [planned, setPlanned] = useState(initialPlanned || '')
   const [objectives, setObjectives] = useState(initialObjectives || '')
@@ -47,7 +49,7 @@ export function PlanningForm({
           placeholder="Ej: Visitar a 3 clientes, reparar equipo X..." 
           value={planned}
           onChange={(e) => setPlanned(e.target.value)}
-          disabled={isFinished}
+          disabled={!isAdmin && isFinished}
           className="resize-none"
         />
       </div>
@@ -57,14 +59,14 @@ export function PlanningForm({
           placeholder="Ej: Cerrar 2 ventas, terminar instalación." 
           value={objectives}
           onChange={(e) => setObjectives(e.target.value)}
-          disabled={isFinished}
+          disabled={!isAdmin && isFinished}
           className="resize-none"
         />
       </div>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-4">
         <div className="grid gap-2 w-full sm:w-[200px]">
           <Label>Prioridad del Día</Label>
-          <Select value={priority} onValueChange={setPriority} disabled={isFinished}>
+          <Select value={priority} onValueChange={setPriority} disabled={!isAdmin && isFinished}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -76,8 +78,8 @@ export function PlanningForm({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleSave} disabled={saving || isFinished} className="w-full sm:w-auto">
-          {saving ? 'Guardando...' : 'Guardar Planeación'}
+        <Button onClick={handleSave} disabled={saving || (!isAdmin && isFinished)} className="w-full sm:w-auto">
+          {saving ? 'Guardando...' : 'Guardar'}
         </Button>
       </div>
     </div>

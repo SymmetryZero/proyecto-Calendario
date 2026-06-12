@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 
 const STATUSES = ['Trabajando', 'En pausa', 'En traslado', 'En reunión', 'Finalizó actividades']
 
-export function StatusSelector({ logId, initialStatus }: { logId: string, initialStatus: string }) {
+export function StatusSelector({ logId, initialStatus, isOwner }: { logId: string, initialStatus: string, isOwner: boolean }) {
   const [status, setStatus] = useState(initialStatus)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
@@ -40,7 +40,7 @@ export function StatusSelector({ logId, initialStatus }: { logId: string, initia
   }
 
   return (
-    <Select value={status} onValueChange={handleChange} disabled={loading || initialStatus === 'Finalizó actividades'}>
+    <Select value={status} onValueChange={handleChange} disabled={!isOwner || loading || initialStatus === 'Finalizó actividades'}>
       <SelectTrigger className="w-[200px] border-primary/20 bg-primary/5 font-medium text-primary">
         <SelectValue placeholder="Selecciona un estado" />
       </SelectTrigger>

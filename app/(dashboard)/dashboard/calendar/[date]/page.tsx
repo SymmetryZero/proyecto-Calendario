@@ -8,6 +8,7 @@ import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { StatusSelector } from '@/components/bitacora/status-selector'
+import { TitleEditor } from '@/components/bitacora/title-editor'
 import { PlanningForm } from '@/components/bitacora/planning-form'
 import { UpdatesList } from '@/components/bitacora/updates-list'
 import { Chat } from '@/components/bitacora/chat'
@@ -20,10 +21,10 @@ export default async function DailyLogPage({
   searchParams
 }: { 
   params: Promise<{ date: string }>,
-  searchParams: Promise<{ employeeId?: string }>
+  searchParams: Promise<{ logId?: string }>
 }) {
   const { date: dateStr } = await params
-  const { employeeId } = await searchParams
+  const { logId } = await searchParams
   
   // Validar formato YYYY-MM-DD
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -35,18 +36,19 @@ export default async function DailyLogPage({
 
   const supabase = await createClient()
 
-  // Cualquier usuario puede ver la bitácora de otro mediante employeeId
-  const targetUserId = employeeId ? employeeId : session.userId
+  let log: any = null
 
-  const { data: log } = await supabase
-    .from('calendario_work_logs')
-    .select(`
-      *,
-      calendario_profiles (full_name)
-    `)
-    .eq('employee_id', targetUserId)
-    .eq('date', dateStr)
-    .single()
+  if (logId) {
+    const { data } = await supabase
+      .from('calendario_work_logs')
+      .select(`
+        *,
+        calendario_profiles (full_name)
+      `)
+      .eq('id', logId)
+      .single()
+    log = data
+  }
 
   const { data: updates } = await supabase
     .from('calendario_work_updates')
@@ -60,6 +62,7 @@ export default async function DailyLogPage({
     .order('created_at', { ascending: true })
 
   const formattedDate = format(parseISO(dateStr), "EEEE, d 'de' MMMM yyyy", { locale: es })
+  const isPastDate = dateStr < new Date().toLocaleDateString('en-CA')
 
   if (!log) {
     return (
@@ -79,21 +82,54 @@ export default async function DailyLogPage({
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-semibold">No hay registro para este día</h3>
+              <h3 className="text-lg font-semibold">No hay registro seleccionado</h3>
               <p className="text-muted-foreground max-w-sm mt-1">
-                Para comenzar a reportar tus actividades, evidencias y estado, inicia tu día de trabajo.
+                Para comenzar a reportar tus actividades y evidencias, añade una nueva tarea.
               </p>
             </div>
-            {session.role === 'employee' ? (
-              <form action={async () => {
+            {session.role === 'employee' && !isPastDate ? (
+              <form action={async (formData) => {
                 'use server'
-                await startWorkDay(dateStr)
-              }}>
-                <Button size="lg" className="mt-4">Comenzar Día Laboral</Button>
+                const { createTask } = await import('@/app/actions/bitacora')
+                const res = await createTask(dateStr, formData)
+                if (res.success && res.logId) {
+                  redirect(`/dashboard/calendar/${dateStr}?logId=${res.logId}`)
+                }
+              }} className="mt-4 flex flex-col items-center gap-3 w-full max-w-xs">
+                <input 
+                  type="text" 
+                  name="title" 
+                  placeholder="Nombre de la tarea" 
+                  required 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <Button size="lg" className="w-full">Añadir registro</Button>
+              </form>
+            ) : session.role === 'employee' && isPastDate ? (
+              <div className="mt-4 text-sm text-muted-foreground text-center">
+                No puedes crear tareas en días pasados.
+              </div>
+            ) : session.role === 'admin' ? (
+              <form action={async (formData) => {
+                'use server'
+                const { createTask } = await import('@/app/actions/bitacora')
+                const res = await createTask(dateStr, formData)
+                if (res.success && res.logId) {
+                  redirect(`/dashboard/calendar/${dateStr}?logId=${res.logId}`)
+                }
+              }} className="mt-4 flex flex-col items-center gap-3 w-full max-w-xs">
+                <input 
+                  type="text" 
+                  name="title" 
+                  placeholder="Nombre de la tarea" 
+                  required 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <Button size="lg" className="w-full">Añadir tarea como Admin</Button>
               </form>
             ) : (
               <div className="mt-4 text-sm text-muted-foreground">
-                El empleado seleccionado no registró actividades este día.
+                No has seleccionado ninguna tarea.
               </div>
             )}
           </CardContent>
@@ -106,18 +142,24 @@ export default async function DailyLogPage({
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start md:items-center gap-4">
-          <Link href="/dashboard/calendar" className="shrink-0 mt-1 md:mt-0">
-            <Button variant="outline" size="icon"><ChevronLeft className="h-4 w-4" /></Button>
-          </Link>
+          <Button variant="outline" size="icon" asChild className="shrink-0 mt-1 md:mt-0">
+            <Link href="/dashboard/calendar"><ChevronLeft className="h-4 w-4" /></Link>
+          </Button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight capitalize leading-tight">{formattedDate}</h1>
-            <p className="text-muted-foreground text-sm md:text-base mt-1">
-              {log.calendario_profiles.full_name} • Inicio: {log.start_time || '--:--'}
+            {session.role === 'admin' ? (
+              <TitleEditor logId={log.id} initialTitle={log.title || 'Nueva Tarea'} />
+            ) : (
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight capitalize leading-tight">
+                {log.title || 'Nueva Tarea'}
+              </h1>
+            )}
+            <p className="text-sm text-muted-foreground mt-1">
+              {log.calendario_profiles?.full_name} &bull; Fecha: {formattedDate} &bull; Inicio: {log.start_time || '--:--'}
             </p>
           </div>
         </div>
-        <div className="w-full md:w-auto flex items-center gap-2">
-          <StatusSelector logId={log.id} initialStatus={log.status} />
+        <div className="flex items-center gap-2">
+          <StatusSelector logId={log.id} initialStatus={log.status} isOwner={session.userId === log.employee_id} />
           {session.role === 'admin' && (
             <form action={async () => {
               'use server'
@@ -142,10 +184,11 @@ export default async function DailyLogPage({
             <CardContent>
               <PlanningForm 
                 logId={log.id}
-                initialPlanned={log.planned_activities}
-                initialObjectives={log.objectives}
-                initialPriority={log.priority}
+                initialPlanned={log.planned_activities || ''}
+                initialObjectives={log.objectives || ''}
+                initialPriority={log.priority || 'Media'}
                 isFinished={log.status === 'Finalizó actividades'}
+                isAdmin={session.role === 'admin'}
               />
             </CardContent>
           </Card>

@@ -19,20 +19,31 @@ import {
 import { es } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 type WorkLog = {
   id: string
   date: string
+  title?: string
   status: string
   employee_id: string
   calendario_profiles?: { full_name: string }
 }
 
-export function CalendarView({ initialLogs }: { initialLogs: WorkLog[] }) {
+export function CalendarView({ 
+  initialLogs,
+  currentUserRole = 'employee',
+  currentUserId = ''
+}: { 
+  initialLogs: WorkLog[],
+  currentUserRole?: string,
+  currentUserId?: string
+}) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month')
+  const [selectedDayLogs, setSelectedDayLogs] = useState<{ day: Date, logs: WorkLog[] } | null>(null)
   const router = useRouter()
 
   const handlePrev = () => {
@@ -43,15 +54,7 @@ export function CalendarView({ initialLogs }: { initialLogs: WorkLog[] }) {
     setCurrentDate(prev => viewMode === 'month' ? addMonths(prev, 1) : addWeeks(prev, 1))
   }
 
-  const handleDayClick = (day: Date, employeeId?: string) => {
-    const formattedDate = format(day, 'yyyy-MM-dd')
-    if (employeeId) {
-      router.push(`/dashboard/calendar/${formattedDate}?employeeId=${employeeId}`)
-    } else {
-      router.push(`/dashboard/calendar/${formattedDate}`)
-    }
-  }
-
+  // Ya no usamos handleDayClick directamente, usamos el modal
   // Calcular el rango de días a mostrar según el modo
   let startDate: Date
   let endDate: Date
@@ -138,14 +141,12 @@ export function CalendarView({ initialLogs }: { initialLogs: WorkLog[] }) {
             <div
               key={day.toISOString()}
               onClick={() => {
-                if (dayLogs.length === 0) handleDayClick(day)
-                else if (dayLogs.length === 1) handleDayClick(day, dayLogs[0].employee_id)
+                setSelectedDayLogs({ day, logs: dayLogs })
               }}
               className={cn(
-                "min-h-[120px] p-2 border-r border-b transition-colors flex flex-col",
+                "min-h-[120px] p-2 border-r border-b transition-colors flex flex-col cursor-pointer hover:bg-muted/50",
                 !isCurrentMonth && "bg-muted/20 text-muted-foreground",
-                idx % 7 === 6 && "border-r-0",
-                dayLogs.length <= 1 ? "cursor-pointer hover:bg-muted/50" : ""
+                idx % 7 === 6 && "border-r-0"
               )}
             >
               <div className="flex items-center justify-between">
@@ -160,24 +161,20 @@ export function CalendarView({ initialLogs }: { initialLogs: WorkLog[] }) {
                 {dayLogs.map(log => (
                   <div 
                     key={log.id} 
-                    onClick={(e) => {
-                      if (dayLogs.length > 1) {
-                        e.stopPropagation()
-                        handleDayClick(day, log.employee_id)
-                      }
-                    }}
                     className={cn(
-                      "text-[10px] px-1.5 py-1 rounded text-white font-medium truncate cursor-pointer hover:opacity-80 transition-opacity", 
+                      "text-[10px] px-1.5 py-1 rounded text-white font-medium truncate", 
                       getUserColor(log.employee_id)
                     )}
-                    title={`${log.calendario_profiles?.full_name}: ${log.status}`}
+                    title={`${log.title ? log.title + ' - ' : ''}${log.calendario_profiles?.full_name}: ${log.status}`}
                   >
-                    {log.calendario_profiles?.full_name ? `${log.calendario_profiles.full_name.split(' ')[0]}: ` : ''}
+                    {log.title ? <span className="font-bold">{log.title}</span> : ''}
+                    {log.title ? ' - ' : ''}
+                    {log.calendario_profiles?.full_name ? `${log.calendario_profiles.full_name.split(' ')[0]} - ` : ''}
                     {log.status}
                   </div>
                 ))}
                 {dayLogs.length === 0 && isCurrentMonth && day <= new Date() && (
-                  <div className="text-xs text-muted-foreground italic px-1 cursor-pointer" onClick={() => handleDayClick(day)}>
+                  <div className="text-xs text-muted-foreground italic px-1">
                     Sin registro
                   </div>
                 )}
@@ -188,6 +185,53 @@ export function CalendarView({ initialLogs }: { initialLogs: WorkLog[] }) {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!selectedDayLogs} onOpenChange={(open) => !open && setSelectedDayLogs(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Actividades del {selectedDayLogs ? format(selectedDayLogs.day, "d 'de' MMMM", { locale: es }) : ''}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4 max-h-[60vh] overflow-y-auto pr-2">
+            {selectedDayLogs?.logs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nadie ha registrado actividades este día.</p>
+            ) : (
+              selectedDayLogs?.logs.map(log => (
+                <div key={log.id} className="flex items-center justify-between p-3 rounded-lg border bg-card shadow-sm">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className={cn("w-3 h-3 rounded-full flex-shrink-0", getUserColor(log.employee_id))} />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{log.title || 'Sin Título'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{log.calendario_profiles?.full_name} • {log.status}</p>
+                    </div>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={() => router.push(`/dashboard/calendar/${format(selectedDayLogs.day, 'yyyy-MM-dd')}?logId=${log.id}`)}>
+                    Ver
+                  </Button>
+                </div>
+              ))
+            )}
+            
+            {(() => {
+              if (!selectedDayLogs || !currentUserId) return null
+              const formattedDayStr = format(selectedDayLogs.day, 'yyyy-MM-dd')
+              const isPastDate = formattedDayStr < new Date().toLocaleDateString('en-CA')
+              
+              // Empleados no pueden crear en el pasado. Admins sí.
+              if (currentUserRole === 'employee' && isPastDate) return null
+              
+              return (
+                <div className="mt-4 pt-4 border-t flex justify-end">
+                  <Button onClick={() => router.push(`/dashboard/calendar/${formattedDayStr}`)}>
+                    Añadir registro
+                  </Button>
+                </div>
+              )
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

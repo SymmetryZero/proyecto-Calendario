@@ -6,6 +6,8 @@ import { Calendar, LayoutDashboard, LogOut, CheckSquare, Users, Menu } from 'luc
 import { Button } from '@/components/ui/button'
 import { logoutAction } from '@/app/actions/auth'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { UserNav } from '@/components/user-nav'
+import { NotificationBell } from '@/components/notification-bell'
 
 export default async function DashboardLayout({
   children,
@@ -84,24 +86,8 @@ export default async function DashboardLayout({
           </Link>
         </nav>
         <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4 justify-end">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <div className="hidden md:flex flex-col text-right">
-              <span className="leading-none">{profile.full_name}</span>
-              <span className="text-xs text-muted-foreground capitalize">{profile.role}</span>
-            </div>
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-              {profile.full_name.charAt(0).toUpperCase()}
-            </div>
-          </div>
-          <form action={async () => {
-            'use server'
-            await logoutAction()
-            redirect('/login')
-          }}>
-            <Button variant="ghost" size="icon" type="submit" title="Cerrar sesión">
-              <LogOut className="h-5 w-5" />
-            </Button>
-          </form>
+          <NotificationBell userId={session.userId} />
+          <UserNav profile={profile} />
         </div>
       </header>
       <div className="flex flex-1">

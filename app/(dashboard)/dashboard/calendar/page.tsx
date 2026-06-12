@@ -22,7 +22,7 @@ export default async function CalendarPage() {
 
   let query = supabase
     .from('calendario_work_logs')
-    .select('id, date, status, employee_id, calendario_profiles(full_name)')
+    .select('id, date, title, status, employee_id, calendario_profiles(full_name)')
     .gte('date', startYearDate)
     .lte('date', endYearDate)
 
@@ -34,7 +34,11 @@ export default async function CalendarPage() {
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col min-w-0">
       <h1 className="text-3xl font-bold tracking-tight mb-6">Mi Calendario</h1>
-      <CalendarView initialLogs={logs as any || []} />
+      <CalendarView 
+        initialLogs={logs as any || []} 
+        currentUserRole={session.role}
+        currentUserId={session.userId}
+      />
     </div>
   )
 }

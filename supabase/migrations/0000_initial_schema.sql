@@ -36,6 +36,7 @@ CREATE TABLE public.calendario_work_logs (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   employee_id uuid REFERENCES public.calendario_profiles(id) ON DELETE CASCADE NOT NULL,
   date date NOT NULL,
+  title text,
   start_time time,
   end_time time,
   status calendario_work_status DEFAULT 'Trabajando'::calendario_work_status,
@@ -44,8 +45,7 @@ CREATE TABLE public.calendario_work_logs (
   priority calendario_task_priority,
   comments text,
   created_at timestamptz DEFAULT now() NOT NULL,
-  updated_at timestamptz DEFAULT now() NOT NULL,
-  UNIQUE(employee_id, date)
+  updated_at timestamptz DEFAULT now() NOT NULL
 );
 
 -- 3. WORK UPDATES
