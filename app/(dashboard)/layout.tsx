@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Calendar, LayoutDashboard, LogOut, CheckSquare, Users, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { logoutAction } from '@/app/actions/auth'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { UserNav } from '@/components/user-nav'
 import { NotificationBell } from '@/components/notification-bell'
 
@@ -52,10 +52,11 @@ export default async function DashboardLayout({
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="flex flex-col">
+            <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
             <nav className="grid gap-2 text-lg font-medium mt-6">
               <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold mb-4">
                 <LayoutDashboard className="h-6 w-6 text-primary" />
-                <span>Workflow Pro</span>
+                <span>Calendario Tierra Firme</span>
               </Link>
               <Link href="/dashboard" className="hover:text-foreground text-muted-foreground py-2">
                 Inicio
@@ -78,7 +79,7 @@ export default async function DashboardLayout({
         </Sheet>
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
           <LayoutDashboard className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline-block">Workflow Pro</span>
+          <span className="hidden sm:inline-block">Calendario Tierra Firme</span>
         </Link>
         <nav className="hidden md:flex gap-6 ml-6 text-sm font-medium">
           <Link href="/dashboard" className="transition-colors hover:text-foreground/80 text-foreground">

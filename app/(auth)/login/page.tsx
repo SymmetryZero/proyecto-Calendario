@@ -51,7 +51,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold tracking-tight">
-            Workflow Pro
+            Calendario Tierra Firme
           </CardTitle>
           <CardDescription>
             {isSignUp ? "Crea una cuenta para acceder" : "Ingresa tu correo y contraseña para acceder al sistema."}

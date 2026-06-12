@@ -212,8 +212,7 @@ export default async function DailyLogPage({
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Chat / Comentarios</CardTitle>
-              <CardDescription>Comunícate con el administrador u otros supervisores.</CardDescription>
+              <CardTitle>Chat</CardTitle>
             </CardHeader>
             <CardContent>
               <Chat logId={log.id} currentUserId={session.userId} />

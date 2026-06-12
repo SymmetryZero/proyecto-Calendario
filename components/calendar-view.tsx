@@ -122,8 +122,8 @@ export function CalendarView({
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="min-w-[700px] h-full flex flex-col">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="min-w-full h-full flex flex-col">
           <div className="grid grid-cols-7 border-b bg-muted/50">
             {weekDays.map((day) => (
               <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">

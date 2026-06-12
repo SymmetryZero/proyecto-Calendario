@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Workflow Pro',
+  title: 'Calendario Tierra Firme',
   description: 'Sistema de Gestión de Actividades Laborales',
 }
 
